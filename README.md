@@ -1,3 +1,52 @@
+## Vibe Coders
+
+Turn your vibe into code.
+
+### Tech Stack
+
+- Next.js (App Router), React, TypeScript
+- Tailwind CSS 4
+- Framer Motion, Lucide Icons
+- Clerk (Auth)
+- Supabase (data)
+
+### Getting Started
+
+1. Copy `.env.example` to `.env.local` and fill values:
+   - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`
+   - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Run dev server:
+   ```bash
+   npm run dev
+   ```
+4. Open http://localhost:3000
+
+### Database
+
+Create a Supabase table `projects` with columns:
+
+- id: uuid, default uuid_generate_v4(), primary key
+- title: text
+- description: text
+- progress: int4
+- created_at: timestamptz default now()
+
+### Deploy to Vercel
+
+1. Push to GitHub
+2. Import to Vercel
+3. Set environment variables on Vercel for Clerk and Supabase
+
+### Scripts
+
+- `npm run dev` — start dev server (Turbopack)
+- `npm run build` — build
+- `npm start` — production start
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
