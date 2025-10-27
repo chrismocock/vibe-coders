@@ -9,8 +9,8 @@ export async function POST(req: Request) {
     const { idea } = await req.json();
     
     // Get AI configuration from database
-    const config = await getAIConfig('validate');
-    const fallbackConfig = defaultAIConfigs.validate;
+    const config = await getAIConfig('design');
+    const fallbackConfig = defaultAIConfigs.design;
     
     const model = config?.model || fallbackConfig?.model || "gpt-4o-mini";
     const systemPrompt = config?.system_prompt || fallbackConfig?.system_prompt || "";
@@ -22,12 +22,12 @@ export async function POST(req: Request) {
     const completion = await openai.chat.completions.create({
       model,
       messages: [
-        {
-          role: "system",
+        { 
+          role: "system", 
           content: systemPrompt
         },
-        {
-          role: "user",
+        { 
+          role: "user", 
           content: userPrompt
         },
       ],
@@ -36,6 +36,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ result: completion.choices[0]?.message?.content });
   } catch (error) {
     console.error('OpenAI API error:', error);
-    return NextResponse.json({ error: 'Failed to generate validation analysis' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to generate design strategy' }, { status: 500 });
   }
 }

@@ -8,7 +8,7 @@ export async function POST(req: Request) {
   try {
     const { idea } = await req.json();
     
-    // Parse idea to extract launch context variables
+    // Parse idea to extract build context variables
     let ideaData;
     try {
       ideaData = typeof idea === 'string' ? JSON.parse(idea) : idea;
@@ -16,30 +16,44 @@ export async function POST(req: Request) {
       ideaData = { idea };
     }
     
-    const launchStrategy = ideaData.launchStrategy || 'Pre-launch Hype';
-    const marketingBudget = ideaData.marketingBudget || '$0 (Organic only)';
-    const launchTimeline = ideaData.launchTimeline || '2-4 weeks';
+    const buildMode = ideaData.buildMode || 'Vibe Coder (Build it yourself with AI)';
+    const userBudget = ideaData.userBudget || 'Not specified';
+    const userTimeline = ideaData.userTimeline || 'Not specified';
     
     // Get AI configuration from database
-    const config = await getAIConfig('launch');
-    const fallbackConfig = defaultAIConfigs.launch;
+    const config = await getAIConfig('build');
+    const fallbackConfig = defaultAIConfigs.build;
     
     const model = config?.model || fallbackConfig?.model || "gpt-4o-mini";
-    const systemPrompt = config?.system_prompt || fallbackConfig?.system_prompt || "";
     const userPromptTemplate = config?.user_prompt_template || fallbackConfig?.user_prompt_template || "";
+    
+    // Select system prompt based on build mode
+    let systemPrompt = config?.system_prompt || fallbackConfig?.system_prompt || "";
+    
+    if (buildMode === 'Vibe Coder (Build it yourself with AI)') {
+      const systemPromptVibeCoder = config?.system_prompt_vibe_coder || fallbackConfig?.system_prompt_vibe_coder;
+      if (systemPromptVibeCoder?.trim()) {
+        systemPrompt = systemPromptVibeCoder;
+      }
+    } else if (buildMode === 'Send to Developers (Create PRD)') {
+      const systemPromptSendToDevs = config?.system_prompt_send_to_devs || fallbackConfig?.system_prompt_send_to_devs;
+      if (systemPromptSendToDevs?.trim()) {
+        systemPrompt = systemPromptSendToDevs;
+      }
+    }
     
     // Substitute variables in prompts
     const userPrompt = substitutePromptTemplate(userPromptTemplate, { 
       idea: ideaData.selectedIdea || ideaData.idea || idea,
-      launchStrategy,
-      marketingBudget,
-      launchTimeline
+      buildMode,
+      userBudget,
+      userTimeline
     });
     
     const systemPromptWithVars = substitutePromptTemplate(systemPrompt, { 
-      launchStrategy,
-      marketingBudget,
-      launchTimeline
+      buildMode,
+      userBudget,
+      userTimeline
     });
     
     const completion = await openai.chat.completions.create({
@@ -59,6 +73,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ result: completion.choices[0]?.message?.content });
   } catch (error) {
     console.error('OpenAI API error:', error);
-    return NextResponse.json({ error: 'Failed to generate launch strategy' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to generate build strategy' }, { status: 500 });
   }
 }

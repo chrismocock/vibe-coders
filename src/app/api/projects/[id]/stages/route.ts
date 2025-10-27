@@ -4,17 +4,18 @@ import { getSupabaseServer } from "@/lib/supabaseServer";
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    const { id } = await params;
     const supabase = getSupabaseServer();
     const { data, error } = await supabase
       .from("project_stages")
       .select("*")
-      .eq("project_id", params.id)
+      .eq("project_id", id)
       .eq("user_id", userId)
       .order("created_at", { ascending: true });
 
@@ -32,12 +33,13 @@ export async function GET(
 
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    const { id } = await params;
     const body = await request.json();
     const { stage, input, output, status = "pending" } = body;
 
@@ -51,7 +53,7 @@ export async function POST(
     const { data: existing } = await supabase
       .from("project_stages")
       .select("id")
-      .eq("project_id", params.id)
+      .eq("project_id", id)
       .eq("stage", stage)
       .eq("user_id", userId)
       .single();
@@ -77,7 +79,7 @@ export async function POST(
       const { data, error } = await supabase
         .from("project_stages")
         .insert({
-          project_id: params.id,
+          project_id: id,
           user_id: userId,
           stage,
           input,
