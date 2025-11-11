@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { 
   LayoutGrid,
   Lightbulb, 
@@ -13,7 +14,14 @@ import {
   CheckCircle2,
   Menu,
   X,
-  ChevronLeft
+  ChevronLeft,
+  LayoutDashboard,
+  AlertCircle,
+  TrendingUp,
+  UserCheck,
+  DollarSign,
+  ChevronDown,
+  ChevronRight
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -70,6 +78,17 @@ interface StageSidebarProps {
   showBackButton?: boolean;
 }
 
+const validationSubSections = [
+  { id: '', label: 'Overview', icon: LayoutDashboard },
+  { id: 'problem', label: 'Problem', icon: AlertCircle },
+  { id: 'market', label: 'Market', icon: TrendingUp },
+  { id: 'competition', label: 'Competition', icon: Users },
+  { id: 'audience', label: 'Audience', icon: UserCheck },
+  { id: 'feasibility', label: 'Feasibility', icon: Wrench },
+  { id: 'pricing', label: 'Pricing', icon: DollarSign },
+  { id: 'go-to-market', label: 'Go-To-Market', icon: Rocket },
+];
+
 export default function StageSidebar({
   activeStage,
   stageData = {},
@@ -78,6 +97,28 @@ export default function StageSidebar({
   showBackButton = false,
 }: StageSidebarProps) {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const pathname = usePathname();
+  
+  // Determine active validation sub-section
+  const getActiveValidationSubSection = () => {
+    if (activeStage !== 'validate' || !pathname || !projectId) return '';
+    const validatePath = `/project/${projectId}/validate`;
+    
+    // Check if we're exactly on /validate (overview)
+    if (pathname === validatePath || pathname === `${validatePath}/`) {
+      return '';
+    }
+    
+    // Check if we're on a sub-section
+    const validateIndex = pathname.indexOf(`${validatePath}/`);
+    if (validateIndex === -1) return '';
+    
+    const afterValidate = pathname.substring(validateIndex + `${validatePath}/`.length);
+    return afterValidate.split('/')[0] || '';
+  };
+
+  const activeValidationSubSection = getActiveValidationSubSection();
+  const isValidateExpanded = activeStage === 'validate';
 
   const getStatusIndicator = (stageId: string) => {
     // Dashboard doesn't have a status indicator
@@ -156,34 +197,67 @@ export default function StageSidebar({
                 const Icon = stage.icon;
                 const isActive = activeStage === stageId;
                 const status = stageData[stageId]?.status;
+                const isValidate = stageId === 'validate';
 
                 return (
                   <li key={stageId}>
-                    <button
-                      onClick={() => {
-                        onStageChange(stageId);
-                        setIsMobileOpen(false);
-                      }}
-                      className={cn(
-                        "w-full flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium transition-all",
-                        "hover:bg-neutral-100",
-                        isActive
-                          ? "bg-purple-50 text-purple-600 border border-purple-200"
-                          : "text-neutral-700"
+                    <div>
+                      <button
+                        onClick={() => {
+                          onStageChange(stageId);
+                          setIsMobileOpen(false);
+                        }}
+                        className={cn(
+                          "w-full flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium transition-all",
+                          "hover:bg-neutral-100",
+                          isActive
+                            ? "bg-purple-50 text-purple-600 border border-purple-200"
+                            : "text-neutral-700"
+                        )}
+                      >
+                        <div className={cn(
+                          "flex items-center justify-center h-8 w-8 rounded-md",
+                          isActive ? "bg-purple-100" : "bg-neutral-100"
+                        )}>
+                          <Icon className={cn(
+                            "h-5 w-5",
+                            isActive ? "text-purple-600" : "text-neutral-600"
+                          )} />
+                        </div>
+                        <span className="flex-1 text-left">{stage.name}</span>
+                        {getStatusIndicator(stageId)}
+                      </button>
+                      
+                      {/* Validation sub-sections */}
+                      {isValidate && isValidateExpanded && projectId && (
+                        <ul className="ml-4 mt-1 space-y-1 border-l border-neutral-200 pl-2">
+                          {validationSubSections.map((subSection) => {
+                            const SubIcon = subSection.icon;
+                            const isSubActive = activeValidationSubSection === subSection.id;
+                            const href = `/project/${projectId}/validate${subSection.id ? `/${subSection.id}` : ''}`;
+
+                            return (
+                              <li key={subSection.id}>
+                                <Link
+                                  href={href}
+                                  onClick={() => setIsMobileOpen(false)}
+                                  className={cn(
+                                    "flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all",
+                                    "hover:bg-neutral-50",
+                                    isSubActive
+                                      ? "bg-purple-50 text-purple-700 font-medium"
+                                      : "text-neutral-600"
+                                  )}
+                                >
+                                  <SubIcon className="h-4 w-4" />
+                                  <span>{subSection.label}</span>
+                                </Link>
+                              </li>
+                            );
+                          })}
+                        </ul>
                       )}
-                    >
-                      <div className={cn(
-                        "flex items-center justify-center h-8 w-8 rounded-md",
-                        isActive ? "bg-purple-100" : "bg-neutral-100"
-                      )}>
-                        <Icon className={cn(
-                          "h-5 w-5",
-                          isActive ? "text-purple-600" : "text-neutral-600"
-                        )} />
-                      </div>
-                      <span className="flex-1 text-left">{stage.name}</span>
-                      {getStatusIndicator(stageId)}
-                    </button>
+                    </div>
                   </li>
                 );
               })}

@@ -4,23 +4,23 @@ import { useParams } from 'next/navigation';
 import { SectionDisplay } from '@/components/validation/SectionDisplay';
 import { useSectionData } from '@/components/validation/useSectionData';
 
-export default function MarketPage() {
+export default function FeasibilityPage() {
   const params = useParams();
   const projectId = params.id as string;
-  const { data, isLoading, rerunSection } = useSectionData(projectId, 'market');
+  const { data, isLoading, rerunSection } = useSectionData(projectId, 'feasibility');
 
   return (
     <div className="space-y-6">
       <div className="space-y-2">
-        <h1 className="text-2xl font-bold text-neutral-900">Market Validation</h1>
+        <h1 className="text-2xl font-bold text-neutral-900">Feasibility Analysis</h1>
         <p className="text-neutral-600">
-          Assess market demand, size, growth potential, and market trends.
+          Assess technical feasibility, resource requirements, timeline, and implementation complexity.
         </p>
       </div>
 
       <SectionDisplay
-        section="market"
-        sectionLabel="Market"
+        section="feasibility"
+        sectionLabel="Feasibility"
         data={data}
         isLoading={isLoading}
         onRerun={rerunSection}

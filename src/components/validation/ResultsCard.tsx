@@ -20,6 +20,7 @@ interface ValidationReport {
   overall_confidence: number;
   recommendation: 'build' | 'revise' | 'drop';
   rationales?: Record<string, string>;
+  agent_details?: Record<string, { signals?: string[] }>;
   created_at: string;
 }
 
@@ -144,25 +145,17 @@ export function ResultsCard({ report }: ResultsCardProps) {
               {report.rationales?.[key] && (
                 <p className="text-xs text-neutral-600 mt-1 pl-1">{report.rationales[key]}</p>
               )}
+              {report.agent_details?.[key]?.signals && report.agent_details[key].signals!.length > 0 && (
+                <ul className="text-xs text-neutral-500 mt-2 pl-4 list-disc space-y-0.5">
+                  {report.agent_details[key].signals!.map((signal, idx) => (
+                    <li key={idx}>{signal}</li>
+                  ))}
+                </ul>
+              )}
             </div>
           ))}
         </CardContent>
       </Card>
-
-      {/* Idea Summary */}
-      {report.idea_summary && (
-        <Card className="border border-neutral-200 bg-white">
-          <CardHeader>
-            <CardTitle className="text-lg font-semibold text-neutral-900">Idea Summary</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <h4 className="text-sm font-medium text-neutral-700">{report.idea_title}</h4>
-              <p className="text-sm text-neutral-600 whitespace-pre-wrap">{report.idea_summary}</p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }

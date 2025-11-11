@@ -14,7 +14,9 @@ Turn your vibe into code.
 
 1. Copy `.env.example` to `.env.local` and fill values:
    - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`
-   - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
+   - `OPENAI_API_KEY` (required for AI validation)
+   - `OPENAI_GPT5_MODEL` (optional, defaults to `gpt-4o` if not set)
 2. Install dependencies:
    ```bash
    npm install

@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import StageSidebar from "@/components/StageSidebar";
 import ProjectTitleEditor from "@/components/ProjectTitleEditor";
 import ProjectDashboard from "@/components/ProjectDashboard";
+import { ResultsCard } from "@/components/validation/ResultsCard";
 import { 
   Lightbulb, 
   Users, 
@@ -49,6 +50,73 @@ interface StageFormSchema {
     required: boolean;
     options?: string[];
   }>;
+}
+
+// Component to display validation results in StageWorkspace
+function ValidateResultsDisplay({ output }: { output: string }) {
+  const [validationReport, setValidationReport] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadValidationReport() {
+      try {
+        if (!output) {
+          setLoading(false);
+          return;
+        }
+
+        const outputData = typeof output === 'string' ? JSON.parse(output) : output;
+        const reportId = outputData.reportId;
+
+        if (reportId) {
+          const response = await fetch(`/api/validate/${reportId}`);
+          if (response.ok) {
+            const data = await response.json();
+            if (data.report && data.report.status === 'succeeded') {
+              setValidationReport(data.report);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error loading validation report:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadValidationReport();
+  }, [output]);
+
+  if (loading) {
+    return (
+      <div className="rounded-lg border border-neutral-200 bg-white p-4">
+        <div className="text-sm text-neutral-500">Loading validation results...</div>
+      </div>
+    );
+  }
+
+  if (!validationReport) {
+    return (
+      <div className="rounded-lg border border-neutral-200 bg-white p-4">
+        <div className="text-sm text-neutral-500">No validation results found.</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <ResultsCard report={validationReport} />
+      <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Wand2 className="h-4 w-4 text-blue-600" />
+          <h3 className="text-sm font-semibold text-blue-900">Validation Complete</h3>
+        </div>
+        <p className="text-xs text-blue-700">
+          Review the analysis above and use the insights to refine your idea. Consider the recommendations for your next steps.
+        </p>
+      </div>
+    </div>
+  );
 }
 
 const stageConfigs = {
@@ -2177,25 +2245,8 @@ export default function StageWorkspace({ projectId, hideSidebar = false }: Stage
                           })()}
                         </div>
                       ) : stageId === 'validate' ? (
-                        // Special handling for Validate stage - format structured validation analysis
-                        <div className="space-y-4">
-                          <div className="rounded-lg border border-neutral-200 bg-white p-4">
-                            <div className="prose prose-sm max-w-none">
-                              <div className="whitespace-pre-wrap text-sm text-neutral-800">
-                                {currentData.output}
-                              </div>
-                            </div>
-                          </div>
-                          <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
-                            <div className="flex items-center gap-2 mb-2">
-                              <Wand2 className="h-4 w-4 text-blue-600" />
-                              <h3 className="text-sm font-semibold text-blue-900">Validation Complete</h3>
-                            </div>
-                            <p className="text-xs text-blue-700">
-                              Review the analysis above and use the insights to refine your idea. Consider the recommendations for your next steps.
-                            </p>
-                          </div>
-                        </div>
+                        // Special handling for Validate stage - display validation results
+                        <ValidateResultsDisplay output={currentData.output} />
                       ) : (
                         // Regular output display for other stages
                         <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4">

@@ -45,6 +45,7 @@ export function ProjectLayoutClient({
     } else if (stageId === "ideate") {
       router.push(`/project/${projectId}/ideate`);
     } else if (stageId === "validate") {
+      // Navigate to overview when clicking validate
       router.push(`/project/${projectId}/validate`);
     } else if (stageId === "design") {
       router.push(`/project/${projectId}/design`);

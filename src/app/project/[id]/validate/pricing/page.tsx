@@ -4,23 +4,23 @@ import { useParams } from 'next/navigation';
 import { SectionDisplay } from '@/components/validation/SectionDisplay';
 import { useSectionData } from '@/components/validation/useSectionData';
 
-export default function MarketPage() {
+export default function PricingPage() {
   const params = useParams();
   const projectId = params.id as string;
-  const { data, isLoading, rerunSection } = useSectionData(projectId, 'market');
+  const { data, isLoading, rerunSection } = useSectionData(projectId, 'pricing');
 
   return (
     <div className="space-y-6">
       <div className="space-y-2">
-        <h1 className="text-2xl font-bold text-neutral-900">Market Validation</h1>
+        <h1 className="text-2xl font-bold text-neutral-900">Pricing Potential</h1>
         <p className="text-neutral-600">
-          Assess market demand, size, growth potential, and market trends.
+          Evaluate pricing potential, willingness to pay, pricing models, and revenue potential.
         </p>
       </div>
 
       <SectionDisplay
-        section="market"
-        sectionLabel="Market"
+        section="pricing"
+        sectionLabel="Pricing"
         data={data}
         isLoading={isLoading}
         onRerun={rerunSection}

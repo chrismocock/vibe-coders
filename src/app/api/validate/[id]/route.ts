@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { getSupabaseServer } from '@/lib/supabaseServer';
+import { getValidationReportById } from '@/server/validation/store';
 
 export async function GET(
   req: NextRequest,
@@ -13,24 +14,19 @@ export async function GET(
     }
 
     const { id } = await params;
-    const supabase = getSupabaseServer();
     
-    // Get report
-    const { data: report, error } = await supabase
-      .from('validation_reports')
-      .select('*')
-      .eq('id', id)
-      .single();
-
-    if (error || !report) {
-      console.error('Error fetching validation report:', error);
+    // Get report using store helper
+    const report = await getValidationReportById(id);
+    
+    if (!report) {
       return NextResponse.json(
-        { error: error?.message || 'Report not found' },
-        { status: 500 }
+        { error: 'Report not found' },
+        { status: 404 }
       );
     }
 
     // Verify ownership through project
+    const supabase = getSupabaseServer();
     const { data: project } = await supabase
       .from('projects')
       .select('id')
