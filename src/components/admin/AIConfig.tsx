@@ -17,6 +17,7 @@ import {
   Settings,
   Bot
 } from "lucide-react";
+import { defaultAIConfigs } from "@/lib/aiConfig";
 
 interface AIConfig {
   id: string;
@@ -26,9 +27,13 @@ interface AIConfig {
   user_prompt_template: string;
   user_prompt_template_idea?: string;
   user_prompt_template_problem?: string;
+  user_prompt_template_review?: string;
+  user_prompt_template_initial_feedback?: string;
   system_prompt_idea?: string;
   system_prompt_problem?: string;
   system_prompt_surprise?: string;
+  system_prompt_review?: string;
+  system_prompt_initial_feedback?: string;
   system_prompt_vibe_coder?: string;
   system_prompt_send_to_devs?: string;
   created_at: string;
@@ -80,7 +85,23 @@ export default function AIConfig({ onRefresh }: AIConfigProps) {
       
       const configMap: Record<string, AIConfig> = {};
       data.configs.forEach((config: AIConfig) => {
-        configMap[config.stage] = config;
+        // Merge with defaults so empty fields show default values
+        const defaults = defaultAIConfigs[config.stage] || {};
+        configMap[config.stage] = {
+          ...config,
+          // For optional fields, use database value if it exists, otherwise use default
+          user_prompt_template_idea: config.user_prompt_template_idea ?? defaults.user_prompt_template_idea ?? '',
+          user_prompt_template_problem: config.user_prompt_template_problem ?? defaults.user_prompt_template_problem ?? '',
+          user_prompt_template_review: config.user_prompt_template_review ?? defaults.user_prompt_template_review ?? '',
+          user_prompt_template_initial_feedback: config.user_prompt_template_initial_feedback ?? defaults.user_prompt_template_initial_feedback ?? '',
+          system_prompt_idea: config.system_prompt_idea ?? defaults.system_prompt_idea ?? '',
+          system_prompt_problem: config.system_prompt_problem ?? defaults.system_prompt_problem ?? '',
+          system_prompt_surprise: config.system_prompt_surprise ?? defaults.system_prompt_surprise ?? '',
+          system_prompt_review: config.system_prompt_review ?? defaults.system_prompt_review ?? '',
+          system_prompt_initial_feedback: config.system_prompt_initial_feedback ?? defaults.system_prompt_initial_feedback ?? '',
+          system_prompt_vibe_coder: config.system_prompt_vibe_coder ?? defaults.system_prompt_vibe_coder ?? '',
+          system_prompt_send_to_devs: config.system_prompt_send_to_devs ?? defaults.system_prompt_send_to_devs ?? '',
+        };
       });
       setConfigs(configMap);
     } catch (err: any) {
@@ -120,9 +141,13 @@ export default function AIConfig({ onRefresh }: AIConfigProps) {
           user_prompt_template: config.user_prompt_template,
           user_prompt_template_idea: config.user_prompt_template_idea,
           user_prompt_template_problem: config.user_prompt_template_problem,
+          user_prompt_template_review: config.user_prompt_template_review,
+          user_prompt_template_initial_feedback: config.user_prompt_template_initial_feedback,
           system_prompt_idea: config.system_prompt_idea,
           system_prompt_problem: config.system_prompt_problem,
           system_prompt_surprise: config.system_prompt_surprise,
+          system_prompt_review: config.system_prompt_review,
+          system_prompt_initial_feedback: config.system_prompt_initial_feedback,
           system_prompt_vibe_coder: config.system_prompt_vibe_coder,
           system_prompt_send_to_devs: config.system_prompt_send_to_devs
         })
@@ -334,6 +359,20 @@ export default function AIConfig({ onRefresh }: AIConfigProps) {
                           Used when mode is <em>Surprise Me</em>. Generates creative ideas without user input. Falls back to generic system prompt if empty.
                         </p>
                       </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-neutral-700">
+                          System Prompt — Review (Ideate)
+                        </label>
+                        <Textarea
+                          value={config.system_prompt_review || ''}
+                          onChange={(e) => updateConfig(stage.id, 'system_prompt_review', e.target.value)}
+                          placeholder="System prompt used when users finish the ideate wizard and request an AI review of their selected idea."
+                          className="min-h-[200px] border border-neutral-300 bg-white text-neutral-900 placeholder:text-neutral-400"
+                        />
+                        <p className="text-xs text-neutral-500">
+                          Used when users complete the ideate wizard and click "Finish" to get an AI review of their selected idea. This prompt defines the structure and format of the review output.
+                        </p>
+                      </div>
                     </>
                   )}
 
@@ -415,6 +454,48 @@ export default function AIConfig({ onRefresh }: AIConfigProps) {
                         />
                         <p className="text-xs text-neutral-500">
                           Used only for Ideate when mode is <em>Idea to Explore</em>.
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-neutral-700">
+                          User Prompt Template — Review (Ideate)
+                        </label>
+                        <Textarea
+                          value={config.user_prompt_template_review || ''}
+                          onChange={(e) => updateConfig(stage.id, 'user_prompt_template_review', e.target.value)}
+                          placeholder="Template for the review. Variables: ${mode}, ${ideaContext}, ${additionalContext}"
+                          className="min-h-[100px] border border-neutral-300 bg-white text-neutral-900 placeholder:text-neutral-400"
+                        />
+                        <p className="text-xs text-neutral-500">
+                          Used when users complete the ideate wizard and click "Finish" to get an AI review. Falls back to hardcoded prompt if empty. Available variables: <code className="bg-neutral-100 px-1 rounded">${'{mode}'}</code>, <code className="bg-neutral-100 px-1 rounded">${'{ideaContext}'}</code>, <code className="bg-neutral-100 px-1 rounded">${'{additionalContext}'}</code>
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-neutral-700">
+                          System Prompt — Initial Feedback (Ideate)
+                        </label>
+                        <Textarea
+                          value={config.system_prompt_initial_feedback || ''}
+                          onChange={(e) => updateConfig(stage.id, 'system_prompt_initial_feedback', e.target.value)}
+                          placeholder="System prompt used when generating initial feedback after AI review completes."
+                          className="min-h-[200px] border border-neutral-300 bg-white text-neutral-900 placeholder:text-neutral-400"
+                        />
+                        <p className="text-xs text-neutral-500">
+                          Used after the AI review completes to generate initial feedback with scores and recommendations. This prompt must instruct the AI to return valid JSON with recommendation, overallConfidence, and scores for 5 dimensions. Falls back to default prompt if empty.
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-neutral-700">
+                          User Prompt Template — Initial Feedback (Ideate)
+                        </label>
+                        <Textarea
+                          value={config.user_prompt_template_initial_feedback || ''}
+                          onChange={(e) => updateConfig(stage.id, 'user_prompt_template_initial_feedback', e.target.value)}
+                          placeholder="Template for the initial feedback. Variables: ${mode}, ${ideaContext}, ${additionalContext}, ${aiReview}"
+                          className="min-h-[100px] border border-neutral-300 bg-white text-neutral-900 placeholder:text-neutral-400"
+                        />
+                        <p className="text-xs text-neutral-500">
+                          Used when generating initial feedback after AI review completes. Falls back to hardcoded prompt if empty. Available variables: <code className="bg-neutral-100 px-1 rounded">${'{mode}'}</code>, <code className="bg-neutral-100 px-1 rounded">${'{ideaContext}'}</code>, <code className="bg-neutral-100 px-1 rounded">${'{additionalContext}'}</code>, <code className="bg-neutral-100 px-1 rounded">${'{aiReview}'}</code>
                         </p>
                       </div>
                     </>

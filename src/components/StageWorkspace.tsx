@@ -1,12 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import StageSidebar from "@/components/StageSidebar";
+import ProjectTitleEditor from "@/components/ProjectTitleEditor";
+import ProjectDashboard from "@/components/ProjectDashboard";
 import { 
   Lightbulb, 
   Users, 
@@ -34,6 +37,7 @@ interface StageData {
 
 interface StageWorkspaceProps {
   projectId: string;
+  hideSidebar?: boolean;
 }
 
 interface StageFormSchema {
@@ -144,7 +148,29 @@ const stageConfigs = {
           required: true
         }
       ]
-    }
+    },
+    fieldGroups: [
+      {
+        id: 'market-problem',
+        label: 'Market & Problem',
+        fieldNames: ['targetMarket', 'problemStatement', 'marketSize']
+      },
+      {
+        id: 'solution-competition',
+        label: 'Solution & Competition',
+        fieldNames: ['solutionDescription', 'competitors']
+      },
+      {
+        id: 'business-model',
+        label: 'Business Model',
+        fieldNames: ['businessModel']
+      },
+      {
+        id: 'validation-strategy',
+        label: 'Validation Strategy',
+        fieldNames: ['validationStrategy']
+      }
+    ]
   },
   design: {
     name: 'Design',
@@ -251,7 +277,24 @@ const stageConfigs = {
           required: false
         }
       ]
-    }
+    },
+    fieldGroups: [
+      {
+        id: 'planning',
+        label: 'Planning',
+        fieldNames: ['buildMode', 'userBudget', 'userTimeline']
+      },
+      {
+        id: 'technical',
+        label: 'Technical',
+        fieldNames: ['techStack', 'requirements']
+      },
+      {
+        id: 'execution',
+        label: 'Execution',
+        fieldNames: ['timeline', 'teamSize', 'budget']
+      }
+    ]
   },
   launch: {
     name: 'Launch',
@@ -319,7 +362,29 @@ const stageConfigs = {
           required: false
         }
       ]
-    }
+    },
+    fieldGroups: [
+      {
+        id: 'planning',
+        label: 'Planning',
+        fieldNames: ['marketingBudget', 'launchTimeline']
+      },
+      {
+        id: 'strategy',
+        label: 'Strategy',
+        fieldNames: ['launchStrategy', 'primaryChannel']
+      },
+      {
+        id: 'tactics',
+        label: 'Tactics',
+        fieldNames: ['launchTactics', 'contentPlan']
+      },
+      {
+        id: 'growth',
+        label: 'Growth',
+        fieldNames: ['communityStrategy', 'metricsTracking']
+      }
+    ]
   },
   monetise: {
     name: 'Monetise',
@@ -387,11 +452,28 @@ const stageConfigs = {
           required: true
         }
       ]
-    }
+    },
+    fieldGroups: [
+      {
+        id: 'goals',
+        label: 'Goals',
+        fieldNames: ['revenueGoal', 'timeHorizon']
+      },
+      {
+        id: 'model',
+        label: 'Model',
+        fieldNames: ['businessModelPlan', 'pricingTiers', 'targetCustomer']
+      },
+      {
+        id: 'economics',
+        label: 'Economics',
+        fieldNames: ['unitEconomics', 'growthLoops', 'revenueRoadmap']
+      }
+    ]
   }
 };
 
-export default function StageWorkspace({ projectId }: StageWorkspaceProps) {
+export default function StageWorkspace({ projectId, hideSidebar = false }: StageWorkspaceProps) {
   const [stageData, setStageData] = useState<Record<string, StageData>>({});
   const [formData, setFormData] = useState<Record<string, Record<string, string>>>({});
   const [loading, setLoading] = useState<Record<string, boolean>>({});
@@ -399,15 +481,33 @@ export default function StageWorkspace({ projectId }: StageWorkspaceProps) {
   const [fieldLoading, setFieldLoading] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string>("");
   const [selectedIdeas, setSelectedIdeas] = useState<Record<string, string>>({});
+  const [lastSavedAt, setLastSavedAt] = useState<Record<string, number>>({});
+  const [activeStage, setActiveStage] = useState<string>("dashboard");
+  const [projectTitle, setProjectTitle] = useState<string>("Untitled Project");
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [editingIdea, setEditingIdea] = useState<Record<string, string>>({});
+  const [activeTabs, setActiveTabs] = useState<Record<string, string>>({});
+  const autoSaveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const AUTO_SAVE_DELAY = 1000;
 
-  // Load stage data from Supabase
-  useEffect(() => {
-    loadStageData();
+  const loadProjectTitle = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/projects/${projectId}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.project?.title) {
+          setProjectTitle(data.project.title);
+        }
+        if (data.project?.logo_url !== undefined) {
+          setLogoUrl(data.project.logo_url);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load project title:', error);
+    }
   }, [projectId]);
 
-  // Removed auto-generation - users will manually generate fields
-
-  async function loadStageData() {
+  const loadStageData = useCallback(async () => {
     try {
       const response = await fetch(`/api/projects/${projectId}/stages`);
       if (response.ok) {
@@ -428,29 +528,75 @@ export default function StageWorkspace({ projectId }: StageWorkspaceProps) {
         
         setStageData(stageMap);
         setFormData(formMap);
+        const timestamp = Date.now();
+        const savedMap: Record<string, number> = {};
+        Object.keys(stageMap).forEach((key) => {
+          savedMap[key] = timestamp;
+        });
+        setLastSavedAt(savedMap);
       }
     } catch (err) {
       console.error('Failed to load stage data:', err);
     }
+  }, [projectId]);
+
+  // Load stage data from Supabase
+  useEffect(() => {
+    loadProjectTitle();
+    loadStageData();
+  }, [loadProjectTitle, loadStageData]);
+
+  useEffect(() => {
+    const timers = autoSaveTimers.current;
+    return () => {
+      Object.values(timers).forEach((timer) => clearTimeout(timer));
+    };
+  }, []);
+
+  // Removed auto-generation - users will manually generate fields
+  function hasFormContent(data: Record<string, string>): boolean {
+    return Object.values(data).some((value) => typeof value === 'string' && value.trim().length > 0);
   }
 
-  async function saveStageInput(stageId: string) {
-    const currentFormData = formData[stageId] || {};
-    const mode = currentFormData.mode;
-    const hasData = Object.values(currentFormData).some(value => value.trim());
-    
-    // For Surprise Me mode, we don't need input field
-    if (mode !== 'Surprise Me' && !hasData) {
-      setError("Please fill in at least one field");
+  function queueAutoSave(stageId: string, data: Record<string, string>) {
+    if (autoSaveTimers.current[stageId]) {
+      clearTimeout(autoSaveTimers.current[stageId]);
+    }
+
+    if (!hasFormContent(data)) {
+      delete autoSaveTimers.current[stageId];
       return;
     }
-    
-    // For Surprise Me mode, ensure mode is selected
-    if (mode === 'Surprise Me' && !mode) {
-      setError("Please select a mode");
-      return;
+
+    autoSaveTimers.current[stageId] = setTimeout(() => {
+      delete autoSaveTimers.current[stageId];
+      saveStageInput(stageId, { data, silent: true });
+    }, AUTO_SAVE_DELAY);
+  }
+
+  async function saveStageInput(stageId: string, options?: { data?: Record<string, string>; status?: 'pending' | 'in_progress' | 'completed'; silent?: boolean }): Promise<boolean> {
+    const dataToSave = options?.data ?? formData[stageId] ?? {};
+    const hasData = hasFormContent(dataToSave);
+
+    if (!hasData) {
+      if (!options?.silent) {
+        setError("Please fill in at least one field");
+      }
+      return false;
     }
-    
+
+    if (stageId === 'ideate') {
+      const mode = dataToSave.mode;
+      if (!mode) {
+        if (!options?.silent) {
+          setError("Please select a mode");
+        }
+        return false;
+      }
+    }
+
+    const statusToSave = options?.status ?? 'in_progress';
+
     setSaving(prev => ({ ...prev, [stageId]: true }));
     try {
       const response = await fetch(`/api/projects/${projectId}/stages`, {
@@ -458,8 +604,8 @@ export default function StageWorkspace({ projectId }: StageWorkspaceProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           stage: stageId, 
-          input: JSON.stringify(currentFormData),
-          status: 'in_progress'
+          input: JSON.stringify(dataToSave),
+          status: statusToSave
         })
       });
       
@@ -467,14 +613,29 @@ export default function StageWorkspace({ projectId }: StageWorkspaceProps) {
         const data = await response.json();
         setStageData(prev => ({ ...prev, [stageId]: data.stage }));
         setError("");
+        setLastSavedAt(prev => ({ ...prev, [stageId]: Date.now() }));
+        if (autoSaveTimers.current[stageId]) {
+          clearTimeout(autoSaveTimers.current[stageId]);
+          delete autoSaveTimers.current[stageId];
+        }
+        return true;
       } else {
-        throw new Error('Failed to save stage input');
+        if (!options?.silent) {
+          throw new Error('Failed to save stage input');
+        } else {
+          console.error('Failed to save stage input');
+        }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save');
+      console.error('Stage save error:', err);
+      if (!options?.silent) {
+        setError(err instanceof Error ? err.message : 'Failed to save');
+      }
     } finally {
       setSaving(prev => ({ ...prev, [stageId]: false }));
     }
+
+    return false;
   }
 
   async function generateAIOutput(stageId: string) {
@@ -482,10 +643,10 @@ export default function StageWorkspace({ projectId }: StageWorkspaceProps) {
     if (!stage?.apiEndpoint) return;
 
     const currentFormData = formData[stageId] || {};
-    const hasData = Object.values(currentFormData).some(value => value.trim());
+    const hasData = hasFormContent(currentFormData);
     
     if (!hasData) {
-      setError("Please fill in the form and save before generating AI output");
+      setError("Please fill in the form before generating AI output");
       return;
     }
 
@@ -553,13 +714,25 @@ export default function StageWorkspace({ projectId }: StageWorkspaceProps) {
   }
 
   function updateFormData(stageId: string, fieldName: string, value: string) {
-    setFormData(prev => ({
-      ...prev,
-      [stageId]: {
-        ...prev[stageId],
+    setFormData(prev => {
+      const updatedStageData = {
+        ...(prev[stageId] || {}),
         [fieldName]: value
+      };
+      queueAutoSave(stageId, updatedStageData);
+      return {
+        ...prev,
+        [stageId]: updatedStageData
+      };
+    });
+    setLastSavedAt(prev => {
+      if (!(stageId in prev)) {
+        return prev;
       }
-    }));
+      const next = { ...prev };
+      delete next[stageId];
+      return next;
+    });
   }
 
   function parseIdeasFromOutput(output: string): Array<{id: string, title: string, description: string}> {
@@ -634,7 +807,9 @@ export default function StageWorkspace({ projectId }: StageWorkspaceProps) {
       });
     }
     
-    return ideas.slice(0, 5); // Limit to 5 ideas max
+    // Return all parsed ideas (no hardcoded limit - respect what AI generates)
+    // Cap at 10 to prevent UI issues with too many ideas
+    return ideas.slice(0, 10);
   }
 
   function selectIdea(stageId: string, ideaId: string) {
@@ -676,68 +851,30 @@ export default function StageWorkspace({ projectId }: StageWorkspaceProps) {
   }
 
   async function saveStageInputWithSelectedIdea(stageId: string, formDataToSave: Record<string, string>, status: 'pending' | 'in_progress' | 'completed' = 'in_progress') {
-    setSaving(prev => ({ ...prev, [stageId]: true }));
-    try {
-      const response = await fetch(`/api/projects/${projectId}/stages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          stage: stageId, 
-          input: JSON.stringify(formDataToSave),
-          status: status
-        })
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setStageData(prev => ({ ...prev, [stageId]: data.stage }));
-        setError("");
-        // Reload stage data to ensure UI updates
-        await loadStageData();
-      } else {
-        throw new Error('Failed to save stage input');
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save');
-    } finally {
-      setSaving(prev => ({ ...prev, [stageId]: false }));
+    const saved = await saveStageInput(stageId, { data: formDataToSave, status });
+    if (saved) {
+      await loadStageData();
     }
   }
 
+  async function saveEditedIdea(stageId: string, editedText: string) {
+    const currentFormData = formData[stageId] || {};
+    const updatedFormData = {
+      ...currentFormData,
+      selectedIdea: editedText
+    };
+    
+    await saveStageInput(stageId, { data: updatedFormData, status: 'completed' });
+    setEditingIdea(prev => {
+      const next = { ...prev };
+      delete next[stageId];
+      return next;
+    });
+    await loadStageData();
+  }
+
   async function saveStageInputWithStatus(stageId: string, status: 'pending' | 'in_progress' | 'completed' = 'in_progress', dataToSave?: Record<string, string>) {
-    // Use provided data or fall back to current formData
-    const currentFormData = dataToSave || formData[stageId] || {};
-    const hasData = Object.values(currentFormData).some(value => value.trim());
-    
-    if (!hasData) {
-      setError("Please fill in at least one field");
-      return;
-    }
-    
-    setSaving(prev => ({ ...prev, [stageId]: true }));
-    try {
-      const response = await fetch(`/api/projects/${projectId}/stages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          stage: stageId, 
-          input: JSON.stringify(currentFormData),
-          status: status
-        })
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setStageData(prev => ({ ...prev, [stageId]: data.stage }));
-        setError("");
-      } else {
-        throw new Error('Failed to save stage input');
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save');
-    } finally {
-      setSaving(prev => ({ ...prev, [stageId]: false }));
-    }
+    await saveStageInput(stageId, { data: dataToSave, status });
   }
 
   async function generateFieldContent(stageId: string, fieldName: string) {
@@ -1136,6 +1273,36 @@ export default function StageWorkspace({ projectId }: StageWorkspaceProps) {
     }
   }
 
+  // Helper function to get active tab for a stage (defaults to first tab)
+  function getActiveTab(stageId: string, fieldGroups?: Array<{ id: string; label: string; fieldNames: string[] }>): string {
+    if (!fieldGroups || fieldGroups.length === 0) return '';
+    const stored = activeTabs[stageId];
+    if (stored && fieldGroups.some(g => g.id === stored)) {
+      return stored;
+    }
+    return fieldGroups[0].id;
+  }
+
+  // Helper function to check if a tab has completed fields
+  function getTabCompletionStatus(stageId: string, fieldNames: string[]): { completed: number; total: number } {
+    const stageFormData = formData[stageId] || {};
+    let completed = 0;
+    let total = 0;
+    
+    fieldNames.forEach(fieldName => {
+      const field = stageConfigs[stageId as keyof typeof stageConfigs]?.formSchema.fields.find(f => f.name === fieldName);
+      if (field) {
+        total++;
+        const value = stageFormData[fieldName];
+        if (value && typeof value === 'string' && value.trim().length > 0) {
+          completed++;
+        }
+      }
+    });
+    
+    return { completed, total };
+  }
+
   function renderFormField(stageId: string, field: any) {
     const value = formData[stageId]?.[field.name] || '';
     const fieldKey = `${stageId}-${field.name}`;
@@ -1236,65 +1403,52 @@ export default function StageWorkspace({ projectId }: StageWorkspaceProps) {
     );
   }
 
-  const completedStages = Object.values(stageData).filter(s => s.status === 'completed').length;
-  const overallProgress = (completedStages / Object.keys(stageConfigs).length) * 100;
-
   return (
-    <div className="space-y-6">
-      {/* Progress Overview */}
-      <Card className="border border-neutral-200 bg-white shadow-sm">
-        <CardHeader className="pb-4">
-          <CardTitle className="text-lg font-semibold text-neutral-900">
-            FounderFlow Progress
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-neutral-600">
-                Overall Progress
-              </span>
-              <span className="text-sm font-semibold text-neutral-900">
-                {completedStages}/{Object.keys(stageConfigs).length} stages completed
-              </span>
-            </div>
-            <Progress 
-              value={overallProgress} 
-              className="h-2 bg-neutral-200"
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Error Display */}
-      {error && (
-        <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3">
-          <AlertCircle className="h-4 w-4 text-red-600" />
-          <span className="text-sm text-red-700">{error}</span>
-        </div>
+    <div className={hideSidebar ? "w-full" : "flex min-h-screen bg-neutral-50"}>
+      {/* Sidebar */}
+      {!hideSidebar && (
+        <StageSidebar
+          activeStage={activeStage}
+          stageData={stageData}
+          onStageChange={setActiveStage}
+          projectId={projectId}
+          showBackButton={true}
+        />
       )}
 
-      {/* Stage Tabs */}
-      <Tabs defaultValue="ideate" className="w-full">
-        <TabsList className="grid w-full grid-cols-6 bg-neutral-100">
-          {Object.entries(stageConfigs).map(([stageId, stage]) => {
-            const Icon = stage.icon;
-            const isCompleted = stageData[stageId]?.status === 'completed';
-            return (
-              <TabsTrigger 
-                key={stageId} 
-                value={stageId}
-                className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:text-purple-600"
-              >
-                <Icon className="h-4 w-4" />
-                <span className="hidden sm:inline">{stage.name}</span>
-                {isCompleted && <CheckCircle2 className="h-3 w-3 text-green-600" />}
-              </TabsTrigger>
-            );
-          })}
-        </TabsList>
+      {/* Main Content Area */}
+      <div className={hideSidebar ? "w-full" : "flex-1 lg:ml-64"}>
+        <div className="space-y-6 p-6 lg:p-8">
+          {/* Project Title - Show on all pages */}
+          {activeStage !== 'dashboard' && (
+            <div className="mb-4">
+              <ProjectTitleEditor projectId={projectId} initialTitle={projectTitle} />
+            </div>
+          )}
+          
+          {/* Error Display */}
+          {error && (
+            <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3">
+              <AlertCircle className="h-4 w-4 text-red-600" />
+              <span className="text-sm text-red-700">{error}</span>
+            </div>
+          )}
 
-        {Object.entries(stageConfigs).map(([stageId, stage]) => {
+          {/* Stage Tabs */}
+          <Tabs value={activeStage} onValueChange={setActiveStage} className="w-full">
+            {/* Dashboard Tab */}
+            <TabsContent value="dashboard" className="mt-0">
+              <ProjectDashboard
+                projectId={projectId}
+                stageData={stageData}
+                projectTitle={projectTitle}
+                logoUrl={logoUrl}
+                onLogoUpdate={setLogoUrl}
+              />
+            </TabsContent>
+
+            {/* Stage Tabs */}
+            {Object.entries(stageConfigs).filter(([stageId]) => stageId !== 'dashboard').map(([stageId, stage]) => {
           const Icon = stage.icon;
           const currentData = stageData[stageId];
           const isCompleted = currentData?.status === 'completed';
@@ -1328,11 +1482,25 @@ export default function StageWorkspace({ projectId }: StageWorkspaceProps) {
                         <div className="bg-white rounded border p-3 text-neutral-700">
                           {stageData['ideate']?.input ? 
                             (() => {
-                              const ideateData = JSON.parse(stageData['ideate'].input);
-                              const selectedIdea = ideateData.selectedIdea || '';
-                              // Extract only the first line (idea name and brief description)
-                              const firstLine = selectedIdea.split('\n')[0];
-                              return firstLine || 'Selected idea details will appear here after completing the Ideate stage.';
+                              try {
+                                const ideateData = JSON.parse(stageData['ideate'].input);
+                                const selectedIdea = ideateData.selectedIdea;
+                                
+                                // Handle selectedIdea as object (from ideate stage)
+                                if (selectedIdea && typeof selectedIdea === 'object') {
+                                  return selectedIdea.title || selectedIdea.description || 'Selected idea details will appear here after completing the Ideate stage.';
+                                }
+                                
+                                // Handle selectedIdea as string (legacy format)
+                                if (typeof selectedIdea === 'string' && selectedIdea.trim()) {
+                                  const firstLine = selectedIdea.split('\n')[0];
+                                  return firstLine || 'Selected idea details will appear here after completing the Ideate stage.';
+                                }
+                                
+                                return 'Selected idea details will appear here after completing the Ideate stage.';
+                              } catch (e) {
+                                return 'Complete the Ideate stage first to see your selected idea here.';
+                              }
                             })() :
                             'Complete the Ideate stage first to see your selected idea here.'
                           }
@@ -1374,11 +1542,25 @@ export default function StageWorkspace({ projectId }: StageWorkspaceProps) {
                         <div className="bg-white rounded border p-3 text-neutral-700">
                           {stageData['ideate']?.input ? 
                             (() => {
-                              const ideateData = JSON.parse(stageData['ideate'].input);
-                              const selectedIdea = ideateData.selectedIdea || '';
-                              // Extract only the first line (idea name and brief description)
-                              const firstLine = selectedIdea.split('\n')[0];
-                              return firstLine || 'Selected idea details will appear here after completing the Ideate stage.';
+                              try {
+                                const ideateData = JSON.parse(stageData['ideate'].input);
+                                const selectedIdea = ideateData.selectedIdea;
+                                
+                                // Handle selectedIdea as object (from ideate stage)
+                                if (selectedIdea && typeof selectedIdea === 'object') {
+                                  return selectedIdea.title || selectedIdea.description || 'Selected idea details will appear here after completing the Ideate stage.';
+                                }
+                                
+                                // Handle selectedIdea as string (legacy format)
+                                if (typeof selectedIdea === 'string' && selectedIdea.trim()) {
+                                  const firstLine = selectedIdea.split('\n')[0];
+                                  return firstLine || 'Selected idea details will appear here after completing the Ideate stage.';
+                                }
+                                
+                                return 'Selected idea details will appear here after completing the Ideate stage.';
+                              } catch (e) {
+                                return 'Complete the Ideate stage first to see your selected idea here.';
+                              }
                             })() :
                             'Complete the Ideate stage first to see your selected idea here.'
                           }
@@ -1420,11 +1602,25 @@ export default function StageWorkspace({ projectId }: StageWorkspaceProps) {
                         <div className="bg-white rounded border p-3 text-neutral-700">
                           {stageData['ideate']?.input ? 
                             (() => {
-                              const ideateData = JSON.parse(stageData['ideate'].input);
-                              const selectedIdea = ideateData.selectedIdea || '';
-                              // Extract only the first line (idea name and brief description)
-                              const firstLine = selectedIdea.split('\n')[0];
-                              return firstLine || 'Selected idea details will appear here after completing the Ideate stage.';
+                              try {
+                                const ideateData = JSON.parse(stageData['ideate'].input);
+                                const selectedIdea = ideateData.selectedIdea;
+                                
+                                // Handle selectedIdea as object (from ideate stage)
+                                if (selectedIdea && typeof selectedIdea === 'object') {
+                                  return selectedIdea.title || selectedIdea.description || 'Selected idea details will appear here after completing the Ideate stage.';
+                                }
+                                
+                                // Handle selectedIdea as string (legacy format)
+                                if (typeof selectedIdea === 'string' && selectedIdea.trim()) {
+                                  const firstLine = selectedIdea.split('\n')[0];
+                                  return firstLine || 'Selected idea details will appear here after completing the Ideate stage.';
+                                }
+                                
+                                return 'Selected idea details will appear here after completing the Ideate stage.';
+                              } catch (e) {
+                                return 'Complete the Ideate stage first to see your selected idea here.';
+                              }
                             })() :
                             'Complete the Ideate stage first to see your selected idea here.'
                           }
@@ -1466,11 +1662,25 @@ export default function StageWorkspace({ projectId }: StageWorkspaceProps) {
                         <div className="bg-white rounded border p-3 text-neutral-700">
                           {stageData['ideate']?.input ? 
                             (() => {
-                              const ideateData = JSON.parse(stageData['ideate'].input);
-                              const selectedIdea = ideateData.selectedIdea || '';
-                              // Extract only the first line (idea name and brief description)
-                              const firstLine = selectedIdea.split('\n')[0];
-                              return firstLine || 'Selected idea details will appear here after completing the Ideate stage.';
+                              try {
+                                const ideateData = JSON.parse(stageData['ideate'].input);
+                                const selectedIdea = ideateData.selectedIdea;
+                                
+                                // Handle selectedIdea as object (from ideate stage)
+                                if (selectedIdea && typeof selectedIdea === 'object') {
+                                  return selectedIdea.title || selectedIdea.description || 'Selected idea details will appear here after completing the Ideate stage.';
+                                }
+                                
+                                // Handle selectedIdea as string (legacy format)
+                                if (typeof selectedIdea === 'string' && selectedIdea.trim()) {
+                                  const firstLine = selectedIdea.split('\n')[0];
+                                  return firstLine || 'Selected idea details will appear here after completing the Ideate stage.';
+                                }
+                                
+                                return 'Selected idea details will appear here after completing the Ideate stage.';
+                              } catch (e) {
+                                return 'Complete the Ideate stage first to see your selected idea here.';
+                              }
                             })() :
                             'Complete the Ideate stage first to see your selected idea here.'
                           }
@@ -1512,10 +1722,25 @@ export default function StageWorkspace({ projectId }: StageWorkspaceProps) {
                         <div className="bg-white rounded border p-3 text-neutral-700">
                           {stageData['ideate']?.input ? 
                             (() => {
-                              const ideateData = JSON.parse(stageData['ideate'].input);
-                              const selectedIdea = ideateData.selectedIdea || '';
-                              const firstLine = selectedIdea.split('\n')[0];
-                              return firstLine || 'Selected idea details will appear here after completing the Ideate stage.';
+                              try {
+                                const ideateData = JSON.parse(stageData['ideate'].input);
+                                const selectedIdea = ideateData.selectedIdea;
+                                
+                                // Handle selectedIdea as object (from ideate stage)
+                                if (selectedIdea && typeof selectedIdea === 'object') {
+                                  return selectedIdea.title || selectedIdea.description || 'Selected idea details will appear here after completing the Ideate stage.';
+                                }
+                                
+                                // Handle selectedIdea as string (legacy format)
+                                if (typeof selectedIdea === 'string' && selectedIdea.trim()) {
+                                  const firstLine = selectedIdea.split('\n')[0];
+                                  return firstLine || 'Selected idea details will appear here after completing the Ideate stage.';
+                                }
+                                
+                                return 'Selected idea details will appear here after completing the Ideate stage.';
+                              } catch (e) {
+                                return 'Complete the Ideate stage first to see your selected idea here.';
+                              }
                             })() :
                             'Complete the Ideate stage first to see your selected idea here.'
                           }
@@ -1565,95 +1790,245 @@ export default function StageWorkspace({ projectId }: StageWorkspaceProps) {
                   )}
                   
                   {/* Dynamic Form Section */}
-                  <div className="space-y-4">
-                    <h3 className="text-sm font-medium text-neutral-700">Stage Information</h3>
-                    {stage.formSchema.fields.map((field) => {
-                      const currentMode = formData[stageId]?.mode;
+                  {(() => {
+                    // Check if an idea has been selected for ideate stage
+                    let hasSelectedIdea = false;
+                    if (stageId === 'ideate') {
+                      const savedData = stageData['ideate']?.input ? JSON.parse(stageData['ideate'].input) : {};
+                      hasSelectedIdea = !!savedData.selectedIdea;
+                    }
+                    
+                    // Hide form when idea is selected for ideate stage
+                    if (stageId === 'ideate' && hasSelectedIdea) {
+                      return null;
+                    }
+                    
+                    // Check if this stage uses field groups (tabs)
+                    const fieldGroups = (stage as any).fieldGroups;
+                    const hasFieldGroups = fieldGroups && fieldGroups.length > 0;
+
+                    // Render with tabs if fieldGroups exist, otherwise render normally
+                    if (hasFieldGroups) {
+                      const currentTab = getActiveTab(stageId, fieldGroups);
                       
-                      // For Ideate stage, handle conditional field display
-                      if (stageId === 'ideate') {
-                        // Always show the mode selector
-                        if (field.name === 'mode') {
+                      return (
+                        <div className="space-y-4">
+                          <h3 className="text-sm font-medium text-neutral-700">Stage Information</h3>
+                          <Tabs 
+                            value={currentTab} 
+                            onValueChange={(value) => setActiveTabs(prev => ({ ...prev, [stageId]: value }))}
+                            className="w-full"
+                          >
+                            <TabsList className={`grid w-full gap-2 h-auto p-1 bg-neutral-100 ${
+                              fieldGroups.length === 2 ? 'grid-cols-2' :
+                              fieldGroups.length === 3 ? 'grid-cols-2 md:grid-cols-3' :
+                              'grid-cols-2 md:grid-cols-4'
+                            }`}>
+                              {fieldGroups.map((group: { id: string; label: string; fieldNames: string[] }) => {
+                                const status = getTabCompletionStatus(stageId, group.fieldNames);
+                                const isComplete = status.total > 0 && status.completed === status.total;
+                                
+                                return (
+                                  <TabsTrigger 
+                                    key={group.id} 
+                                    value={group.id}
+                                    className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:text-purple-600 text-xs md:text-sm"
+                                  >
+                                    {group.label}
+                                    {status.total > 0 && (
+                                      <span className={`ml-1 text-xs ${
+                                        isComplete ? 'text-green-600' : 'text-neutral-500'
+                                      }`}>
+                                        ({status.completed}/{status.total})
+                                      </span>
+                                    )}
+                                  </TabsTrigger>
+                                );
+                              })}
+                            </TabsList>
+                            
+                            {fieldGroups.map((group: { id: string; label: string; fieldNames: string[] }) => (
+                              <TabsContent key={group.id} value={group.id} className="mt-4 space-y-4">
+                                {group.fieldNames.map((fieldName) => {
+                                  const field = stage.formSchema.fields.find(f => f.name === fieldName);
+                                  if (!field) return null;
+                                  
+                                  return (
+                                    <div key={field.name} className="space-y-2">
+                                      <label className="text-sm font-medium text-neutral-700">
+                                        {field.label}
+                                        {field.required && <span className="text-red-500 ml-1">*</span>}
+                                      </label>
+                                      {renderFormField(stageId, field)}
+                                    </div>
+                                  );
+                                })}
+                              </TabsContent>
+                            ))}
+                          </Tabs>
+                          
+                          <div className="flex items-center gap-2 pt-4">
+                            <div className="flex items-center gap-2">
+                              <Button
+                                onClick={() => saveStageInput(stageId)}
+                                disabled={saving[stageId]}
+                                variant="secondary"
+                                size="sm"
+                                className="bg-neutral-100 text-neutral-700 hover:bg-neutral-200 gap-2"
+                              >
+                                {saving[stageId] ? (
+                                  <>
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                    <span>Saving...</span>
+                                  </>
+                                ) : lastSavedAt[stageId] ? (
+                                  <>
+                                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                    <span>Saved</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Save className="h-4 w-4" />
+                                    <span>Save Input</span>
+                                  </>
+                                )}
+                              </Button>
+                              <span className="text-xs text-neutral-500 hidden sm:inline">
+                                Autosaves as you type
+                              </span>
+                            </div>
+                            
+                            {stage.apiEndpoint && (
+                              <Button
+                                onClick={() => generateAIOutput(stageId)}
+                                disabled={loading[stageId]}
+                                className="bg-purple-600 text-white hover:bg-purple-700"
+                              >
+                                {loading[stageId] ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Wand2 className="h-4 w-4" />
+                                )}
+                                Generate AI Output
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // Render without tabs for stages without fieldGroups (ideate, design)
+                    return (
+                      <div className="space-y-4">
+                        <h3 className="text-sm font-medium text-neutral-700">Stage Information</h3>
+                        {stage.formSchema.fields.map((field) => {
+                          const currentMode = formData[stageId]?.mode;
+                          
+                          // For Ideate stage, handle conditional field display
+                          if (stageId === 'ideate') {
+                            // Always show the mode selector
+                            if (field.name === 'mode') {
+                              return (
+                                <div key={field.name} className="space-y-2">
+                                  <label className="text-sm font-medium text-neutral-700">
+                                    {field.label}
+                                    {field.required && <span className="text-red-500 ml-1">*</span>}
+                                  </label>
+                                  {renderFormField(stageId, field)}
+                                </div>
+                              );
+                            }
+                            
+                            // Don't show other fields until mode is selected
+                            if (!currentMode) {
+                              return null;
+                            }
+                            
+                            // Hide input and constraints fields for Surprise Me mode
+                            if ((field.name === 'input' || field.name === 'constraints') && currentMode === 'Surprise Me') {
+                              return null;
+                            }
+                          }
+                          
+                          // Group optional advanced controls for Monetise stage
+                          const isMonetiseAdvanced = stageId === 'monetise' && (field.name === 'revenueGoal' || field.name === 'timeHorizon');
+
+                          if (isMonetiseAdvanced) {
+                            return null; // Render later inside advanced section
+                          }
+
                           return (
                             <div key={field.name} className="space-y-2">
                               <label className="text-sm font-medium text-neutral-700">
-                                {field.label}
-                                {field.required && <span className="text-red-500 ml-1">*</span>}
+                                {stageId === 'ideate' && field.name === 'input' ? 
+                                  (formData[stageId]?.mode === 'Idea to Explore' ? 'Idea to Explore' : 'Problem Statement') :
+                                  field.label
+                                }
+                                {field.required && formData[stageId]?.mode !== 'Surprise Me' && <span className="text-red-500 ml-1">*</span>}
                               </label>
                               {renderFormField(stageId, field)}
                             </div>
                           );
-                        }
+                        })}
+
+                        {/* Advanced settings moved to just under the Monetise action button */}
                         
-                        // Don't show other fields until mode is selected
-                        if (!currentMode) {
-                          return null;
-                        }
-                        
-                        // Hide input and constraints fields for Surprise Me mode
-                        if ((field.name === 'input' || field.name === 'constraints') && currentMode === 'Surprise Me') {
-                          return null;
-                        }
-                      }
-                      
-                      // Group optional advanced controls for Monetise stage
-                      const isMonetiseAdvanced = stageId === 'monetise' && (field.name === 'revenueGoal' || field.name === 'timeHorizon');
-
-                      if (isMonetiseAdvanced) {
-                        return null; // Render later inside advanced section
-                      }
-
-                      return (
-                        <div key={field.name} className="space-y-2">
-                          <label className="text-sm font-medium text-neutral-700">
-                            {stageId === 'ideate' && field.name === 'input' ? 
-                              (formData[stageId]?.mode === 'Idea to Explore' ? 'Idea to Explore' : 'Problem Statement') :
-                              field.label
-                            }
-                            {field.required && formData[stageId]?.mode !== 'Surprise Me' && <span className="text-red-500 ml-1">*</span>}
-                          </label>
-                          {renderFormField(stageId, field)}
-                        </div>
-                      );
-                    })}
-
-                    {/* Advanced settings moved to just under the Monetise action button */}
-                    
-                    <div className="flex items-center gap-2 pt-4">
-                      <Button
-                        onClick={() => saveStageInput(stageId)}
-                        disabled={saving[stageId]}
-                        variant="secondary"
-                        size="sm"
-                        className="bg-neutral-100 text-neutral-700 hover:bg-neutral-200"
-                      >
-                        {saving[stageId] ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Save className="h-4 w-4" />
-                        )}
-                        Save Input
-                      </Button>
-                      
-                      {stage.apiEndpoint && (
-                        <Button
-                          onClick={() => generateAIOutput(stageId)}
-                          disabled={loading[stageId]}
-                          className="bg-purple-600 text-white hover:bg-purple-700"
-                        >
-                          {loading[stageId] ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Wand2 className="h-4 w-4" />
+                        <div className="flex items-center gap-2 pt-4">
+                          <div className="flex items-center gap-2">
+                            <Button
+                              onClick={() => saveStageInput(stageId)}
+                              disabled={saving[stageId]}
+                              variant="secondary"
+                              size="sm"
+                              className="bg-neutral-100 text-neutral-700 hover:bg-neutral-200 gap-2"
+                            >
+                              {saving[stageId] ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                  <span>Saving...</span>
+                                </>
+                              ) : lastSavedAt[stageId] ? (
+                                <>
+                                  <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                  <span>Saved</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Save className="h-4 w-4" />
+                                  <span>Save Input</span>
+                                </>
+                              )}
+                            </Button>
+                            <span className="text-xs text-neutral-500 hidden sm:inline">
+                              Autosaves as you type
+                            </span>
+                          </div>
+                          
+                          {stage.apiEndpoint && (
+                            <Button
+                              onClick={() => generateAIOutput(stageId)}
+                              disabled={loading[stageId]}
+                              className="bg-purple-600 text-white hover:bg-purple-700"
+                            >
+                              {loading[stageId] ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Wand2 className="h-4 w-4" />
+                              )}
+                              Generate AI Output
+                            </Button>
                           )}
-                          Generate AI Output
-                        </Button>
-                      )}
-                    </div>
-                  </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Output Section */}
-                  {currentData?.output && (
+                  {(currentData?.output || (stageId === 'ideate' && (() => {
+                    // For ideate stage, also show if there's a selected idea even without output
+                    const savedData = currentData?.input ? JSON.parse(currentData.input) : {};
+                    return !!savedData.selectedIdea;
+                  })())) && (
                     <div className="space-y-3">
                       <label className="text-sm font-medium text-neutral-700">
                         AI Generated Output
@@ -1668,16 +2043,76 @@ export default function StageWorkspace({ projectId }: StageWorkspaceProps) {
                             const selectedIdea = savedData.selectedIdea;
                             
                             if (selectedIdea) {
-                              // Show selected idea when completed
+                              // Show editable selected idea
+                              const isEditing = !!editingIdea[stageId];
+                              const displayText = isEditing ? editingIdea[stageId] : selectedIdea;
+                              
                               return (
                                 <div className="rounded-lg border border-green-200 bg-green-50 p-4">
-                                  <div className="flex items-center gap-2 mb-3">
-                                    <CheckCircle2 className="h-5 w-5 text-green-600" />
-                                    <h3 className="font-semibold text-green-800">Selected Idea</h3>
+                                  <div className="flex items-center justify-between mb-3">
+                                    <div className="flex items-center gap-2">
+                                      <CheckCircle2 className="h-5 w-5 text-green-600" />
+                                      <h3 className="font-semibold text-green-800">Selected Idea</h3>
+                                    </div>
+                                    {!isEditing && (
+                                      <Button
+                                        onClick={() => setEditingIdea(prev => ({ ...prev, [stageId]: selectedIdea }))}
+                                        variant="secondary"
+                                        size="sm"
+                                        className="bg-white text-green-700 hover:bg-green-100"
+                                      >
+                                        Edit Idea
+                                      </Button>
+                                    )}
                                   </div>
-                                  <div className="text-sm text-green-700 whitespace-pre-wrap">
-                                    {selectedIdea}
-                                  </div>
+                                  {isEditing ? (
+                                    <div className="space-y-3">
+                                      <Textarea
+                                        value={displayText}
+                                        onChange={(e) => setEditingIdea(prev => ({ ...prev, [stageId]: e.target.value }))}
+                                        className="min-h-[200px] text-sm text-neutral-900 bg-white"
+                                        placeholder="Edit your selected idea..."
+                                      />
+                                      <div className="flex items-center gap-2">
+                                        <Button
+                                          onClick={() => saveEditedIdea(stageId, displayText)}
+                                          disabled={saving[stageId]}
+                                          className="bg-green-600 text-white hover:bg-green-700"
+                                          size="sm"
+                                        >
+                                          {saving[stageId] ? (
+                                            <>
+                                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                              Saving...
+                                            </>
+                                          ) : (
+                                            <>
+                                              <CheckCircle2 className="h-4 w-4 mr-2" />
+                                              Save Changes
+                                            </>
+                                          )}
+                                        </Button>
+                                        <Button
+                                          onClick={() => {
+                                            setEditingIdea(prev => {
+                                              const next = { ...prev };
+                                              delete next[stageId];
+                                              return next;
+                                            });
+                                          }}
+                                          variant="secondary"
+                                          size="sm"
+                                          className="bg-neutral-100 text-neutral-700 hover:bg-neutral-200"
+                                        >
+                                          Cancel
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="text-sm text-green-700 whitespace-pre-wrap">
+                                      {selectedIdea}
+                                    </div>
+                                  )}
                                   <div className="mt-3 pt-3 border-t border-green-200">
                                     <p className="text-xs text-green-600">
                                       This idea will be used for the Validate, Design, Build, Launch, and Monetise stages.
@@ -1685,7 +2120,7 @@ export default function StageWorkspace({ projectId }: StageWorkspaceProps) {
                                   </div>
                                 </div>
                               );
-                            } else {
+                            } else if (currentData.output) {
                               // Show idea selection (either for first time or after generation)
                               const ideas = parseIdeasFromOutput(currentData.output);
                               return (
@@ -1737,6 +2172,8 @@ export default function StageWorkspace({ projectId }: StageWorkspaceProps) {
                                 </>
                               );
                             }
+                            // Return null if no selected idea and no output
+                            return null;
                           })()}
                         </div>
                       ) : stageId === 'validate' ? (
@@ -1770,7 +2207,7 @@ export default function StageWorkspace({ projectId }: StageWorkspaceProps) {
                     </div>
                   )}
 
-                  {/* Status Indicator and Selected Idea Reference */}
+                  {/* Status Indicator */}
                   {isCompleted && (
                     <div className="space-y-3">
                       {/* Stage completed message */}
@@ -1780,56 +2217,6 @@ export default function StageWorkspace({ projectId }: StageWorkspaceProps) {
                           Stage completed successfully
                         </span>
                       </div>
-                      
-                      {/* Selected Idea Reference - Only for Ideate stage */}
-                      {stageId === 'ideate' && (() => {
-                        const savedData = currentData?.input ? JSON.parse(currentData.input) : {};
-                        const selectedIdea = savedData.selectedIdea;
-                        
-                        // Debug logging
-                        console.log('Ideate stage debug:', {
-                          stageId,
-                          currentData,
-                          savedData,
-                          selectedIdea,
-                          isCompleted
-                        });
-                        
-                        if (selectedIdea) {
-                          return (
-                            <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
-                              <div className="flex items-center gap-2 mb-3">
-                                <Lightbulb className="h-5 w-5 text-blue-600" />
-                                <h3 className="font-semibold text-blue-800">Your Selected Idea</h3>
-                              </div>
-                              <div className="text-sm text-blue-700 whitespace-pre-wrap bg-white rounded border p-3">
-                                {selectedIdea}
-                              </div>
-                              <div className="mt-3 pt-3 border-t border-blue-200">
-                                <p className="text-xs text-blue-600">
-                                  This is the idea you selected to progress through the Validate, Design, Build, Launch, and Monetise stages.
-                                </p>
-                              </div>
-                            </div>
-                          );
-                        }
-                        
-                        // Show debug info when no selected idea
-                        return (
-                          <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4">
-                            <div className="flex items-center gap-2 mb-3">
-                              <AlertCircle className="h-5 w-5 text-yellow-600" />
-                              <h3 className="font-semibold text-yellow-800">Debug Info</h3>
-                            </div>
-                            <div className="text-xs text-yellow-700">
-                              <p>isCompleted: {isCompleted ? 'true' : 'false'}</p>
-                              <p>currentData exists: {currentData ? 'true' : 'false'}</p>
-                              <p>currentData.input: {currentData?.input || 'none'}</p>
-                              <p>selectedIdea: {selectedIdea || 'none'}</p>
-                            </div>
-                          </div>
-                        );
-                      })()}
                     </div>
                   )}
                 </CardContent>
@@ -1837,7 +2224,9 @@ export default function StageWorkspace({ projectId }: StageWorkspaceProps) {
             </TabsContent>
           );
         })}
-      </Tabs>
+          </Tabs>
+        </div>
+      </div>
     </div>
   );
 }

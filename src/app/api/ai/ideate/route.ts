@@ -43,10 +43,13 @@ export async function POST(req: Request) {
     let userPrompt = '';
     
     if (mode === 'Surprise Me') {
-      // For Surprise Me mode, no user input needed - generate creative ideas
-      userPrompt = 'Generate 3 innovative and exciting startup ideas that blend current technological trends with untapped market opportunities. Make them diverse across different industries.';
+      // For Surprise Me mode, rely entirely on the system prompt from admin configuration
+      // Only add market preference if provided - don't override system prompt instructions
       if (market) {
-        userPrompt += `\n\nFocus on the ${market} market/industry.`;
+        userPrompt = `Focus on the ${market} market/industry.`;
+      } else {
+        // Minimal prompt - let the system prompt handle all instructions
+        userPrompt = 'Please generate the startup ideas as specified.';
       }
     } else {
       // Use mode-specific template or fallback to generic

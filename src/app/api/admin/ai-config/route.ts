@@ -26,7 +26,7 @@ export async function GET(req: Request) {
 // Update AI configuration for a specific stage
 export async function POST(req: Request) {
   try {
-    const { stage, model, system_prompt, user_prompt_template, user_prompt_template_idea, user_prompt_template_problem, system_prompt_idea, system_prompt_problem, system_prompt_surprise, system_prompt_vibe_coder, system_prompt_send_to_devs } = await req.json();
+    const { stage, model, system_prompt, user_prompt_template, user_prompt_template_idea, user_prompt_template_problem, user_prompt_template_review, user_prompt_template_initial_feedback, system_prompt_idea, system_prompt_problem, system_prompt_surprise, system_prompt_review, system_prompt_initial_feedback, system_prompt_vibe_coder, system_prompt_send_to_devs } = await req.json();
 
     if (!stage || !model || !system_prompt || !user_prompt_template) {
       return NextResponse.json({ 
@@ -55,10 +55,14 @@ export async function POST(req: Request) {
           // Write optional mode-specific templates when provided
           user_prompt_template_idea,
           user_prompt_template_problem,
+          user_prompt_template_review,
+          user_prompt_template_initial_feedback,
           // Write optional mode-specific system prompts when provided
           system_prompt_idea,
           system_prompt_problem,
           system_prompt_surprise,
+          system_prompt_review,
+          system_prompt_initial_feedback,
           system_prompt_vibe_coder,
           system_prompt_send_to_devs,
           updated_at: new Date().toISOString()
@@ -79,9 +83,13 @@ export async function POST(req: Request) {
           user_prompt_template,
           user_prompt_template_idea,
           user_prompt_template_problem,
+          user_prompt_template_review,
+          user_prompt_template_initial_feedback,
           system_prompt_idea,
           system_prompt_problem,
           system_prompt_surprise,
+          system_prompt_review,
+          system_prompt_initial_feedback,
           system_prompt_vibe_coder,
           system_prompt_send_to_devs,
           created_at: new Date().toISOString(),
