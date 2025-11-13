@@ -1,94 +1,146 @@
-import Link from "next/link";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+"use client";
+
+import { useState } from "react";
+import { useParams } from "next/navigation";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
+import { Wand2, ArrowRight, Rocket, Users, Lock } from "lucide-react";
+import { useLaunchBlueprint } from "@/contexts/LaunchStageContext";
+import LaunchOverviewChecklist from "@/components/launch/LaunchOverviewChecklist";
+import { LAUNCH_PATH_CHOICES } from "@/lib/launch/constants";
 
-export default async function LaunchOverviewPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
-  const progress = 0;
+export default function LaunchOverviewPage() {
+  const params = useParams();
+  const projectId = params.id as string;
+  const { blueprint, buildPathMode, saveBlueprint, markComplete } = useLaunchBlueprint();
+  const [generating, setGenerating] = useState(false);
 
-  const steps = [
+  const handlePathSelect = async (path: string) => {
+    await saveBlueprint({ launchPathChoice: path });
+    markComplete("overview");
+  };
+
+  const handleRecommend = async () => {
+    setGenerating(true);
+    try {
+      const response = await fetch("/api/launch/strategy/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId, recommendationMode: true }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.result?.recommendedPath) {
+          await handlePathSelect(data.result.recommendedPath);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to get recommendation:", error);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const pathCards = [
     {
-      number: 1,
-      title: "Planning",
-      description: "Set your marketing budget and launch timeline to guide your launch strategy.",
-      href: `/project/${id}/launch/planning`,
+      id: LAUNCH_PATH_CHOICES.SOFT_LAUNCH,
+      title: "Soft Launch",
+      description: "Test with a small group before going public",
+      icon: Lock,
     },
     {
-      number: 2,
-      title: "Strategy",
-      description: "Develop your launch strategy and identify the primary channels for reaching your audience.",
-      href: `/project/${id}/launch/strategy`,
+      id: LAUNCH_PATH_CHOICES.PUBLIC_LAUNCH,
+      title: "Public Launch",
+      description: "Launch publicly to everyone at once",
+      icon: Rocket,
     },
     {
-      number: 3,
-      title: "Tactics",
-      description: "Create a detailed launch tactics plan with week-by-week actions and content schedule.",
-      href: `/project/${id}/launch/tactics`,
-    },
-    {
-      number: 4,
-      title: "Growth",
-      description: "Build a community strategy and set up metrics tracking to measure launch success.",
-      href: `/project/${id}/launch/growth`,
+      id: LAUNCH_PATH_CHOICES.PRIVATE_BETA,
+      title: "Private Beta",
+      description: "Invite-only beta for early adopters",
+      icon: Users,
     },
   ];
 
   return (
     <div className="space-y-8">
-      {/* Progress Section */}
+      {/* Hero */}
+      <div className="space-y-4">
+        <h1 className="text-3xl font-bold text-neutral-900">
+          Launch Your Product
+        </h1>
+        <p className="text-lg text-neutral-600 max-w-2xl">
+          Plan and execute your product launch with a comprehensive strategy,
+          messaging, and marketing assets.
+        </p>
+        {buildPathMode && (
+          <Badge variant="outline" className="w-fit">
+            Build Path: {buildPathMode}
+          </Badge>
+        )}
+      </div>
+
+      {/* Launch Path Selection */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-neutral-900">Overall Progress</h2>
-          <span className="text-sm text-neutral-600">{progress}% Complete</span>
+          <h2 className="text-xl font-semibold text-neutral-900">
+            Choose Your Launch Path
+          </h2>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRecommend}
+            disabled={generating}
+          >
+            <Wand2 className="h-4 w-4 mr-2" />
+            {generating ? "Generating..." : "Recommend my launch approach"}
+          </Button>
         </div>
-        <Progress value={progress} className="h-2" />
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {pathCards.map((card) => {
+            const Icon = card.icon;
+            const isSelected = blueprint?.launch_path_choice === card.id;
+            return (
+              <Card
+                key={card.id}
+                className={isSelected ? "border-purple-500 bg-purple-50" : "cursor-pointer hover:border-purple-300"}
+                onClick={() => handlePathSelect(card.id)}
+              >
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <Icon className="h-6 w-6 text-purple-600" />
+                    <CardTitle className="text-lg">{card.title}</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-neutral-600">{card.description}</p>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Intro Text */}
-      <div className="space-y-2">
-        <p className="text-base text-neutral-700">
-          Welcome to the Launch stage. Here you'll create a comprehensive launch and marketing strategy to
-          introduce your product to the world and start building your user base.
-        </p>
-        <p className="text-sm text-neutral-600">
-          Start by planning your budget and timeline, then develop your launch strategy, create tactical plans,
-          and set up growth systems.
-        </p>
-      </div>
+      {/* Checklist */}
+      <LaunchOverviewChecklist />
 
-      {/* Step Cards */}
-      <div className="grid gap-6 md:grid-cols-2">
-        {steps.map((step) => (
-          <Card key={step.number} className="border border-neutral-200 bg-white">
-            <CardHeader>
-              <div className="flex items-center gap-3 mb-2">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-100 text-purple-600 font-semibold">
-                  {step.number}
-                </div>
-                <CardTitle className="text-lg font-semibold text-neutral-900">
-                  {step.title}
-                </CardTitle>
-              </div>
-              <CardDescription className="text-neutral-600">
-                {step.description}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Link href={step.href}>
-                <Button className="w-full bg-purple-600 text-white hover:bg-purple-700">
-                  Get Started
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {/* CTA */}
+      {blueprint?.launch_path_choice && (
+        <div className="flex justify-end">
+          <Button
+            onClick={() => {
+              window.location.href = `/project/${projectId}/launch/strategy`;
+            }}
+            className="flex items-center gap-2"
+          >
+            Start Launch Strategy
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
-

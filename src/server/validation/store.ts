@@ -13,6 +13,7 @@ export interface ValidationReportRow {
   rationales: Record<string, string> | null;
   agent_details: Record<string, unknown> | null;
   section_results: Record<string, SectionResult> | null;
+  completed_actions: Record<string, string[]> | null;
   error: string | null;
   created_at: string;
   updated_at: string;
@@ -309,5 +310,131 @@ export async function calculateOverview(reportId: string): Promise<SectionResult
     actions: uniqueActions,
     updated_at: new Date().toISOString(),
   };
+}
+
+/**
+ * Get completed actions for a specific section
+ */
+export async function getCompletedActions(
+  reportId: string,
+  section: ValidationSection
+): Promise<string[]> {
+  const supabase = getSupabaseServer();
+  
+  const { data, error } = await supabase
+    .from('validation_reports')
+    .select('completed_actions')
+    .eq('id', reportId)
+    .single();
+
+  if (error) {
+    if (error.code === 'PGRST116') {
+      return []; // Not found
+    }
+    throw new Error(`Failed to fetch completed actions: ${error.message}`);
+  }
+
+  const completedActions = (data?.completed_actions as Record<string, string[]>) || {};
+  return completedActions[section] || [];
+}
+
+/**
+ * Toggle action completion for a specific section
+ */
+export async function toggleActionCompletion(
+  reportId: string,
+  section: ValidationSection,
+  actionText: string,
+  completed: boolean
+): Promise<void> {
+  const supabase = getSupabaseServer();
+
+  // Get current completed_actions
+  const { data: currentData, error: fetchError } = await supabase
+    .from('validation_reports')
+    .select('completed_actions')
+    .eq('id', reportId)
+    .single();
+
+  if (fetchError) {
+    throw new Error(`Failed to fetch current completed actions: ${fetchError.message}`);
+  }
+
+  const currentActions = (currentData?.completed_actions as Record<string, string[]>) || {};
+  const sectionActions = currentActions[section] || [];
+
+  let updatedSectionActions: string[];
+  if (completed) {
+    // Add action if not already present
+    updatedSectionActions = sectionActions.includes(actionText)
+      ? sectionActions
+      : [...sectionActions, actionText];
+  } else {
+    // Remove action
+    updatedSectionActions = sectionActions.filter((action) => action !== actionText);
+  }
+
+  const updatedActions = {
+    ...currentActions,
+    [section]: updatedSectionActions,
+  };
+
+  const { error } = await supabase
+    .from('validation_reports')
+    .update({
+      completed_actions: updatedActions,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', reportId);
+
+  if (error) {
+    throw new Error(`Failed to update completed actions: ${error.message}`);
+  }
+}
+
+/**
+ * Clear completed actions for a section when it's re-run
+ * Preserves actions that match the new action list
+ */
+export async function clearSectionActions(
+  reportId: string,
+  section: ValidationSection,
+  newActions: string[]
+): Promise<void> {
+  const supabase = getSupabaseServer();
+
+  // Get current completed_actions
+  const { data: currentData, error: fetchError } = await supabase
+    .from('validation_reports')
+    .select('completed_actions')
+    .eq('id', reportId)
+    .single();
+
+  if (fetchError) {
+    throw new Error(`Failed to fetch current completed actions: ${fetchError.message}`);
+  }
+
+  const currentActions = (currentData?.completed_actions as Record<string, string[]>) || {};
+  const sectionActions = currentActions[section] || [];
+
+  // Keep only actions that exist in the new action list
+  const preservedActions = sectionActions.filter((action) => newActions.includes(action));
+
+  const updatedActions = {
+    ...currentActions,
+    [section]: preservedActions,
+  };
+
+  const { error } = await supabase
+    .from('validation_reports')
+    .update({
+      completed_actions: updatedActions,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', reportId);
+
+  if (error) {
+    throw new Error(`Failed to clear section actions: ${error.message}`);
+  }
 }
 

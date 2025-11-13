@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { usePathname } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +12,15 @@ import StageSidebar from "@/components/StageSidebar";
 import ProjectTitleEditor from "@/components/ProjectTitleEditor";
 import ProjectDashboard from "@/components/ProjectDashboard";
 import { ResultsCard } from "@/components/validation/ResultsCard";
+import DesignOverviewHub from "@/components/design/DesignOverviewHub";
+import ProductBlueprint from "@/components/design/ProductBlueprint";
+import UserPersonas from "@/components/design/UserPersonas";
+import UserJourneyMapping from "@/components/design/UserJourneyMapping";
+import InformationArchitecture from "@/components/design/InformationArchitecture";
+import WireframesLayouts from "@/components/design/WireframesLayouts";
+import BrandVisualIdentity from "@/components/design/BrandVisualIdentity";
+import MVPDefinition from "@/components/design/MVPDefinition";
+import DesignSummaryExport from "@/components/design/DesignSummaryExport";
 import { 
   Lightbulb, 
   Users, 
@@ -542,6 +552,7 @@ const stageConfigs = {
 };
 
 export default function StageWorkspace({ projectId, hideSidebar = false }: StageWorkspaceProps) {
+  const pathname = usePathname();
   const [stageData, setStageData] = useState<Record<string, StageData>>({});
   const [formData, setFormData] = useState<Record<string, Record<string, string>>>({});
   const [loading, setLoading] = useState<Record<string, boolean>>({});
@@ -550,13 +561,34 @@ export default function StageWorkspace({ projectId, hideSidebar = false }: Stage
   const [error, setError] = useState<string>("");
   const [selectedIdeas, setSelectedIdeas] = useState<Record<string, string>>({});
   const [lastSavedAt, setLastSavedAt] = useState<Record<string, number>>({});
-  const [activeStage, setActiveStage] = useState<string>("dashboard");
+  
+  // Determine initial active stage from pathname
+  const getInitialActiveStage = () => {
+    if (pathname?.includes("/validate")) return "validate";
+    if (pathname?.includes("/ideate")) return "ideate";
+    if (pathname?.includes("/design")) return "design";
+    if (pathname?.includes("/build")) return "build";
+    if (pathname?.includes("/launch")) return "launch";
+    if (pathname?.includes("/monetise")) return "monetise";
+    return "dashboard";
+  };
+  
+  const [activeStage, setActiveStage] = useState<string>(getInitialActiveStage());
   const [projectTitle, setProjectTitle] = useState<string>("Untitled Project");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [editingIdea, setEditingIdea] = useState<Record<string, string>>({});
   const [activeTabs, setActiveTabs] = useState<Record<string, string>>({});
   const autoSaveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const AUTO_SAVE_DELAY = 1000;
+  const [designBlueprint, setDesignBlueprint] = useState<any>(null);
+  const [activeDesignSection, setActiveDesignSection] = useState<string | null>(null);
+  const [validateData, setValidateData] = useState<any>(null);
+
+  // Update activeStage when pathname changes
+  useEffect(() => {
+    const newActiveStage = getInitialActiveStage();
+    setActiveStage(newActiveStage);
+  }, [pathname]);
 
   const loadProjectTitle = useCallback(async () => {
     try {
@@ -608,11 +640,65 @@ export default function StageWorkspace({ projectId, hideSidebar = false }: Stage
     }
   }, [projectId]);
 
+  // Load design blueprint
+  const loadDesignBlueprint = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/design/blueprint?projectId=${projectId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setDesignBlueprint(data.blueprint);
+      }
+    } catch (error) {
+      console.error('Failed to load design blueprint:', error);
+    }
+  }, [projectId]);
+
+  // Load validation data for design stage
+  const loadValidateData = useCallback(async () => {
+    try {
+      const validateStage = stageData['validate'];
+      if (validateStage?.output) {
+        try {
+          const outputData = typeof validateStage.output === 'string' 
+            ? JSON.parse(validateStage.output) 
+            : validateStage.output;
+          
+          const reportId = outputData.reportId;
+          if (reportId) {
+            const reportResponse = await fetch(`/api/validate/${reportId}`);
+            if (reportResponse.ok) {
+              const reportData = await reportResponse.json();
+              setValidateData(reportData.report);
+            }
+          }
+        } catch (e) {
+          console.error('Failed to parse validation data:', e);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load validation data:', error);
+    }
+  }, [stageData]);
+
   // Load stage data from Supabase
   useEffect(() => {
     loadProjectTitle();
     loadStageData();
   }, [loadProjectTitle, loadStageData]);
+
+  // Load design blueprint when design stage is active
+  useEffect(() => {
+    if (activeStage === 'design') {
+      loadDesignBlueprint();
+    }
+  }, [activeStage, loadDesignBlueprint]);
+
+  // Load validation data when available
+  useEffect(() => {
+    if (stageData['validate']?.status === 'completed') {
+      loadValidateData();
+    }
+  }, [stageData, loadValidateData]);
 
   useEffect(() => {
     const timers = autoSaveTimers.current;
@@ -1049,68 +1135,62 @@ export default function StageWorkspace({ projectId, hideSidebar = false }: Stage
     }
   }
 
+  async function autoGenerateSection(sectionId: string) {
+    const ideateData = stageData['ideate'];
+    if (!ideateData?.input) return;
+
+    const ideateInput = JSON.parse(ideateData.input);
+    const ideaContext = typeof ideateInput.selectedIdea === 'object' 
+      ? ideateInput.selectedIdea.title || ideateInput.selectedIdea.description || JSON.stringify(ideateInput.selectedIdea)
+      : ideateInput.selectedIdea || 'A startup idea to design';
+
+    try {
+      const response = await fetch('/api/design/generate-section', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId,
+          section: sectionId,
+          ideaContext,
+          validateData,
+        }),
+      });
+
+      if (response.ok) {
+        await loadDesignBlueprint();
+      }
+    } catch (error) {
+      console.error('Section generation error:', error);
+      setError(`Failed to generate ${sectionId}`);
+    }
+  }
+
   async function autoGenerateAllDesignFields() {
     const ideateData = stageData['ideate'];
     if (!ideateData?.input) return;
 
     const ideateInput = JSON.parse(ideateData.input);
-    const ideaContext = ideateInput.selectedIdea || 'A startup idea to design';
-    const designFields = stageConfigs.design.formSchema.fields;
-    
-    // Set loading state for all fields
-    const fieldLoadingState: Record<string, boolean> = {};
-    designFields.forEach(field => {
-      fieldLoadingState[`design-${field.name}`] = true;
-    });
-    setFieldLoading(prev => ({ ...prev, ...fieldLoadingState }));
+    const ideaContext = typeof ideateInput.selectedIdea === 'object' 
+      ? ideateInput.selectedIdea.title || ideateInput.selectedIdea.description || JSON.stringify(ideateInput.selectedIdea)
+      : ideateInput.selectedIdea || 'A startup idea to design';
 
     try {
-      // Generate all fields in parallel
-      const fieldPromises = designFields.map(async (field) => {
-        const response = await fetch('/api/ai/generate-field', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            fieldName: field.name, 
-            fieldType: field.type,
-            idea: ideaContext,
-            existingData: {}
-          })
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          return { fieldName: field.name, content: data.result };
-        }
-        return { fieldName: field.name, content: '' };
+      const response = await fetch('/api/design/generate-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId,
+          ideaContext,
+          validateData,
+        }),
       });
 
-      const results = await Promise.all(fieldPromises);
-      
-      // Update form data with all generated content
-      const newFormData: Record<string, string> = {};
-      results.forEach(result => {
-        newFormData[result.fieldName] = result.content;
-      });
-
-      setFormData(prev => ({
-        ...prev,
-        design: newFormData
-      }));
-
-      // Auto-save the generated data - pass data directly to avoid React state timing issues
-      await saveStageInputWithStatus('design', 'in_progress', newFormData);
-
+      if (response.ok) {
+        await loadDesignBlueprint();
+      }
     } catch (error) {
       console.error('Auto-generation error:', error);
-      setError('Failed to auto-generate design fields');
-    } finally {
-      // Clear loading state for all fields
-      const fieldLoadingState: Record<string, boolean> = {};
-      designFields.forEach(field => {
-        fieldLoadingState[`design-${field.name}`] = false;
-      });
-      setFieldLoading(prev => ({ ...prev, ...fieldLoadingState }));
+      setError('Failed to auto-generate design blueprint');
     }
   }
 
@@ -1598,65 +1678,6 @@ export default function StageWorkspace({ projectId, hideSidebar = false }: Stage
                     </div>
                   )}
 
-                  {/* Show Selected Idea for Design Stage */}
-                  {stageId === 'design' && stageData['ideate']?.status === 'completed' && (
-                    <div className="space-y-4">
-                      <div className="rounded-lg border border-purple-200 bg-purple-50 p-4">
-                        <div className="flex items-center gap-2 mb-2">
-                          <CheckCircle2 className="h-4 w-4 text-purple-600" />
-                          <h3 className="text-sm font-semibold text-purple-900">Selected Idea to Design</h3>
-                        </div>
-                        <div className="text-sm text-purple-800">
-                        <div className="bg-white rounded border p-3 text-neutral-700">
-                          {stageData['ideate']?.input ? 
-                            (() => {
-                              try {
-                                const ideateData = JSON.parse(stageData['ideate'].input);
-                                const selectedIdea = ideateData.selectedIdea;
-                                
-                                // Handle selectedIdea as object (from ideate stage)
-                                if (selectedIdea && typeof selectedIdea === 'object') {
-                                  return selectedIdea.title || selectedIdea.description || 'Selected idea details will appear here after completing the Ideate stage.';
-                                }
-                                
-                                // Handle selectedIdea as string (legacy format)
-                                if (typeof selectedIdea === 'string' && selectedIdea.trim()) {
-                                  const firstLine = selectedIdea.split('\n')[0];
-                                  return firstLine || 'Selected idea details will appear here after completing the Ideate stage.';
-                                }
-                                
-                                return 'Selected idea details will appear here after completing the Ideate stage.';
-                              } catch (e) {
-                                return 'Complete the Ideate stage first to see your selected idea here.';
-                              }
-                            })() :
-                            'Complete the Ideate stage first to see your selected idea here.'
-                          }
-                        </div>
-                        </div>
-                      </div>
-                      
-                      {/* Generate Design Brief button */}
-                      <Button
-                        onClick={() => autoGenerateAllDesignFields()}
-                        disabled={Object.values(fieldLoading).some(loading => loading)}
-                        className="w-full bg-purple-600 text-white hover:bg-purple-700"
-                        size="lg"
-                      >
-                        {Object.values(fieldLoading).some(loading => loading) ? (
-                          <>
-                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                            Generating Design Brief...
-                          </>
-                        ) : (
-                          <>
-                            <Wand2 className="h-4 w-4 mr-2" />
-                            Generate Design Brief
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  )}
 
                   {/* Show Selected Idea for Build Stage */}
                   {stageId === 'build' && stageData['ideate']?.status === 'completed' && (
@@ -1985,7 +2006,18 @@ export default function StageWorkspace({ projectId, hideSidebar = false }: Stage
                       );
                     }
 
-                    // Render without tabs for stages without fieldGroups (ideate, design)
+                    // Design stage is now handled by separate subpages, so skip rendering here
+                    if (stageId === 'design') {
+                      return (
+                        <div className="space-y-4">
+                          <p className="text-neutral-600">
+                            Design stage is now organized into subpages. Navigate using the sidebar or tabs above.
+                          </p>
+                        </div>
+                      );
+                    }
+
+                    // Render without tabs for stages without fieldGroups (ideate)
                     return (
                       <div className="space-y-4">
                         <h3 className="text-sm font-medium text-neutral-700">Stage Information</h3>

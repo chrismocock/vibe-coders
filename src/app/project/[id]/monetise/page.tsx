@@ -1,88 +1,145 @@
-import Link from "next/link";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+"use client";
+
+import { useState } from "react";
+import { useParams } from "next/navigation";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
+import { Wand2, ArrowRight, CreditCard, DollarSign, Gift, Lock } from "lucide-react";
+import { useMonetiseBlueprint } from "@/contexts/MonetiseStageContext";
+import MonetiseOverviewChecklist from "@/components/monetise/MonetiseOverviewChecklist";
+import { MONETISATION_MODELS } from "@/lib/monetise/constants";
 
-export default async function MonetiseOverviewPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
-  const progress = 0;
+export default function MonetiseOverviewPage() {
+  const params = useParams();
+  const projectId = params.id as string;
+  const { blueprint, buildPathMode, saveBlueprint, markComplete } = useMonetiseBlueprint();
+  const [generating, setGenerating] = useState(false);
 
-  const steps = [
+  const handleModelSelect = async (model: string) => {
+    await saveBlueprint({ monetisation_model: model });
+    markComplete("overview");
+  };
+
+  const handleRecommend = async () => {
+    setGenerating(true);
+    try {
+      const response = await fetch("/api/monetise/overview/recommend", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.result?.recommendedModel) {
+          await handleModelSelect(data.result.recommendedModel);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to get recommendation:", error);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const modelCards = [
     {
-      number: 1,
-      title: "Goals",
-      description: "Set your revenue goals and time horizon to guide your monetization strategy.",
-      href: `/project/${id}/monetise/goals`,
+      id: MONETISATION_MODELS.SUBSCRIPTION,
+      title: "Subscription",
+      description: "Recurring monthly or yearly payments",
+      icon: CreditCard,
     },
     {
-      number: 2,
-      title: "Business Model",
-      description: "Define your business model, pricing tiers, and identify your first paying customers.",
-      href: `/project/${id}/monetise/model`,
+      id: MONETISATION_MODELS.ONE_TIME,
+      title: "One-Time Purchase",
+      description: "Single payment for lifetime access",
+      icon: DollarSign,
     },
     {
-      number: 3,
-      title: "Economics",
-      description: "Calculate unit economics, design growth loops, and create a revenue roadmap.",
-      href: `/project/${id}/monetise/economics`,
+      id: MONETISATION_MODELS.FREEMIUM,
+      title: "Freemium",
+      description: "Free tier with paid upgrades",
+      icon: Gift,
     },
   ];
 
   return (
     <div className="space-y-8">
-      {/* Progress Section */}
+      {/* Hero */}
+      <div className="space-y-4">
+        <h1 className="text-3xl font-bold text-neutral-900">
+          Time to turn your product into income
+        </h1>
+        <p className="text-lg text-neutral-600 max-w-2xl">
+          Choose your monetisation model and build a complete revenue strategy with pricing, offers, and checkout flows.
+        </p>
+        {buildPathMode && (
+          <Badge variant="outline" className="w-fit">
+            Build Path: {buildPathMode}
+          </Badge>
+        )}
+      </div>
+
+      {/* Monetisation Model Selection */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-neutral-900">Overall Progress</h2>
-          <span className="text-sm text-neutral-600">{progress}% Complete</span>
+          <h2 className="text-xl font-semibold text-neutral-900">
+            Choose Your Monetisation Model
+          </h2>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRecommend}
+            disabled={generating}
+          >
+            <Wand2 className="h-4 w-4 mr-2" />
+            {generating ? "Generating..." : "Get AI recommendation"}
+          </Button>
         </div>
-        <Progress value={progress} className="h-2" />
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {modelCards.map((card) => {
+            const Icon = card.icon;
+            const isSelected = blueprint?.monetisation_model === card.id;
+            return (
+              <Card
+                key={card.id}
+                className={isSelected ? "border-purple-500 bg-purple-50" : "cursor-pointer hover:border-purple-300"}
+                onClick={() => handleModelSelect(card.id)}
+              >
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <Icon className="h-6 w-6 text-purple-600" />
+                    <CardTitle className="text-lg">{card.title}</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-neutral-600">{card.description}</p>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Intro Text */}
-      <div className="space-y-2">
-        <p className="text-base text-neutral-700">
-          Welcome to the Monetise stage. Here you'll develop your revenue streams, define your business model,
-          set pricing strategies, and create a plan to achieve your revenue goals.
-        </p>
-        <p className="text-sm text-neutral-600">
-          Start by setting your revenue goals, then define your business model and pricing, and finally calculate
-          your unit economics and growth strategy.
-        </p>
-      </div>
+      {/* Checklist */}
+      <MonetiseOverviewChecklist />
 
-      {/* Step Cards */}
-      <div className="grid gap-6 md:grid-cols-3">
-        {steps.map((step) => (
-          <Card key={step.number} className="border border-neutral-200 bg-white">
-            <CardHeader>
-              <div className="flex items-center gap-3 mb-2">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-100 text-purple-600 font-semibold">
-                  {step.number}
-                </div>
-                <CardTitle className="text-lg font-semibold text-neutral-900">
-                  {step.title}
-                </CardTitle>
-              </div>
-              <CardDescription className="text-neutral-600">
-                {step.description}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Link href={step.href}>
-                <Button className="w-full bg-purple-600 text-white hover:bg-purple-700">
-                  Get Started
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {/* CTA */}
+      {blueprint?.monetisation_model && (
+        <div className="flex justify-end">
+          <Button
+            onClick={() => {
+              window.location.href = `/project/${projectId}/monetise/pricing`;
+            }}
+            className="flex items-center gap-2"
+          >
+            Start Pricing Strategy
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
-

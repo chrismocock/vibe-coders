@@ -1,73 +1,132 @@
-import Link from "next/link";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+"use client";
+
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Wand2, Loader2 } from "lucide-react";
+import { useLaunchBlueprint } from "@/contexts/LaunchStageContext";
+import LaunchSectionShell from "@/components/launch/LaunchSectionShell";
+import LaunchTimelineCalendar from "@/components/launch/LaunchTimelineCalendar";
+import { useParams } from "next/navigation";
 
-export default async function LaunchStrategyPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
+export default function LaunchStrategyPage() {
+  const params = useParams();
+  const projectId = params.id as string;
+  const { blueprint, saveSection, markComplete } = useLaunchBlueprint();
+  const [generating, setGenerating] = useState(false);
+  const [timeframe, setTimeframe] = useState<7 | 14>(7);
 
-  const actionCards = [
-    {
-      title: "Develop Launch Strategy",
-      description: "Create a comprehensive launch strategy tailored to your product, budget, and timeline.",
-      action: "Create Strategy",
-    },
-    {
-      title: "Choose Primary Channel",
-      description: "Identify the best launch channel for your product based on your target audience and budget.",
-      action: "Select Channel",
-    },
-    {
-      title: "Define Messaging",
-      description: "Craft your core messaging and value proposition to communicate clearly with your audience.",
-      action: "Define Messaging",
-    },
-  ];
+  const handleGenerate = async () => {
+    setGenerating(true);
+    try {
+      const response = await fetch("/api/launch/strategy/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId,
+          launchPathChoice: blueprint?.launch_path_choice,
+          timeframe,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        await saveSection("strategy", data.result);
+        markComplete("strategy");
+      }
+    } catch (error) {
+      console.error("Failed to generate strategy:", error);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const strategyPlan = blueprint?.strategy_plan;
 
   return (
-    <div className="space-y-8">
-      {/* Heading */}
-      <div className="space-y-2">
-        <h1 className="text-2xl font-semibold text-neutral-900">Launch Strategy</h1>
-        <p className="text-base text-neutral-600">
-          Develop your launch strategy, identify primary channels, and define your messaging to effectively
-          introduce your product to the market.
-        </p>
-      </div>
-
-      {/* Action Cards */}
-      <div className="grid gap-6 md:grid-cols-3">
-        {actionCards.map((card, index) => (
-          <Card key={index} className="border border-neutral-200 bg-white">
-            <CardHeader>
-              <CardTitle className="text-lg font-semibold text-neutral-900">
-                {card.title}
-              </CardTitle>
-              <CardDescription className="text-neutral-600">
-                {card.description}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button variant="outline" className="w-full border-purple-200 text-purple-600 hover:bg-purple-50">
-                {card.action}
-              </Button>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {/* Back Button */}
-      <div className="pt-4">
-        <Link href={`/project/${id}/launch`}>
-          <Button variant="secondary" className="bg-neutral-100 text-neutral-700 hover:bg-neutral-200">
-            Back to Overview
+    <LaunchSectionShell
+      sectionId="strategy"
+      title="Launch Strategy"
+      description="Create a comprehensive launch plan with timeline, milestones, and target audiences."
+      aiButton={
+        <Button onClick={handleGenerate} disabled={generating}>
+          {generating ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Generating...
+            </>
+          ) : (
+            <>
+              <Wand2 className="h-4 w-4 mr-2" />
+              Generate Launch Strategy
+            </>
+          )}
+        </Button>
+      }
+      nextSection="messaging"
+      nextSectionLabel="Continue to Messaging & Positioning"
+      onComplete={() => markComplete("strategy")}
+    >
+      <div className="space-y-6">
+        {/* Timeframe Toggle */}
+        <div className="flex items-center gap-4">
+          <span className="text-sm font-medium">Timeframe:</span>
+          <Button
+            variant={timeframe === 7 ? "default" : "outline"}
+            size="sm"
+            onClick={() => setTimeframe(7)}
+          >
+            7 Days
           </Button>
-        </Link>
+          <Button
+            variant={timeframe === 14 ? "default" : "outline"}
+            size="sm"
+            onClick={() => setTimeframe(14)}
+          >
+            14 Days
+          </Button>
+        </div>
+
+        {/* Timeline Calendar */}
+        {strategyPlan && (
+          <LaunchTimelineCalendar
+            timeframe={strategyPlan.timeframe || timeframe}
+            milestones={strategyPlan.milestones || []}
+            onMilestonesChange={(milestones) =>
+              saveSection("strategy", { ...strategyPlan, milestones })
+            }
+          />
+        )}
+
+        {/* Audiences */}
+        {strategyPlan?.audiences && (
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold">Target Audiences</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {strategyPlan.audiences.map((audience: any, idx: number) => (
+                <div key={idx} className="p-4 border border-neutral-200 rounded-lg">
+                  <h4 className="font-medium">{audience.name}</h4>
+                  <p className="text-sm text-neutral-600 mt-1">
+                    {audience.description}
+                  </p>
+                  <div className="mt-2">
+                    <span className="text-xs font-medium">Channels:</span>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {audience.channels?.map((channel: string, i: number) => (
+                        <span
+                          key={i}
+                          className="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs"
+                        >
+                          {channel}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
-    </div>
+    </LaunchSectionShell>
   );
 }
-

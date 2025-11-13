@@ -7,7 +7,7 @@ import { useSectionData } from '@/components/validation/useSectionData';
 export default function GoToMarketPage() {
   const params = useParams();
   const projectId = params.id as string;
-  const { data, isLoading, rerunSection } = useSectionData(projectId, 'go-to-market');
+  const { data, completedActions, isLoading, rerunSection, toggleAction } = useSectionData(projectId, 'go-to-market');
 
   return (
     <div className="space-y-6">
@@ -22,8 +22,10 @@ export default function GoToMarketPage() {
         section="go-to-market"
         sectionLabel="Go-To-Market"
         data={data}
+        completedActions={completedActions}
         isLoading={isLoading}
         onRerun={rerunSection}
+        onToggleAction={toggleAction}
         projectId={projectId}
       />
     </div>

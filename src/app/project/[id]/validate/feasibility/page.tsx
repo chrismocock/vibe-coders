@@ -7,7 +7,7 @@ import { useSectionData } from '@/components/validation/useSectionData';
 export default function FeasibilityPage() {
   const params = useParams();
   const projectId = params.id as string;
-  const { data, isLoading, rerunSection } = useSectionData(projectId, 'feasibility');
+  const { data, completedActions, isLoading, rerunSection, toggleAction } = useSectionData(projectId, 'feasibility');
 
   return (
     <div className="space-y-6">
@@ -22,8 +22,10 @@ export default function FeasibilityPage() {
         section="feasibility"
         sectionLabel="Feasibility"
         data={data}
+        completedActions={completedActions}
         isLoading={isLoading}
         onRerun={rerunSection}
+        onToggleAction={toggleAction}
         projectId={projectId}
       />
     </div>

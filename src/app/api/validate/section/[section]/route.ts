@@ -5,7 +5,8 @@ import {
   getOrCreateValidationReport, 
   getSectionResult, 
   updateSectionResult, 
-  calculateOverview 
+  calculateOverview,
+  clearSectionActions
 } from '@/server/validation/store';
 import { ValidationSection } from '@/server/validation/types';
 import {
@@ -187,6 +188,12 @@ export async function POST(
     // Run section validation
     try {
       const result = await handler(ideaData);
+      
+      // Preserve completed actions when section is re-run
+      if (section !== 'overview') {
+        await clearSectionActions(finalReportId, section as ValidationSection, result.actions);
+      }
+      
       await updateSectionResult(finalReportId, section as ValidationSection, result);
       
       // Update overview after any section change

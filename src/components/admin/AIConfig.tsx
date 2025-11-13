@@ -36,6 +36,13 @@ interface AIConfig {
   system_prompt_initial_feedback?: string;
   system_prompt_vibe_coder?: string;
   system_prompt_send_to_devs?: string;
+  system_prompt_product_blueprint?: string;
+  system_prompt_user_personas?: string;
+  system_prompt_user_journey?: string;
+  system_prompt_information_architecture?: string;
+  system_prompt_wireframes?: string;
+  system_prompt_brand_identity?: string;
+  system_prompt_mvp_definition?: string;
   created_at: string;
   updated_at: string;
 }
@@ -101,6 +108,13 @@ export default function AIConfig({ onRefresh }: AIConfigProps) {
           system_prompt_initial_feedback: config.system_prompt_initial_feedback ?? defaults.system_prompt_initial_feedback ?? '',
           system_prompt_vibe_coder: config.system_prompt_vibe_coder ?? defaults.system_prompt_vibe_coder ?? '',
           system_prompt_send_to_devs: config.system_prompt_send_to_devs ?? defaults.system_prompt_send_to_devs ?? '',
+          system_prompt_product_blueprint: config.system_prompt_product_blueprint ?? defaults.system_prompt_product_blueprint ?? '',
+          system_prompt_user_personas: config.system_prompt_user_personas ?? defaults.system_prompt_user_personas ?? '',
+          system_prompt_user_journey: config.system_prompt_user_journey ?? defaults.system_prompt_user_journey ?? '',
+          system_prompt_information_architecture: config.system_prompt_information_architecture ?? defaults.system_prompt_information_architecture ?? '',
+          system_prompt_wireframes: config.system_prompt_wireframes ?? defaults.system_prompt_wireframes ?? '',
+          system_prompt_brand_identity: config.system_prompt_brand_identity ?? defaults.system_prompt_brand_identity ?? '',
+          system_prompt_mvp_definition: config.system_prompt_mvp_definition ?? defaults.system_prompt_mvp_definition ?? '',
         };
       });
       setConfigs(configMap);
@@ -149,7 +163,14 @@ export default function AIConfig({ onRefresh }: AIConfigProps) {
           system_prompt_review: config.system_prompt_review,
           system_prompt_initial_feedback: config.system_prompt_initial_feedback,
           system_prompt_vibe_coder: config.system_prompt_vibe_coder,
-          system_prompt_send_to_devs: config.system_prompt_send_to_devs
+          system_prompt_send_to_devs: config.system_prompt_send_to_devs,
+          system_prompt_product_blueprint: config.system_prompt_product_blueprint,
+          system_prompt_user_personas: config.system_prompt_user_personas,
+          system_prompt_user_journey: config.system_prompt_user_journey,
+          system_prompt_information_architecture: config.system_prompt_information_architecture,
+          system_prompt_wireframes: config.system_prompt_wireframes,
+          system_prompt_brand_identity: config.system_prompt_brand_identity,
+          system_prompt_mvp_definition: config.system_prompt_mvp_definition
         })
       });
 
@@ -405,6 +426,110 @@ export default function AIConfig({ onRefresh }: AIConfigProps) {
                         />
                         <p className="text-xs text-neutral-500">
                           Used when build mode is <em>Send to Developers (Create PRD)</em>. Focus on formal PRD structure, technical specifications, acceptance criteria, and developer handoff requirements. Falls back to generic system prompt if empty.
+                        </p>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Design Stage Subsection Prompts */}
+                  {stage.id === 'design' && (
+                    <>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-neutral-700">
+                          System Prompt — Product Blueprint (Design)
+                        </label>
+                        <Textarea
+                          value={config.system_prompt_product_blueprint || ''}
+                          onChange={(e) => updateConfig(stage.id, 'system_prompt_product_blueprint', e.target.value)}
+                          placeholder="System prompt for Product Blueprint section. Falls back to generic system prompt if empty."
+                          className="min-h-[120px] border border-neutral-300 bg-white text-neutral-900 placeholder:text-neutral-400"
+                        />
+                        <p className="text-xs text-neutral-500">
+                          Used for Product Blueprint section. Falls back to generic system prompt if empty.
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-neutral-700">
+                          System Prompt — User Personas (Design)
+                        </label>
+                        <Textarea
+                          value={config.system_prompt_user_personas || ''}
+                          onChange={(e) => updateConfig(stage.id, 'system_prompt_user_personas', e.target.value)}
+                          placeholder="System prompt for User Personas section. Falls back to generic system prompt if empty."
+                          className="min-h-[120px] border border-neutral-300 bg-white text-neutral-900 placeholder:text-neutral-400"
+                        />
+                        <p className="text-xs text-neutral-500">
+                          Used for User Personas section. Falls back to generic system prompt if empty.
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-neutral-700">
+                          System Prompt — User Journey (Design)
+                        </label>
+                        <Textarea
+                          value={config.system_prompt_user_journey || ''}
+                          onChange={(e) => updateConfig(stage.id, 'system_prompt_user_journey', e.target.value)}
+                          placeholder="System prompt for User Journey Mapping section. Falls back to generic system prompt if empty."
+                          className="min-h-[120px] border border-neutral-300 bg-white text-neutral-900 placeholder:text-neutral-400"
+                        />
+                        <p className="text-xs text-neutral-500">
+                          Used for User Journey Mapping section. Falls back to generic system prompt if empty.
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-neutral-700">
+                          System Prompt — Information Architecture (Design)
+                        </label>
+                        <Textarea
+                          value={config.system_prompt_information_architecture || ''}
+                          onChange={(e) => updateConfig(stage.id, 'system_prompt_information_architecture', e.target.value)}
+                          placeholder="System prompt for Information Architecture section. Falls back to generic system prompt if empty."
+                          className="min-h-[120px] border border-neutral-300 bg-white text-neutral-900 placeholder:text-neutral-400"
+                        />
+                        <p className="text-xs text-neutral-500">
+                          Used for Information Architecture section. Falls back to generic system prompt if empty.
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-neutral-700">
+                          System Prompt — Wireframes (Design)
+                        </label>
+                        <Textarea
+                          value={config.system_prompt_wireframes || ''}
+                          onChange={(e) => updateConfig(stage.id, 'system_prompt_wireframes', e.target.value)}
+                          placeholder="System prompt for Wireframes & Layouts section. Falls back to generic system prompt if empty."
+                          className="min-h-[120px] border border-neutral-300 bg-white text-neutral-900 placeholder:text-neutral-400"
+                        />
+                        <p className="text-xs text-neutral-500">
+                          Used for Wireframes & Layouts section. Falls back to generic system prompt if empty.
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-neutral-700">
+                          System Prompt — Brand Identity (Design)
+                        </label>
+                        <Textarea
+                          value={config.system_prompt_brand_identity || ''}
+                          onChange={(e) => updateConfig(stage.id, 'system_prompt_brand_identity', e.target.value)}
+                          placeholder="System prompt for Brand & Visual Identity section. Falls back to generic system prompt if empty."
+                          className="min-h-[120px] border border-neutral-300 bg-white text-neutral-900 placeholder:text-neutral-400"
+                        />
+                        <p className="text-xs text-neutral-500">
+                          Used for Brand & Visual Identity section. Falls back to generic system prompt if empty.
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-neutral-700">
+                          System Prompt — MVP Definition (Design)
+                        </label>
+                        <Textarea
+                          value={config.system_prompt_mvp_definition || ''}
+                          onChange={(e) => updateConfig(stage.id, 'system_prompt_mvp_definition', e.target.value)}
+                          placeholder="System prompt for MVP Definition section. Falls back to generic system prompt if empty."
+                          className="min-h-[120px] border border-neutral-300 bg-white text-neutral-900 placeholder:text-neutral-400"
+                        />
+                        <p className="text-xs text-neutral-500">
+                          Used for MVP Definition section. Falls back to generic system prompt if empty.
                         </p>
                       </div>
                     </>

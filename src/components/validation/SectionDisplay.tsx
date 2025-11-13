@@ -1,21 +1,25 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { RefreshCw, CheckCircle2, Loader2 } from 'lucide-react';
+import { RefreshCw, CheckCircle2, Loader2, Circle, ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SectionResult } from '@/server/validation/types';
 import { toast } from 'sonner';
+import { getNextStep } from './sectionNavigation';
 
 interface SectionDisplayProps {
   section: string;
   sectionLabel: string;
   data: SectionResult | null;
+  completedActions?: string[];
   isLoading?: boolean;
   onRerun: () => Promise<void>;
+  onToggleAction?: (actionText: string, completed: boolean) => Promise<void>;
   projectId: string;
 }
 
@@ -23,11 +27,14 @@ export function SectionDisplay({
   section,
   sectionLabel,
   data,
+  completedActions = [],
   isLoading = false,
   onRerun,
+  onToggleAction,
   projectId,
 }: SectionDisplayProps) {
   const [isRerunning, setIsRerunning] = useState(false);
+  const [togglingActions, setTogglingActions] = useState<Set<string>>(new Set());
 
   const getScoreColor = (score: number) => {
     if (score >= 70) return 'bg-green-500';
@@ -148,30 +155,93 @@ export function SectionDisplay({
       {/* Actions Card */}
       <Card className="border border-neutral-200 bg-white">
         <CardHeader>
-          <CardTitle className="text-lg font-semibold text-neutral-900">Recommended Validation Actions</CardTitle>
-          <CardDescription className="text-neutral-600">
-            Actionable steps to validate and improve this aspect of your idea
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-lg font-semibold text-neutral-900">Recommended Validation Actions</CardTitle>
+              <CardDescription className="text-neutral-600">
+                Actionable steps to validate and improve this aspect of your idea
+              </CardDescription>
+            </div>
+            {data.actions.length > 0 && (
+              <Badge variant="outline" className="text-xs">
+                {completedActions.length} / {data.actions.length} completed
+              </Badge>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           <ul className="space-y-3">
-            {data.actions.map((action, index) => (
-              <li key={index} className="flex items-start gap-3">
-                <CheckCircle2 className="h-5 w-5 text-purple-600 mt-0.5 flex-shrink-0" />
-                <span className="text-sm text-neutral-700 leading-relaxed">{action}</span>
-              </li>
-            ))}
+            {data.actions.map((action, index) => {
+              const isCompleted = completedActions.includes(action);
+              const isToggling = togglingActions.has(action);
+
+              return (
+                <li 
+                  key={index} 
+                  className={cn(
+                    "flex items-start gap-3 transition-all",
+                    isCompleted && "opacity-75"
+                  )}
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!onToggleAction || isToggling) return;
+                      setTogglingActions((prev) => new Set(prev).add(action));
+                      onToggleAction(action, !isCompleted)
+                        .catch(() => {
+                          // Error already handled in hook
+                        })
+                        .finally(() => {
+                          setTogglingActions((prev) => {
+                            const next = new Set(prev);
+                            next.delete(action);
+                            return next;
+                          });
+                        });
+                    }}
+                    disabled={isToggling || !onToggleAction}
+                    className={cn(
+                      "mt-0.5 flex-shrink-0 transition-all",
+                      "hover:scale-110",
+                      isToggling && "opacity-50 cursor-wait",
+                      !onToggleAction && "cursor-not-allowed"
+                    )}
+                    aria-label={isCompleted ? 'Mark as incomplete' : 'Mark as complete'}
+                  >
+                    {isToggling ? (
+                      <Loader2 className="h-5 w-5 text-purple-600 animate-spin" />
+                    ) : isCompleted ? (
+                      <CheckCircle2 className="h-5 w-5 text-green-600" />
+                    ) : (
+                      <Circle className="h-5 w-5 text-neutral-400" />
+                    )}
+                  </button>
+                  <span 
+                    className={cn(
+                      "text-sm leading-relaxed flex-1",
+                      isCompleted 
+                        ? "text-neutral-500 line-through" 
+                        : "text-neutral-700"
+                    )}
+                  >
+                    {action}
+                  </span>
+                </li>
+              );
+            })}
           </ul>
         </CardContent>
       </Card>
 
-      {/* Re-run Button */}
-      <div className="flex justify-end">
+      {/* Action Buttons */}
+      <div className="flex flex-col sm:flex-row gap-3 sm:justify-between sm:items-center">
+        {/* Re-run Button */}
         <Button
           onClick={handleRerun}
           disabled={isRerunning}
           variant="outline"
-          className="flex items-center gap-2"
+          className="flex items-center gap-2 w-full sm:w-auto"
         >
           {isRerunning ? (
             <>
@@ -185,6 +255,26 @@ export function SectionDisplay({
             </>
           )}
         </Button>
+
+        {/* Next Step Button */}
+        {(() => {
+          const nextStep = getNextStep(section);
+          if (!nextStep || !data) return null;
+
+          return (
+            <Link href={`/project/${projectId}/validate/${nextStep.nextSection}`}>
+              <Button
+                className="flex items-center gap-2 w-full sm:w-auto bg-purple-600 hover:bg-purple-700 text-white"
+              >
+                <span>Next: {nextStep.nextLabel}</span>
+                <ArrowRight className="h-4 w-4" />
+                <span className="hidden lg:inline ml-1 text-sm opacity-90">
+                  → {nextStep.description}
+                </span>
+              </Button>
+            </Link>
+          );
+        })()}
       </div>
     </div>
   );

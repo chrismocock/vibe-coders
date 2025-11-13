@@ -7,7 +7,7 @@ import { useSectionData } from '@/components/validation/useSectionData';
 export default function CompetitionPage() {
   const params = useParams();
   const projectId = params.id as string;
-  const { data, isLoading, rerunSection } = useSectionData(projectId, 'competition');
+  const { data, completedActions, isLoading, rerunSection, toggleAction } = useSectionData(projectId, 'competition');
 
   return (
     <div className="space-y-6">
@@ -22,8 +22,10 @@ export default function CompetitionPage() {
         section="competition"
         sectionLabel="Competition"
         data={data}
+        completedActions={completedActions}
         isLoading={isLoading}
         onRerun={rerunSection}
+        onToggleAction={toggleAction}
         projectId={projectId}
       />
     </div>

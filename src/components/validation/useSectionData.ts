@@ -2,9 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { SectionResult } from '@/server/validation/types';
+import { toast } from 'sonner';
 
 export function useSectionData(projectId: string, section: string) {
   const [data, setData] = useState<SectionResult | null>(null);
+  const [completedActions, setCompletedActions] = useState<string[]>([]);
+  const [reportId, setReportId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,21 +38,29 @@ export function useSectionData(projectId: string, section: string) {
           ? JSON.parse(validateStage.output)
           : validateStage.output;
 
-        const reportId = outputData.reportId;
-        if (!reportId) {
+        const fetchedReportId = outputData.reportId;
+        if (!fetchedReportId) {
           setData(null);
           setIsLoading(false);
           return;
         }
 
+        // Cache the reportId for later use
+        setReportId(fetchedReportId);
+
         // Fetch the validation report
-        const reportResponse = await fetch(`/api/validate/${reportId}`);
+        const reportResponse = await fetch(`/api/validate/${fetchedReportId}`);
         if (!reportResponse.ok) {
           throw new Error('Failed to fetch validation report');
         }
 
         const reportData = await reportResponse.json();
         const sectionResults = reportData.report?.section_results || {};
+        
+        // Load completed actions
+        const completedActionsData = reportData.report?.completed_actions || {};
+        const sectionCompletedActions = completedActionsData[section] || [];
+        setCompletedActions(sectionCompletedActions);
 
         // For overview, calculate it from other sections
         if (section === 'overview') {
@@ -124,30 +135,43 @@ export function useSectionData(projectId: string, section: string) {
       setIsLoading(true);
       setError(null);
 
-      // Get reportId
-      const stagesResponse = await fetch(`/api/projects/${projectId}/stages`);
-      if (!stagesResponse.ok) {
-        throw new Error('Failed to fetch project stages');
+      // Use cached reportId, or fetch it if not available
+      let currentReportId = reportId;
+      
+      if (!currentReportId) {
+        // Get reportId
+        const stagesResponse = await fetch(`/api/projects/${projectId}/stages`);
+        if (!stagesResponse.ok) {
+          throw new Error('Failed to fetch project stages');
+        }
+
+        const stagesData = await stagesResponse.json();
+        const validateStage = stagesData.stages?.find(
+          (s: any) => s.stage === 'validate' && s.status === 'completed'
+        );
+
+        if (validateStage?.output) {
+          const outputData = typeof validateStage.output === 'string'
+            ? JSON.parse(validateStage.output)
+            : validateStage.output;
+          currentReportId = outputData.reportId;
+          
+          // Cache it for next time
+          if (currentReportId) {
+            setReportId(currentReportId);
+          }
+        }
       }
 
-      const stagesData = await stagesResponse.json();
-      const validateStage = stagesData.stages?.find(
-        (s: any) => s.stage === 'validate' && s.status === 'completed'
-      );
-
-      let reportId: string | undefined;
-      if (validateStage?.output) {
-        const outputData = typeof validateStage.output === 'string'
-          ? JSON.parse(validateStage.output)
-          : validateStage.output;
-        reportId = outputData.reportId;
+      if (!currentReportId) {
+        throw new Error('No validation report found');
       }
 
       // Call the section endpoint
       const response = await fetch(`/api/validate/section/${section}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId, reportId }),
+        body: JSON.stringify({ projectId, reportId: currentReportId }),
       });
 
       if (!response.ok) {
@@ -157,6 +181,15 @@ export function useSectionData(projectId: string, section: string) {
 
       const result = await response.json();
       setData(result);
+      
+      // Reload completed actions after section update
+      const reportResponse = await fetch(`/api/validate/${currentReportId}`);
+      if (reportResponse.ok) {
+        const reportData = await reportResponse.json();
+        const completedActionsData = reportData.report?.completed_actions || {};
+        const sectionCompletedActions = completedActionsData[section] || [];
+        setCompletedActions(sectionCompletedActions);
+      }
 
       // Trigger event so overview can refresh if needed
       const event = new Event('section-updated');
@@ -170,6 +203,82 @@ export function useSectionData(projectId: string, section: string) {
     }
   };
 
-  return { data, isLoading, error, rerunSection };
+  const toggleAction = async (actionText: string, completed: boolean) => {
+    try {
+      // Optimistic update
+      setCompletedActions((prev) => {
+        if (completed) {
+          return prev.includes(actionText) ? prev : [...prev, actionText];
+        } else {
+          return prev.filter((action) => action !== actionText);
+        }
+      });
+
+      // Use cached reportId, or fetch it if not available (fallback)
+      let currentReportId = reportId;
+      
+      if (!currentReportId) {
+        // Fallback: fetch reportId if not cached
+        const stagesResponse = await fetch(`/api/projects/${projectId}/stages`);
+        if (!stagesResponse.ok) {
+          throw new Error('Failed to fetch project stages');
+        }
+
+        const stagesData = await stagesResponse.json();
+        const validateStage = stagesData.stages?.find(
+          (s: any) => s.stage === 'validate' && s.status === 'completed'
+        );
+
+        if (validateStage?.output) {
+          const outputData = typeof validateStage.output === 'string'
+            ? JSON.parse(validateStage.output)
+            : validateStage.output;
+          currentReportId = outputData.reportId;
+          
+          // Cache it for next time
+          if (currentReportId) {
+            setReportId(currentReportId);
+          }
+        }
+      }
+
+      if (!currentReportId) {
+        throw new Error('No validation report found');
+      }
+
+      // Call API
+      const response = await fetch('/api/validate/actions/toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reportId: currentReportId,
+          section,
+          actionText,
+          completed,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to toggle action');
+      }
+
+      // Success - state already updated optimistically
+    } catch (err) {
+      console.error('Error toggling action:', err);
+      // Revert optimistic update
+      setCompletedActions((prev) => {
+        if (completed) {
+          return prev.filter((action) => action !== actionText);
+        } else {
+          return prev.includes(actionText) ? prev : [...prev, actionText];
+        }
+      });
+      toast.error('Failed to update action. Please try again.');
+      throw err;
+    }
+  };
+
+  return { data, completedActions, isLoading, error, rerunSection, toggleAction };
 }
 

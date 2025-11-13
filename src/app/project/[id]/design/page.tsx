@@ -1,87 +1,98 @@
-import Link from "next/link";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
+"use client";
 
-export default async function DesignOverviewPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
-  const progress = 0;
+import { useParams } from "next/navigation";
+import DesignOverviewHub from "@/components/design/DesignOverviewHub";
+import { useState, useEffect } from "react";
+import { Loader2 } from "lucide-react";
 
-  const steps = [
-    {
-      number: 1,
-      title: "Product Type & Features",
-      description: "Define your product type (web app, mobile app, etc.) and identify the key features your product needs.",
-      href: `/project/${id}/design/product`,
-    },
-    {
-      number: 2,
-      title: "User Personas",
-      description: "Create detailed user personas to understand your target users, their needs, behaviors, and goals.",
-      href: `/project/${id}/design/personas`,
-    },
-    {
-      number: 3,
-      title: "Design Style",
-      description: "Define your design system with colors, typography, and UI elements that match your brand and users.",
-      href: `/project/${id}/design/style`,
-    },
-  ];
+export default function DesignOverviewPage() {
+  const params = useParams();
+  const projectId = params.id as string;
+  const [ideaContext, setIdeaContext] = useState<string>("");
+  const [validateData, setValidateData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        // Load ideate data for context
+        const stagesResponse = await fetch(`/api/projects/${projectId}/stages`);
+        if (stagesResponse.ok) {
+          const stagesData = await stagesResponse.json();
+          const ideateStage = stagesData.stages?.find(
+            (s: any) => s.stage === "ideate" && s.status === "completed"
+          );
+          
+          if (ideateStage?.input) {
+            try {
+              const parsed = JSON.parse(ideateStage.input);
+              const selectedIdea = parsed.selectedIdea;
+              const context = selectedIdea && typeof selectedIdea === "object" && selectedIdea !== null
+                ? selectedIdea.title || selectedIdea.description || JSON.stringify(selectedIdea)
+                : selectedIdea || "";
+              setIdeaContext(context);
+            } catch (e) {
+              console.error("Failed to parse ideate data:", e);
+            }
+          }
+
+          // Load validation data
+          const validateStage = stagesData.stages?.find(
+            (s: any) => s.stage === "validate" && s.status === "completed"
+          );
+          
+          if (validateStage?.output) {
+            try {
+              const outputData = typeof validateStage.output === "string"
+                ? JSON.parse(validateStage.output)
+                : validateStage.output;
+              
+              const reportId = outputData.reportId;
+              if (reportId) {
+                const reportResponse = await fetch(`/api/validate/${reportId}`);
+                if (reportResponse.ok) {
+                  const reportData = await reportResponse.json();
+                  setValidateData(reportData.report);
+                }
+              }
+            } catch (e) {
+              console.error("Failed to load validation data:", e);
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load data:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadData();
+  }, [projectId]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-neutral-400" />
+        <span className="ml-2 text-neutral-600">Loading design overview...</span>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-8">
-      {/* Progress Section */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-neutral-900">Overall Progress</h2>
-          <span className="text-sm text-neutral-600">{progress}% Complete</span>
-        </div>
-        <Progress value={progress} className="h-2" />
-      </div>
-
-      {/* Intro Text */}
+    <div className="space-y-6">
       <div className="space-y-2">
-        <p className="text-base text-neutral-700">
-          Welcome to the Design stage. Here you'll define your product type, identify key features, create user
-          personas, and establish a cohesive design system that will guide your product development.
-        </p>
-        <p className="text-sm text-neutral-600">
-          Start by defining your product type and features, then create user personas, and finally establish
-          your design style and tokens.
+        <h1 className="text-2xl font-bold text-neutral-900">Design Overview</h1>
+        <p className="text-neutral-600">
+          Complete all 8 sections to finalize your design blueprint. Use AI generation to speed up the process.
         </p>
       </div>
 
-      {/* Step Cards */}
-      <div className="grid gap-6 md:grid-cols-3">
-        {steps.map((step) => (
-          <Card key={step.number} className="border border-neutral-200 bg-white">
-            <CardHeader>
-              <div className="flex items-center gap-3 mb-2">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-100 text-purple-600 font-semibold">
-                  {step.number}
-                </div>
-                <CardTitle className="text-lg font-semibold text-neutral-900">
-                  {step.title}
-                </CardTitle>
-              </div>
-              <CardDescription className="text-neutral-600">
-                {step.description}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Link href={step.href}>
-                <Button className="w-full bg-purple-600 text-white hover:bg-purple-700">
-                  Get Started
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      <DesignOverviewHub
+        projectId={projectId}
+        ideaContext={ideaContext}
+        validateData={validateData}
+      />
     </div>
   );
 }
