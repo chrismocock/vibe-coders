@@ -10,7 +10,8 @@
     "create-test-users": "node scripts/create-test-users.js",
     "create-test-projects": "node scripts/create-test-projects.js",
     "seed-ai-configs": "node scripts/seed-ai-configs.js",
-    "setup-ai-configs": "node scripts/setup-ai-configs.js"
+    "setup-ai-configs": "node scripts/setup-ai-configs.js",
+    "copy-dev-to-staging": "node scripts/copy-dev-to-staging.js"
   },
   "dependencies": {
     "@clerk/nextjs": "^6.33.3",
