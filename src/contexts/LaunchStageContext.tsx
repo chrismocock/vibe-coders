@@ -21,6 +21,21 @@ interface LaunchBlueprint {
   updated_at?: string;
 }
 
+// Payload shape for updates sent to the API (camelCase fields)
+interface LaunchBlueprintUpdates {
+  launchPathChoice?: string;
+  strategyPlan?: any;
+  messagingFramework?: any;
+  landingOnboarding?: any;
+  earlyAdopters?: any;
+  marketingAssets?: any;
+  trackingMetrics?: any;
+  launchPack?: any;
+  sectionCompletion?: Record<string, boolean>;
+  buildPathSnapshot?: string;
+  lastAiRun?: string;
+}
+
 interface LaunchStageContextType {
   blueprint: LaunchBlueprint | null;
   loading: boolean;
@@ -30,8 +45,8 @@ interface LaunchStageContextType {
   sectionCompletion: Record<string, boolean>;
   lastAiRun: string | null;
   loadBlueprint: () => Promise<void>;
-  saveBlueprint: (updates: Partial<LaunchBlueprint>) => Promise<void>;
-  autosave: (updates: Partial<LaunchBlueprint>) => void;
+  saveBlueprint: (updates: Partial<LaunchBlueprintUpdates>) => Promise<void>;
+  autosave: (updates: Partial<LaunchBlueprintUpdates>) => void;
   saveSection: (sectionId: string, payload: any) => Promise<void>;
   markComplete: (sectionId: string) => void;
   refreshBlueprint: () => Promise<void>;
@@ -67,7 +82,7 @@ export function LaunchStageProvider({
     }
   }, [projectId]);
 
-  const saveBlueprint = useCallback(async (updates: Partial<LaunchBlueprint>) => {
+  const saveBlueprint = useCallback(async (updates: Partial<LaunchBlueprintUpdates>) => {
     try {
       setSaving(true);
       const response = await fetch("/api/launch/blueprint", {
@@ -94,7 +109,7 @@ export function LaunchStageProvider({
     }
   }, [projectId]);
 
-  const autosave = useCallback((updates: Partial<LaunchBlueprint>) => {
+  const autosave = useCallback((updates: Partial<LaunchBlueprintUpdates>) => {
     // Clear existing timer
     if (autosaveTimer.current) {
       clearTimeout(autosaveTimer.current);
@@ -113,21 +128,21 @@ export function LaunchStageProvider({
   const saveSection = useCallback(async (sectionId: string, payload: any) => {
     if (!blueprint) return;
 
-    const sectionMap: Record<string, keyof LaunchBlueprint> = {
-      overview: "launch_path_choice",
-      strategy: "strategy_plan",
-      messaging: "messaging_framework",
-      landing: "landing_onboarding",
-      adopters: "early_adopters",
-      assets: "marketing_assets",
-      metrics: "tracking_metrics",
-      pack: "launch_pack",
+    const sectionMap: Record<string, keyof LaunchBlueprintUpdates> = {
+      overview: "launchPathChoice",
+      strategy: "strategyPlan",
+      messaging: "messagingFramework",
+      landing: "landingOnboarding",
+      adopters: "earlyAdopters",
+      assets: "marketingAssets",
+      metrics: "trackingMetrics",
+      pack: "launchPack",
     };
 
     const fieldName = sectionMap[sectionId];
     if (!fieldName) return;
 
-    const updates: Partial<LaunchBlueprint> = {
+    const updates: Partial<LaunchBlueprintUpdates> = {
       [fieldName]: payload,
     };
 
