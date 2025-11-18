@@ -19,6 +19,19 @@ interface BuildBlueprint {
   updated_at?: string;
 }
 
+// Payload shape for updates sent to the API (camelCase fields)
+interface BuildBlueprintUpdates {
+  buildPath?: string;
+  mvpScope?: any;
+  featureSpecs?: any;
+  dataModel?: any;
+  screensComponents?: any;
+  integrations?: any;
+  developerPack?: any;
+  sectionCompletion?: Record<string, boolean>;
+  lastAiRun?: string;
+}
+
 interface BuildStageContextType {
   blueprint: BuildBlueprint | null;
   loading: boolean;
@@ -26,8 +39,8 @@ interface BuildStageContextType {
   buildPath: string | null;
   sectionCompletion: Record<string, boolean>;
   loadBlueprint: () => Promise<void>;
-  saveBlueprint: (updates: Partial<BuildBlueprint>) => Promise<void>;
-  autosave: (updates: Partial<BuildBlueprint>) => void;
+  saveBlueprint: (updates: Partial<BuildBlueprintUpdates>) => Promise<void>;
+  autosave: (updates: Partial<BuildBlueprintUpdates>) => void;
   updateSectionCompletion: (section: string, completed: boolean) => void;
   refreshBlueprint: () => Promise<void>;
 }
@@ -62,7 +75,7 @@ export function BuildStageProvider({
     }
   }, [projectId]);
 
-  const saveBlueprint = useCallback(async (updates: Partial<BuildBlueprint>) => {
+  const saveBlueprint = useCallback(async (updates: Partial<BuildBlueprintUpdates>) => {
     try {
       setSaving(true);
       const response = await fetch("/api/build/blueprint", {
@@ -89,7 +102,7 @@ export function BuildStageProvider({
     }
   }, [projectId]);
 
-  const autosave = useCallback((updates: Partial<BuildBlueprint>) => {
+  const autosave = useCallback((updates: Partial<BuildBlueprintUpdates>) => {
     // Clear existing timer
     if (autosaveTimer.current) {
       clearTimeout(autosaveTimer.current);

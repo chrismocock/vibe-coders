@@ -4,7 +4,15 @@ import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
-import { Pencil, X, Check, Loader2 } from "lucide-react";
+import { Pencil, X, Check, Loader2, ChevronDown } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useProjects } from "@/hooks/useProjects";
 
 type Props = {
   projectId: string;
@@ -13,6 +21,7 @@ type Props = {
 
 export default function ProjectTitleEditor({ projectId, initialTitle }: Props) {
   const router = useRouter();
+  const { projects } = useProjects();
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(initialTitle || "");
   const [saving, setSaving] = useState(false);
@@ -43,10 +52,31 @@ export default function ProjectTitleEditor({ projectId, initialTitle }: Props) {
     }
   }
 
+  const handleProjectSwitch = (newProjectId: string) => {
+    if (newProjectId !== projectId) {
+      router.push(`/project/${newProjectId}`);
+    }
+  };
+
   if (!editing) {
     return (
-      <div className="flex items-center gap-2">
-        <h1 className="text-2xl font-bold text-neutral-900">{initialTitle || "Untitled Project"}</h1>
+      <div className="flex items-center gap-3">
+        {projects.length > 1 ? (
+          <Select value={projectId} onValueChange={handleProjectSwitch}>
+            <SelectTrigger className="w-[280px] h-9 text-lg font-bold">
+              <SelectValue placeholder={initialTitle || "Untitled Project"} />
+            </SelectTrigger>
+            <SelectContent>
+              {projects.map((project) => (
+                <SelectItem key={project.id} value={project.id}>
+                  {project.title || "Untitled Project"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <h1 className="text-2xl font-bold text-neutral-900">{initialTitle || "Untitled Project"}</h1>
+        )}
         <Button
           variant="outline"
           size="sm"

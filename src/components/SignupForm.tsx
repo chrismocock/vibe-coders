@@ -9,7 +9,7 @@ export function SignupForm() {
         <SignUp
           routing="hash"
           signInUrl="/sign-in"
-          afterSignUpUrl="/dashboard"
+          afterSignUpUrl="/projects"
           appearance={{ variables: { colorText: "#ffffff" } }}
         />
       </div>

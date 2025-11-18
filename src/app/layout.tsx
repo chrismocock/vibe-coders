@@ -21,7 +21,8 @@ export default function RootLayout({
     <ClerkProvider>
       <html lang="en">
         <body className={`${inter.variable} ${poppins.variable} antialiased bg-background text-foreground font-sans`}>
-          <div className="pointer-events-none fixed inset-x-0 top-0 z-50 flex items-center justify-end p-4">
+          {/* Desktop User Button - Hidden on mobile */}
+          <div className="pointer-events-none fixed inset-x-0 top-0 z-50 hidden lg:flex items-center justify-end p-4">
             <div className="pointer-events-auto rounded-full border border-white/10 bg-white/5 px-3 py-1.5 backdrop-blur">
               <SignedIn>
                 <div className="flex items-center gap-3">

@@ -90,6 +90,8 @@ interface StageSidebarProps {
   onStageChange: (stageId: string) => void;
   projectId?: string;
   showBackButton?: boolean;
+  isMobileOpen?: boolean;
+  setIsMobileOpen?: (open: boolean) => void;
 }
 
 const validationSubSections = [
@@ -152,9 +154,15 @@ export default function StageSidebar({
   onStageChange,
   projectId,
   showBackButton = false,
+  isMobileOpen: externalIsMobileOpen,
+  setIsMobileOpen: externalSetIsMobileOpen,
 }: StageSidebarProps) {
-  const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [internalIsMobileOpen, setInternalIsMobileOpen] = useState(false);
   const pathname = usePathname();
+  
+  // Use external state if provided, otherwise use internal state
+  const isMobileOpen = externalIsMobileOpen !== undefined ? externalIsMobileOpen : internalIsMobileOpen;
+  const setIsMobileOpen = externalSetIsMobileOpen || setInternalIsMobileOpen;
   
   // Determine active validation sub-section
   const getActiveValidationSubSection = () => {
@@ -280,18 +288,6 @@ export default function StageSidebar({
 
   return (
     <>
-      {/* Mobile menu button */}
-      <div className="lg:hidden fixed top-20 left-4 z-40">
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => setIsMobileOpen(!isMobileOpen)}
-          className="bg-white shadow-md"
-        >
-          {isMobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-        </Button>
-      </div>
-
       {/* Overlay for mobile */}
       {isMobileOpen && (
         <div
@@ -303,7 +299,7 @@ export default function StageSidebar({
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed left-0 top-0 h-screen w-64 bg-white border-r border-neutral-200 z-30 flex flex-col transition-transform duration-300 ease-in-out",
+          "fixed left-0 top-0 h-screen w-64 bg-white border-r border-neutral-200 z-50 flex flex-col transition-transform duration-300 ease-in-out",
           "lg:translate-x-0",
           isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         )}
@@ -312,14 +308,14 @@ export default function StageSidebar({
           {/* Header */}
           <div className="p-4 border-b border-neutral-200">
             {showBackButton && (
-              <Link href="/dashboard">
+              <Link href="/projects">
                 <Button
                   variant="ghost"
                   size="sm"
                   className="w-full justify-start text-neutral-600 hover:text-neutral-900 mb-2"
                 >
                   <ChevronLeft className="h-4 w-4 mr-2" />
-                  Back to Dashboard
+                  Back to Projects
                 </Button>
               </Link>
             )}

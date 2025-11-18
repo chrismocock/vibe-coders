@@ -1,9 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { useRouter } from "next/navigation";
 import StageSidebar from "@/components/StageSidebar";
 import ProjectTitleEditor from "@/components/ProjectTitleEditor";
+import MobileHeader from "@/components/MobileHeader";
 
 interface ProjectLayoutClientProps {
   children: React.ReactNode;
@@ -20,6 +22,7 @@ export function ProjectLayoutClient({
 }: ProjectLayoutClientProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   // Determine active stage from pathname
   let activeStage = "dashboard";
@@ -62,6 +65,13 @@ export function ProjectLayoutClient({
 
   return (
     <div className="flex min-h-screen bg-neutral-50">
+      {/* Mobile Header */}
+      <MobileHeader
+        projectTitle={projectTitle}
+        isSidebarOpen={isMobileSidebarOpen}
+        onSidebarToggle={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
+      />
+
       {/* Sidebar */}
       <StageSidebar
         activeStage={activeStage}
@@ -69,13 +79,15 @@ export function ProjectLayoutClient({
         onStageChange={handleStageChange}
         projectId={projectId}
         showBackButton={true}
+        isMobileOpen={isMobileSidebarOpen}
+        setIsMobileOpen={setIsMobileSidebarOpen}
       />
 
       {/* Main Content Area */}
-      <div className="flex-1 lg:ml-64">
+      <div className="flex-1 lg:ml-64 pt-14 lg:pt-0">
         <div className="space-y-6 p-6 lg:p-8">
-          {/* Project Title */}
-          <div className="mb-4">
+          {/* Project Title - Hidden on mobile, shown on desktop */}
+          <div className="mb-4 hidden lg:block">
             <ProjectTitleEditor projectId={projectId} initialTitle={projectTitle} />
           </div>
 
