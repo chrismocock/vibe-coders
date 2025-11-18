@@ -662,8 +662,8 @@ inputType === "problem" ?
 '**Problem Clarity**: For an idea, consider clearly articulating what problem it solves.'}
 
 ${insights.mentionedSolutions.length > 0 ? 
-`**Solution Approach**: You mentioned ${insights.mentionedSolutions.join(', ')} which shows you're thinking about how to ${inputType === "explore-idea" ? "address" : "solve"} this. ${insights.mentionedSolutions.includes('automate') || insights.mentionedSolutions.includes('streamline') ? 'Automation/streamlining suggests efficiency gains - quantify these if possible.' : insights.mentionedSolutions.includes('create') || insights.mentionedSolutions.includes('build') ? 'Building something new suggests innovation - what makes your approach different?' : ''}` : 
-'**Solution Clarity**: ${inputType === "explore-idea" ? "Your idea is clear" : "Consider outlining potential solution approaches"}.'}
+`**Solution Approach**: You mentioned ${insights.mentionedSolutions.join(', ')} which shows you're thinking about how to ${inputType === "idea" ? "address" : "solve"} this. ${insights.mentionedSolutions.includes('automate') || insights.mentionedSolutions.includes('streamline') ? 'Automation/streamlining suggests efficiency gains - quantify these if possible.' : insights.mentionedSolutions.includes('create') || insights.mentionedSolutions.includes('build') ? 'Building something new suggests innovation - what makes your approach different?' : ''}` : 
+'**Solution Clarity**: ${inputType === "idea" ? "Your idea is clear" : "Consider outlining potential solution approaches"}.'}
 
 ${insights.mentionedTech.length > 0 ? 
 `**Technology Stack**: You're considering ${insights.mentionedTech.join(', ')}. ${insights.mentionedTech.includes('ai') || insights.mentionedTech.includes('artificial intelligence') ? 'AI/ML features can be powerful differentiators but require significant data and expertise. Consider starting with rule-based logic before moving to full AI.' : insights.mentionedTech.includes('platform') || insights.mentionedTech.includes('marketplace') ? 'Platform/marketplace models have network effects but require reaching critical mass. Plan for how you\'ll attract initial users.' : insights.mentionedTech.includes('app') || insights.mentionedTech.includes('mobile') ? 'Mobile apps require app store approval and face discovery challenges. Consider web-first or hybrid approaches.' : 'Consider the technical complexity and whether you have (or can acquire) the necessary expertise.'}` : 
@@ -676,7 +676,7 @@ ${insights.mentionedMarket.length > 0 ?
 ${insights.keyPhrases.length > 0 ? 
 `**Key Points from Your Description**:\n${insights.keyPhrases.map((phrase, i) => `- ${phrase}`).join('\n')}\n\nThese points suggest ${themes.length > 0 ? `a focus on ${themes.slice(0, 2).join(' and ')}` : 'several interconnected concepts'} that are worth exploring further.` : ''}
 
-${inputType === "explore-idea" ? (() => {
+${inputType === "idea" ? (() => {
   const evalList = [];
   if (userInput.toLowerCase().includes('app') || userInput.toLowerCase().includes('platform') || userInput.toLowerCase().includes('software')) {
     evalList.push('- **Product Type**: You\'re considering a digital product (app/platform/software), which offers scalability and lower marginal costs.');
@@ -739,7 +739,7 @@ ${inputLength < 100 ?
    - Market size and growth trends
    - Pricing models of similar solutions
 
-3. **MVP Scope Definition**: ${userInput.toLowerCase().includes('feature') ? 'You mentioned features - prioritize the ONE feature that demonstrates core value.' : `Based on your ${inputType},`} Your MVP should test: ${inputType === "explore-idea" ? "Would people use this? Would they pay for it?" : "Does this problem exist? How do people solve it today?"}
+3. **MVP Scope Definition**: ${userInput.toLowerCase().includes('feature') ? 'You mentioned features - prioritize the ONE feature that demonstrates core value.' : `Based on your ${inputType},`} Your MVP should test: ${inputType === "idea" ? "Would people use this? Would they pay for it?" : "Does this problem exist? How do people solve it today?"}
 
 4. **Customer Development**: ${userInput.length > 200 ? `Given your detailed description (${inputLength} words), you clearly understand the space. Now validate with real ${insights.mentionedUsers.length > 0 ? insights.mentionedUsers[0] : 'users'}.` : 'Start talking to potential users immediately.'} ${targetMarket ? `Target people in ${targetMarket} specifically.` : insights.mentionedUsers.length > 0 ? `Target ${insights.mentionedUsers[0]} specifically.` : ''} ${inputType === "problem" && insights.mentionedProblems.length > 0 ? `Ask about the ${insights.mentionedProblems[0]} you mentioned:` : 'Ask:'}
    ${inputType === "problem" ? `- "Tell me about the last time you experienced [this problem]"\n   - "How did you solve it?"\n   - "What would a perfect solution look like?"` : `- "Would you use a solution that ${insights.mentionedSolutions.length > 0 ? insights.mentionedSolutions[0] + 's' : 'solves this'}?"\n   - "How do you currently handle this?"`}
@@ -793,7 +793,7 @@ ${(() => {
     } else {
       detailText = 'The concepts you\'ve outlined';
     }
-    const suggestion = inputType === "explore-idea" ? "a well-considered opportunity" : "a genuine problem worth solving";
+    const suggestion = inputType === "idea" ? "a well-considered opportunity" : "a genuine problem worth solving";
     return `Your ${inputLength} word description of "${quotePreview}..." shows you've put real thought into this. ${detailText} suggest ${suggestion}.`;
   } else {
     let foundationText = '';
@@ -815,7 +815,7 @@ ${inputLength > 150 && (insights.mentionedUsers.length > 0 || insights.mentioned
 `This has potential but needs more development. ${inputLength < 100 ? 'Expand your description with more specific details.' : 'Focus on validating your core assumptions with real users.'} ${insights.mentionedUsers.length === 0 ? 'Start by clearly identifying who this is for.' : ''} ${insights.mentionedProblems.length === 0 && inputType === "problem" ? 'Articulate the problem more specifically.' : ''}`}
 
 **Risk Assessment**: 
-${inputType === "explore-idea" ? 'Medium risk' : 'Lower risk (problem-first approach)'} - ${inputType === "explore-idea" ? 'ideas need validation that people want them' : 'problems are easier to validate than solutions'}. ${budget && parseInt(budget.replace(/[^0-9]/g, '')) < 5000 ? `With your ${budget} budget, focus on validation before building. Use no-code tools and customer interviews to validate first.` : budget ? `Your ${budget} budget allows for some development, but validation should still come first.` : 'Focus on validation before significant development investment.'} ${insights.mentionedTech.length > 0 && (insights.mentionedTech.includes('ai') || insights.mentionedTech.includes('artificial intelligence')) ? 'The AI/ML components you mentioned add technical risk - ensure you have the expertise or can acquire it.' : ''}
+${inputType === "idea" ? 'Medium risk' : 'Lower risk (problem-first approach)'} - ${inputType === "idea" ? 'ideas need validation that people want them' : 'problems are easier to validate than solutions'}. ${budget && parseInt(budget.replace(/[^0-9]/g, '')) < 5000 ? `With your ${budget} budget, focus on validation before building. Use no-code tools and customer interviews to validate first.` : budget ? `Your ${budget} budget allows for some development, but validation should still come first.` : 'Focus on validation before significant development investment.'} ${insights.mentionedTech.length > 0 && (insights.mentionedTech.includes('ai') || insights.mentionedTech.includes('artificial intelligence')) ? 'The AI/ML components you mentioned add technical risk - ensure you have the expertise or can acquire it.' : ''}
 
 **Success Probability**: 
 With proper execution and validation, I'd estimate ${inputLength > 200 && (insights.mentionedUsers.length > 0 || insights.mentionedMarket.length > 0) ? '35-45%' : inputLength > 100 && insights.mentionedUsers.length > 0 ? '30-40%' : '25-35%'} chance of building a viable business. ${insights.mentionedUsers.length > 0 ? `The fact that you've identified ${insights.mentionedUsers[0]} is a positive sign - now validate they actually want this.` : 'The key will be in how well you validate and iterate based on customer feedback.'}
