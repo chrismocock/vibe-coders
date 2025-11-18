@@ -494,6 +494,13 @@ export default function IdeateWizardPage() {
     return insights;
   };
 
+  const modeDescriptor =
+    selectedMode === "explore-idea"
+      ? "idea description"
+      : selectedMode === "solve-problem"
+        ? "problem statement"
+        : "input";
+
   // Generate mock AI review based on the user's input
   const generateMockReview = () => {
     if (selectedMode === "surprise-me") {
@@ -598,7 +605,7 @@ budget && parseInt(budget.replace(/[^0-9]/g, '')) >= 50000 ?
 
 2. **Resource Allocation**: Allocate resources wisely - prioritize features that directly address your core problem-solution fit.`}
 
-3. **Validation Strategy**: ${userInput.length > 100 ? `Based on your ${selectedMode === "explore-idea" ? "idea description" : "problem statement"}, I recommend conducting at least 10-15 customer interviews to validate the core assumptions. Focus on: "Would you pay for this?" and "How do you currently solve this problem?"` : 'Start with customer interviews to validate your core assumptions.'}
+3. **Validation Strategy**: ${userInput.length > 100 ? `Based on your ${modeDescriptor}, I recommend conducting at least 10-15 customer interviews to validate the core assumptions. Focus on: "Would you pay for this?" and "How do you currently solve this problem?"` : 'Start with customer interviews to validate your core assumptions.'}
 
 4. **Technical Considerations**: ${ideaDesc.toLowerCase().includes('ai') ? 'AI features will require significant data and potentially ML expertise. Consider starting with rule-based solutions before moving to full AI.' : 'Consider the technical complexity and ensure you have the right expertise to build this.'}
 
