@@ -418,7 +418,7 @@ export default function IdeateWizardPage() {
         // Auto-generate ideas when moving to Step 3 for "surprise-me" mode
         await generateIdeas();
         setCurrentStep(3);
-      } else if (selectedMode !== "surprise-me" && userInput.trim()) {
+      } else if (selectedMode && userInput.trim()) {
         // For "explore-idea" and "solve-problem" modes, also generate ideas
         await generateIdeas();
         setCurrentStep(3);
