@@ -4,17 +4,18 @@ import { getSupabaseServer } from "@/lib/supabaseServer";
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    const { id } = await params;
     const supabase = getSupabaseServer();
     const { data, error } = await supabase
       .from("projects")
       .select("id,title,description,progress,logo_url")
-      .eq("id", params.id)
+      .eq("id", id)
       .eq("user_id", userId)
       .single();
 
@@ -36,12 +37,13 @@ export async function GET(
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    const { id } = await params;
     const body = await request.json().catch(() => ({}));
     const { progress, title, description, logo_url } = body ?? {};
 
@@ -83,7 +85,7 @@ export async function PATCH(
     const { data, error } = await supabase
       .from("projects")
       .update(update)
-      .eq("id", params.id)
+      .eq("id", id)
       .eq("user_id", userId)
       .select("id,title,description,progress,logo_url")
       .single();
@@ -102,19 +104,20 @@ export async function PATCH(
 
 export async function DELETE(
   _request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    const { id } = await params;
     const supabase = getSupabaseServer();
 
     // Delete related project_stages first
     const { error: stagesError } = await supabase
       .from("project_stages")
       .delete()
-      .eq("project_id", params.id)
+      .eq("project_id", id)
       .eq("user_id", userId);
 
     if (stagesError) {
@@ -125,7 +128,7 @@ export async function DELETE(
     const { error: projectError } = await supabase
       .from("projects")
       .delete()
-      .eq("id", params.id)
+      .eq("id", id)
       .eq("user_id", userId);
 
     if (projectError) {
