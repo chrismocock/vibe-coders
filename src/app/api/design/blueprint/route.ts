@@ -3,8 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { getSupabaseServer } from "@/lib/supabaseServer";
 
 export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ projectId: string }> }
+  request: Request
 ) {
   try {
     const { userId } = await auth();
