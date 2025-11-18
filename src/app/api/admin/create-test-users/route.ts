@@ -69,8 +69,8 @@ export async function POST(req: Request) {
     const supabase = getSupabaseServer();
     
     const results = {
-      success: [],
-      errors: []
+      success: [] as Array<{ email: string; id: string }>,
+      errors: [] as Array<{ email: string; error: string }>
     };
 
     for (const user of testUsers) {
