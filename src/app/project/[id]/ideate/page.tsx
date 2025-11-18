@@ -1405,8 +1405,10 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
     const inputData = savedData.input;
     // Handle both old format (string) and new format (JSON object)
     const outputIsJson = typeof savedData.output === 'object' && savedData.output !== null;
-    const aiReviewText = outputIsJson ? savedData.output.aiReview : savedData.output;
-    const savedInitialFeedback = outputIsJson ? savedData.output.initialFeedback : null;
+    const aiReviewText = outputIsJson
+      ? (savedData.output as any).aiReview ?? ''
+      : String(savedData.output ?? '');
+    const savedInitialFeedback = outputIsJson ? (savedData.output as any).initialFeedback : null;
     
     const ideaInfo = extractIdeaFromReview(
       aiReviewText, 
