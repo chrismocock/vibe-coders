@@ -129,7 +129,7 @@ export default function ProjectDashboard({
       }
       
       // Fallback: use first meaningful sentence
-      const sentences = selectedIdea.split(/[.!?]/).filter(s => s.trim().length > 10);
+      const sentences = selectedIdea.split(/[.!?]/).filter((s: string) => s.trim().length > 10);
       if (sentences.length > 0) {
         return sentences[0].trim();
       }
