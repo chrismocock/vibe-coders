@@ -172,7 +172,7 @@ export default function ProjectDashboard({
         const selectedIdea = parsedInput.selectedIdea || '';
         if (selectedIdea.trim()) {
           // Extract a meaningful description (2-3 sentences)
-          const sentences = selectedIdea.split(/[.!?]/).filter(s => s.trim().length > 20);
+          const sentences = selectedIdea.split(/[.!?]/).filter((s: string) => s.trim().length > 20);
           if (sentences.length > 0) {
             parts.push(sentences.slice(0, 2).join('. ').trim());
           }
