@@ -35,7 +35,7 @@ export async function GET(req: Request) {
       lastName: user.user_metadata?.last_name || "User",
       createdAt: user.created_at,
       lastSignIn: user.last_sign_in_at,
-      isActive: !user.banned_until, // User is active if not banned
+      isActive: true, // Default to active (ban status not directly available in user object)
       projectCount: projectCounts[user.id] || 0
     }));
 
