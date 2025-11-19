@@ -17,7 +17,7 @@ export default function MonetiseOverviewPage() {
   const [generating, setGenerating] = useState(false);
 
   const handleModelSelect = async (model: string) => {
-    await saveBlueprint({ monetisation_model: model });
+    await saveBlueprint({ monetisationModel: model });
     markComplete("overview");
   };
 

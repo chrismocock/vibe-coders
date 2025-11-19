@@ -1,6 +1,11 @@
 // Supabase Edge Function for validation
 // Runs 5 validation agents in parallel using OpenAI
+// @ts-expect-error: URL import is valid in the edge runtime but not resolved by TS
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+// Declare Deno for type checking in the edge runtime
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+declare const Deno: any;
 
 interface AgentResult {
   key: string;

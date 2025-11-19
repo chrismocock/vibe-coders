@@ -37,6 +37,8 @@ export interface AIConfig {
   system_prompt_launch_assets?: string;
   system_prompt_launch_metrics?: string;
   system_prompt_launch_pack?: string;
+  // Build/Monetise extra helpers
+  system_prompt_scope_suggest?: string;
   // Monetise stage subsection prompts (optional; falls back to system_prompt)
   system_prompt_monetise_overview?: string;
   system_prompt_monetise_pricing?: string;

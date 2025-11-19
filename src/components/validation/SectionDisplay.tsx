@@ -48,7 +48,7 @@ export function SectionDisplay({
     return 'Weak';
   };
 
-  const getScoreBadgeVariant = (score: number) => {
+  const getScoreBadgeVariant = (score: number): 'outline' => {
     return 'outline';
   };
 

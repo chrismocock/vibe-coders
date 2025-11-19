@@ -20,6 +20,20 @@ interface MonetiseBlueprint {
   updated_at?: string;
 }
 
+// Payload shape for updates sent to the API (camelCase fields)
+interface MonetiseBlueprintUpdates {
+  monetisationModel?: string;
+  pricingStrategy?: any;
+  offerPlan?: any;
+  checkoutFlow?: any;
+  activationBlueprint?: any;
+  monetisationAssets?: any;
+  revenuePack?: any;
+  sectionCompletion?: Record<string, boolean>;
+  buildPathSnapshot?: string;
+  lastAiRun?: string;
+}
+
 interface MonetiseStageContextType {
   blueprint: MonetiseBlueprint | null;
   loading: boolean;
@@ -29,8 +43,8 @@ interface MonetiseStageContextType {
   sectionCompletion: Record<string, boolean>;
   lastAiRun: string | null;
   loadBlueprint: () => Promise<void>;
-  saveBlueprint: (updates: Partial<MonetiseBlueprint>) => Promise<void>;
-  autosave: (updates: Partial<MonetiseBlueprint>) => void;
+  saveBlueprint: (updates: Partial<MonetiseBlueprintUpdates>) => Promise<void>;
+  autosave: (updates: Partial<MonetiseBlueprintUpdates>) => void;
   saveSection: (sectionId: string, payload: any) => Promise<void>;
   markComplete: (sectionId: string) => void;
   refreshBlueprint: () => Promise<void>;
@@ -66,7 +80,7 @@ export function MonetiseStageProvider({
     }
   }, [projectId]);
 
-  const saveBlueprint = useCallback(async (updates: Partial<MonetiseBlueprint>) => {
+  const saveBlueprint = useCallback(async (updates: Partial<MonetiseBlueprintUpdates>) => {
     try {
       setSaving(true);
       const response = await fetch("/api/monetise/blueprint", {
@@ -93,7 +107,7 @@ export function MonetiseStageProvider({
     }
   }, [projectId]);
 
-  const autosave = useCallback((updates: Partial<MonetiseBlueprint>) => {
+  const autosave = useCallback((updates: Partial<MonetiseBlueprintUpdates>) => {
     // Clear existing timer
     if (autosaveTimer.current) {
       clearTimeout(autosaveTimer.current);
@@ -112,20 +126,20 @@ export function MonetiseStageProvider({
   const saveSection = useCallback(async (sectionId: string, payload: any) => {
     if (!blueprint) return;
 
-    const sectionMap: Record<string, keyof MonetiseBlueprint> = {
-      overview: "monetisation_model",
-      pricing: "pricing_strategy",
-      offer: "offer_plan",
-      checkout: "checkout_flow",
-      activation: "activation_blueprint",
-      assets: "monetisation_assets",
-      pack: "revenue_pack",
+    const sectionMap: Record<string, keyof MonetiseBlueprintUpdates> = {
+      overview: "monetisationModel",
+      pricing: "pricingStrategy",
+      offer: "offerPlan",
+      checkout: "checkoutFlow",
+      activation: "activationBlueprint",
+      assets: "monetisationAssets",
+      pack: "revenuePack",
     };
 
     const fieldName = sectionMap[sectionId];
     if (!fieldName) return;
 
-    const updates: Partial<MonetiseBlueprint> = {
+    const updates: Partial<MonetiseBlueprintUpdates> = {
       [fieldName]: payload,
     };
 
