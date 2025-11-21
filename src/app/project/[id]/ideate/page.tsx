@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, Loader2, Wand2 } from "lucide-react";
 import { InitialFeedback, InitialFeedbackData } from "@/components/ideate/InitialFeedback";
 
 type Mode = "explore-idea" | "solve-problem" | "surprise-me" | null;
@@ -61,7 +61,7 @@ export default function IdeateWizardPage() {
   const [reviewError, setReviewError] = useState<string | null>(null);
   const [savedData, setSavedData] = useState<{
     input: any;
-    output: string;
+    output: any;
     status: string;
   } | null>(null);
   const [isLoadingSavedData, setIsLoadingSavedData] = useState(true);
@@ -73,6 +73,17 @@ export default function IdeateWizardPage() {
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
   const [initialFeedback, setInitialFeedback] = useState<any>(null);
   const [isLoadingInitialFeedback, setIsLoadingInitialFeedback] = useState(false);
+  const [isEditingExisting, setIsEditingExisting] = useState(false);
+  const [editForm, setEditForm] = useState({
+    ideaText: "",
+    targetMarket: "",
+    targetCountry: "",
+    budget: "",
+    timescales: "",
+  });
+  const [isSavingEditedIdea, setIsSavingEditedIdea] = useState(false);
+  const [isImprovingIdea, setIsImprovingIdea] = useState(false);
+  const [refinementHighlights, setRefinementHighlights] = useState<string[] | null>(null);
 
   // Load saved ideate data on mount
   useEffect(() => {
@@ -1294,24 +1305,206 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
     };
   };
 
+  const getSavedIdeaText = (inputData: any) => {
+    if (!inputData) return "";
+    if (inputData.mode === "surprise-me") {
+      if (typeof inputData.selectedIdea === "string") {
+        return inputData.selectedIdea;
+      }
+      if (inputData.selectedIdea?.description) {
+        return inputData.selectedIdea.description;
+      }
+      if (inputData.selectedIdea?.title) {
+        return `${inputData.selectedIdea.title}\n\n${inputData.selectedIdea.description || ""}`.trim();
+      }
+    }
+    return inputData.userInput || "";
+  };
+
   const handleEditIdea = () => {
-    // Clear saved data and show wizard
-    setSavedData(null);
-    setCurrentStep(1);
-    setSelectedMode(null);
-    setUserInput("");
-    setSelectedIdeaId(null);
-    setTargetMarket("");
-    setTargetCountry("");
-    setBudget("");
-    setTimescales("");
-    setShowReview(false);
-    setAiReview("");
-    setShowFullReview(false);
-    setGeneratedIdeas([]);
-    setIdeasGenerated(false);
-    setInitialFeedback(null);
-    setIsLoadingInitialFeedback(false);
+    if (!savedData) return;
+    const inputData = savedData.input || {};
+    setEditForm({
+      ideaText: getSavedIdeaText(inputData),
+      targetMarket: inputData.targetMarket || "",
+      targetCountry: inputData.targetCountry || "",
+      budget: inputData.budget || "",
+      timescales: inputData.timescales || "",
+    });
+    setRefinementHighlights(null);
+    setIsEditingExisting(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditingExisting(false);
+    setRefinementHighlights(null);
+  };
+
+  const buildReviewPayload = (input: any) => ({
+    mode: input.mode,
+    userInput: input.mode === "surprise-me" ? null : input.userInput,
+    selectedIdea: input.mode === "surprise-me" ? input.selectedIdea : null,
+    targetMarket: input.targetMarket || null,
+    targetCountry: input.targetCountry || null,
+    budget: input.budget || null,
+    timescales: input.timescales || null,
+  });
+
+  const regenerateReviewAndFeedback = async (input: any) => {
+    const payload = buildReviewPayload(input);
+
+    const reviewResponse = await fetch("/api/ai/ideate/review", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (!reviewResponse.ok) {
+      const errorData = await reviewResponse.json().catch(() => null);
+      throw new Error(errorData?.error || "Failed to generate updated AI review");
+    }
+
+    const reviewData = await reviewResponse.json();
+    const reviewText = reviewData.result || "";
+
+    const feedbackResponse = await fetch("/api/ai/ideate/initial-feedback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...payload, aiReview: reviewText }),
+    });
+
+    if (!feedbackResponse.ok) {
+      const errorData = await feedbackResponse.json().catch(() => null);
+      throw new Error(errorData?.error || "Failed to refresh validation scores");
+    }
+
+    const feedbackData = await feedbackResponse.json();
+    return { reviewText, feedbackData };
+  };
+
+  const handleImproveExistingIdea = async () => {
+    if (!editForm.ideaText.trim()) {
+      toast.error("Please provide your idea details before requesting improvements.");
+      return;
+    }
+
+    const existingFeedback =
+      typeof savedData?.output === "object" && savedData?.output
+        ? savedData.output.initialFeedback ?? null
+        : null;
+
+    setIsImprovingIdea(true);
+    setRefinementHighlights(null);
+
+    try {
+      const response = await fetch("/api/ai/ideate/refine", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          idea: editForm.ideaText,
+          mode: savedData?.input?.mode ?? null,
+          targetMarket: editForm.targetMarket || null,
+          targetCountry: editForm.targetCountry || null,
+          budget: editForm.budget || null,
+          timescales: editForm.timescales || null,
+          initialFeedback: existingFeedback,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.error || "Failed to refine idea");
+      }
+
+      const data = await response.json();
+      if (typeof data.idea === "string") {
+        setEditForm((prev) => ({ ...prev, ideaText: data.idea.trim() }));
+      }
+      if (Array.isArray(data.highlights)) {
+        setRefinementHighlights(data.highlights);
+      }
+      toast.success("Idea refined with AI");
+    } catch (error) {
+      console.error("Refine idea error:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to refine idea");
+    } finally {
+      setIsImprovingIdea(false);
+    }
+  };
+
+  const handleSaveEditedIdea = async () => {
+    if (!savedData) return;
+    if (!editForm.ideaText.trim()) {
+      toast.error("Please update your idea before saving.");
+      return;
+    }
+
+    setIsSavingEditedIdea(true);
+
+    try {
+      const originalInput = savedData.input || {};
+      const updatedInput = {
+        ...originalInput,
+        targetMarket: editForm.targetMarket || null,
+        targetCountry: editForm.targetCountry || null,
+        budget: editForm.budget || null,
+        timescales: editForm.timescales || null,
+      };
+
+      if (originalInput.mode === "surprise-me") {
+        let normalizedSelected = originalInput.selectedIdea;
+        if (!normalizedSelected || typeof normalizedSelected === "string") {
+          normalizedSelected = {
+            title: typeof normalizedSelected === "string" ? "Improved Idea" : originalInput.selectedIdea?.title || "Improved Idea",
+            description: editForm.ideaText,
+          };
+        } else {
+          normalizedSelected = { ...normalizedSelected, description: editForm.ideaText };
+        }
+        updatedInput.selectedIdea = normalizedSelected;
+      } else {
+        updatedInput.userInput = editForm.ideaText;
+      }
+
+      const { reviewText, feedbackData } = await regenerateReviewAndFeedback(updatedInput);
+
+      const saveResponse = await fetch(`/api/projects/${projectId}/stages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          stage: "ideate",
+          input: JSON.stringify(updatedInput),
+          output: JSON.stringify({
+            aiReview: reviewText,
+            initialFeedback: feedbackData,
+          }),
+          status: "completed",
+        }),
+      });
+
+      if (!saveResponse.ok) {
+        const errorData = await saveResponse.json().catch(() => null);
+        throw new Error(errorData?.error || "Failed to save updated idea");
+      }
+
+      toast.success("Idea updated and revalidated");
+      setSavedData({
+        input: updatedInput,
+        output: { aiReview: reviewText, initialFeedback: feedbackData },
+        status: "completed",
+      });
+      setAiReview(reviewText);
+      setInitialFeedback(feedbackData);
+      setIsEditingExisting(false);
+      setRefinementHighlights(null);
+      setShowFullReview(false);
+    } catch (error) {
+      console.error("Save edited idea error:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to update idea");
+    } finally {
+      setIsSavingEditedIdea(false);
+    }
   };
 
   const handleReset = async () => {
@@ -1338,6 +1531,8 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
       
       // Clear all state
       setSavedData(null);
+      setIsEditingExisting(false);
+      setRefinementHighlights(null);
       setCurrentStep(1);
       setSelectedMode(null);
       setUserInput("");
@@ -1422,6 +1617,132 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
     const modeText = inputData.mode === 'explore-idea' ? 'Explore an Idea' : 
                      inputData.mode === 'solve-problem' ? 'Solve a Problem' : 
                      inputData.mode === 'surprise-me' ? 'Surprise Me' : null;
+
+    if (isEditingExisting) {
+      return (
+        <div className="space-y-6">
+          <Card className="border border-neutral-200 bg-white shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-xl font-semibold text-neutral-900">
+                Refine Your Idea
+              </CardTitle>
+              <CardDescription className="text-sm text-neutral-600">
+                Update your idea with incremental improvements. We'll re-run the AI review and validation scores after you save.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-neutral-700">
+                  Idea Narrative
+                </Label>
+                <Textarea
+                  value={editForm.ideaText}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, ideaText: e.target.value }))}
+                  className="min-h-[220px] text-sm text-neutral-900"
+                  placeholder="Describe your idea..."
+                />
+                <p className="text-xs text-neutral-500">
+                  Focus on clarifying the user, the problem, and why now. Small improvements compound into better validation scores.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-neutral-700">Target Market</Label>
+                  <Input
+                    value={editForm.targetMarket}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, targetMarket: e.target.value }))}
+                    placeholder="e.g., B2B SaaS for finance teams"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-neutral-700">Target Country</Label>
+                  <Input
+                    value={editForm.targetCountry}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, targetCountry: e.target.value }))}
+                    placeholder="e.g., United States"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-neutral-700">Budget</Label>
+                  <Input
+                    value={editForm.budget}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, budget: e.target.value }))}
+                    placeholder="e.g., $5k-$10k"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-neutral-700">Timeline</Label>
+                  <Input
+                    value={editForm.timescales}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, timescales: e.target.value }))}
+                    placeholder="e.g., 3-4 months"
+                  />
+                </div>
+              </div>
+
+              {refinementHighlights && refinementHighlights.length > 0 && (
+                <div className="rounded-lg border border-purple-200 bg-purple-50 p-4">
+                  <p className="text-sm font-semibold text-purple-900 mb-2">AI Suggestions</p>
+                  <ul className="list-disc pl-5 space-y-1 text-sm text-purple-900">
+                    {refinementHighlights.map((highlight, idx) => (
+                      <li key={idx}>{highlight}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-3 pt-2">
+                <Button
+                  onClick={handleImproveExistingIdea}
+                  variant="secondary"
+                  disabled={isImprovingIdea || isSavingEditedIdea}
+                  className="bg-white text-purple-700 border border-purple-200 hover:bg-purple-50"
+                >
+                  {isImprovingIdea ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Refining...
+                    </>
+                  ) : (
+                    <>
+                      <Wand2 className="h-4 w-4 mr-2" />
+                      Improve with AI
+                    </>
+                  )}
+                </Button>
+                <div className="flex-1" />
+                <Button
+                  onClick={handleCancelEdit}
+                  variant="outline"
+                  disabled={isSavingEditedIdea || isImprovingIdea}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSaveEditedIdea}
+                  disabled={isSavingEditedIdea}
+                  className="bg-green-600 text-white hover:bg-green-700"
+                >
+                  {isSavingEditedIdea ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save & Revalidate"
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {savedInitialFeedback && (
+            <InitialFeedback feedback={savedInitialFeedback} />
+          )}
+        </div>
+      );
+    }
 
     return (
       <div className="space-y-6">

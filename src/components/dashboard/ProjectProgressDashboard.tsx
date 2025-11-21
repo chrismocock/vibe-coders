@@ -23,7 +23,10 @@ interface ProjectProgressDashboardProps {
   stageData?: Record<string, StageRecord | undefined>;
 }
 
-const JOURNEY_STAGE_IDS = STAGE_ORDER.filter((stageId) => stageId !== "dashboard");
+type JourneyStageId = Exclude<StageId, "dashboard">;
+const JOURNEY_STAGE_IDS: JourneyStageId[] = STAGE_ORDER.filter(
+  (stageId): stageId is JourneyStageId => stageId !== "dashboard"
+);
 const DEFAULT_SUMMARY =
   "No description yet. Progress through the journey to craft a compelling story for your product.";
 
@@ -33,7 +36,8 @@ const statusLabelMap: Record<StageStatus, string> = {
   pending: "Not started",
 };
 
-const getStageRoute = (projectId: string, stageId: string) => `/project/${projectId}/${stageId}`;
+const getStageRoute = (projectId: string, stageId: JourneyStageId) =>
+  `/project/${projectId}/${stageId}`;
 
 export default function ProjectProgressDashboard({
   projectId,
@@ -50,7 +54,7 @@ export default function ProjectProgressDashboard({
   const summaryText = projectSummary || DEFAULT_SUMMARY;
 
   const stageStatusMap = useMemo(() => {
-    return JOURNEY_STAGE_IDS.reduce<Record<string, StageStatus>>((acc, stageId) => {
+    return JOURNEY_STAGE_IDS.reduce<Record<JourneyStageId, StageStatus>>((acc, stageId) => {
       const rawStatus = stageData?.[stageId]?.status;
       if (rawStatus === "completed" || rawStatus === "in_progress") {
         acc[stageId] = rawStatus;
@@ -58,7 +62,7 @@ export default function ProjectProgressDashboard({
         acc[stageId] = "pending";
       }
       return acc;
-    }, {});
+    }, {} as Record<JourneyStageId, StageStatus>);
   }, [stageData]);
 
   const completedCount = JOURNEY_STAGE_IDS.filter(
@@ -69,10 +73,10 @@ export default function ProjectProgressDashboard({
   ).length;
   const completionPercent = Math.round((completedCount / JOURNEY_STAGE_IDS.length) * 100);
 
-  const nextStageId =
+  const nextStageId: JourneyStageId =
     JOURNEY_STAGE_IDS.find((stageId) => stageStatusMap[stageId] !== "completed") ??
     JOURNEY_STAGE_IDS[JOURNEY_STAGE_IDS.length - 1];
-  const nextStageLabel = STAGE_LABELS[nextStageId as StageId];
+  const nextStageLabel = STAGE_LABELS[nextStageId];
   const nextStageStatus = stageStatusMap[nextStageId];
   const isJourneyComplete = completedCount === JOURNEY_STAGE_IDS.length;
 
@@ -92,7 +96,7 @@ export default function ProjectProgressDashboard({
 
   const heroBadgeText = `${completedCount}/${JOURNEY_STAGE_IDS.length} stages completed`;
 
-  const isStageUnlocked = (stageId: string) => {
+  const isStageUnlocked = (stageId: JourneyStageId) => {
     const index = JOURNEY_STAGE_IDS.indexOf(stageId);
     if (index <= 0) return true;
     return JOURNEY_STAGE_IDS.slice(0, index).every(
@@ -100,7 +104,7 @@ export default function ProjectProgressDashboard({
     );
   };
 
-  const getStatusLabel = (stageId: string, status: StageStatus, unlocked: boolean) => {
+  const getStatusLabel = (stageId: JourneyStageId, status: StageStatus, unlocked: boolean) => {
     if (status === "pending") {
       return unlocked ? "Ready" : "Locked";
     }
@@ -180,7 +184,6 @@ export default function ProjectProgressDashboard({
               const stageHref = getStageRoute(projectId, stageId);
               const isLast = index === JOURNEY_STAGE_IDS.length - 1;
               const isActive = !isJourneyComplete && stageId === nextStageId;
-              const Wrapper = unlocked ? Link : "div";
 
               const content = (
                 <>
@@ -217,21 +220,28 @@ export default function ProjectProgressDashboard({
 
               return (
                 <div key={stageId} className="flex items-center">
-                  <Wrapper
-                    {...(unlocked ? { href: stageHref } : {})}
-                    className={cn(
-                      "flex flex-col items-center text-center transition-all",
-                      unlocked ? "text-neutral-800 hover:scale-[1.02]" : "text-neutral-400 cursor-not-allowed",
-                      isActive && "text-purple-700"
-                    )}
-                    title={
-                      unlocked
-                        ? `Open the ${stageLabel} stage`
-                        : "Complete the previous stage to unlock this step"
-                    }
-                  >
-                    {content}
-                  </Wrapper>
+                  {unlocked ? (
+                    <Link
+                      href={stageHref}
+                      className={cn(
+                        "flex flex-col items-center text-center transition-all text-neutral-800 hover:scale-[1.02]",
+                        isActive && "text-purple-700"
+                      )}
+                      title={`Open the ${stageLabel} stage`}
+                    >
+                      {content}
+                    </Link>
+                  ) : (
+                    <div
+                      className={cn(
+                        "flex flex-col items-center text-center text-neutral-400 cursor-not-allowed",
+                        isActive && "text-purple-700"
+                      )}
+                      title="Complete the previous stage to unlock this step"
+                    >
+                      {content}
+                    </div>
+                  )}
                   {!isLast && (
                     <div className="mx-3 hidden flex-1 items-center md:flex">
                       <div className="h-px w-full bg-neutral-200" />
