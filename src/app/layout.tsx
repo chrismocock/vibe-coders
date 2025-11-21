@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
-import { ClerkProvider, SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/nextjs";
+import { ClerkProvider } from "@clerk/nextjs";
 import { Inter, Poppins } from "next/font/google";
 import { Toaster } from "sonner";
 import "./globals.css";
+import { DesktopUserMenu } from "@/components/DesktopUserMenu";
 
 export const metadata: Metadata = {
   title: "Vibe Coders — Turn your vibe into code",
@@ -23,18 +24,7 @@ export default function RootLayout({
         <body className={`${inter.variable} ${poppins.variable} antialiased bg-background text-foreground font-sans`}>
           {/* Desktop User Button - Hidden on mobile */}
           <div className="pointer-events-none fixed inset-x-0 top-0 z-50 hidden lg:flex items-center justify-end p-4">
-            <div className="pointer-events-auto rounded-full border border-white/10 bg-white/5 px-3 py-1.5 backdrop-blur">
-              <SignedIn>
-                <div className="flex items-center gap-3">
-                  <UserButton afterSignOutUrl="/" appearance={{ elements: { userButtonPopoverCard: "bg-white" } }} />
-                </div>
-              </SignedIn>
-              <SignedOut>
-                <SignInButton mode="modal">
-                  <button className="rounded-full bg-white px-3 py-1.5 text-sm font-medium text-gray-900">Sign in</button>
-                </SignInButton>
-              </SignedOut>
-            </div>
+            <DesktopUserMenu />
           </div>
           {children}
           <Toaster position="top-right" richColors />

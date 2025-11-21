@@ -7,15 +7,7 @@ export default function ProjectsPage() {
   return (
     <>
       <SignedIn>
-        <div className="space-y-6">
-          <div className="hidden lg:block">
-            <h1 className="text-2xl font-semibold text-white md:text-3xl">Your Projects</h1>
-            <p className="mt-2 text-white/70">
-              Manage your projects and track progress through each stage of the journey.
-            </p>
-          </div>
-          <ProjectList />
-        </div>
+        <ProjectList />
       </SignedIn>
 
       <SignedOut>

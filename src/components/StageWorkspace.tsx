@@ -1560,7 +1560,6 @@ export default function StageWorkspace({ projectId, hideSidebar = false }: Stage
           stageData={stageData}
           onStageChange={setActiveStage}
           projectId={projectId}
-          showBackButton={true}
         />
       )}
 

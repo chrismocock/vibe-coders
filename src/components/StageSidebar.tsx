@@ -12,9 +12,6 @@ import {
   MessageSquare, 
   Coins,
   CheckCircle2,
-  Menu,
-  X,
-  ChevronLeft,
   LayoutDashboard,
   AlertCircle,
   TrendingUp,
@@ -35,9 +32,9 @@ import {
   Image,
   BarChart3,
   Zap,
-  CreditCard
+  CreditCard,
+  FolderKanban
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const STAGE_ORDER = ["dashboard", "ideate", "validate", "design", "build", "launch", "monetise"] as const;
@@ -89,7 +86,6 @@ interface StageSidebarProps {
   stageData?: Record<string, StageData>;
   onStageChange: (stageId: string) => void;
   projectId?: string;
-  showBackButton?: boolean;
   isMobileOpen?: boolean;
   setIsMobileOpen?: (open: boolean) => void;
 }
@@ -153,7 +149,6 @@ export default function StageSidebar({
   stageData = {},
   onStageChange,
   projectId,
-  showBackButton = false,
   isMobileOpen: externalIsMobileOpen,
   setIsMobileOpen: externalSetIsMobileOpen,
 }: StageSidebarProps) {
@@ -264,6 +259,8 @@ export default function StageSidebar({
   const isBuildExpanded = activeStage === 'build';
   const isLaunchExpanded = activeStage === 'launch';
   const isMonetiseExpanded = activeStage === 'monetise';
+  const hasProjectSelected = Boolean(projectId);
+  const isProjectsActive = activeStage === 'projects';
 
   const getStatusIndicator = (stageId: string) => {
     // Dashboard doesn't have a status indicator
@@ -305,220 +302,263 @@ export default function StageSidebar({
         )}
       >
         <div className="flex flex-col h-full">
-          {/* Header */}
           <div className="p-4 border-b border-neutral-200">
-            {showBackButton && (
-              <Link href="/projects">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-full justify-start text-neutral-600 hover:text-neutral-900 mb-2"
-                >
-                  <ChevronLeft className="h-4 w-4 mr-2" />
-                  Back to Projects
-                </Button>
-              </Link>
-            )}
-            <h2 className="text-lg font-semibold text-neutral-900">Journey Stages</h2>
+            <h2 className="text-lg font-semibold text-neutral-900">Workspace</h2>
           </div>
 
-          {/* Stages list */}
-          <nav className="flex-1 overflow-y-auto p-2">
-            <ul className="space-y-1">
-              {STAGE_ORDER.map((stageId) => {
-                const stage = stageConfigs[stageId];
-                const Icon = stage.icon;
-                const isActive = activeStage === stageId;
-                const status = stageData[stageId]?.status;
-                const isValidate = stageId === 'validate';
-                const isDesign = stageId === 'design';
-                const isBuild = stageId === 'build';
-                const isLaunch = stageId === 'launch';
-                const isMonetise = stageId === 'monetise';
+          <nav className="flex-1 overflow-y-auto p-4 space-y-6">
+            <div>
+              <button
+                onClick={() => {
+                  onStageChange('projects');
+                  setIsMobileOpen(false);
+                }}
+                className={cn(
+                  "w-full flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium transition-all",
+                  "hover:bg-neutral-100",
+                  isProjectsActive
+                    ? "bg-purple-50 text-purple-600 border border-purple-200"
+                    : "text-neutral-700"
+                )}
+              >
+                <div
+                  className={cn(
+                    "flex items-center justify-center h-8 w-8 rounded-md",
+                    isProjectsActive ? "bg-purple-100" : "bg-neutral-100"
+                  )}
+                >
+                  <FolderKanban
+                    className={cn(
+                      "h-5 w-5",
+                      isProjectsActive ? "text-purple-600" : "text-neutral-600"
+                    )}
+                  />
+                </div>
+                <span className="flex-1 text-left">Projects</span>
+              </button>
+            </div>
 
-                return (
-                  <li key={stageId}>
-                    <div>
-                      <button
-                        onClick={() => {
-                          onStageChange(stageId);
-                          setIsMobileOpen(false);
-                        }}
-                        className={cn(
-                          "w-full flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium transition-all",
-                          "hover:bg-neutral-100",
-                          isActive
-                            ? "bg-purple-50 text-purple-600 border border-purple-200"
-                            : "text-neutral-700"
-                        )}
-                      >
-                        <div className={cn(
-                          "flex items-center justify-center h-8 w-8 rounded-md",
-                          isActive ? "bg-purple-100" : "bg-neutral-100"
-                        )}>
-                          <Icon className={cn(
-                            "h-5 w-5",
-                            isActive ? "text-purple-600" : "text-neutral-600"
-                          )} />
+            <div>
+              <p className="px-1 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                Journey Stages
+              </p>
+
+              {hasProjectSelected ? (
+                <ul className="mt-3 space-y-1">
+                  {STAGE_ORDER.map((stageId) => {
+                    const stage = stageConfigs[stageId];
+                    const Icon = stage.icon;
+                    const isActive = activeStage === stageId;
+                    const status = stageData[stageId]?.status;
+                    const isValidate = stageId === 'validate';
+                    const isDesign = stageId === 'design';
+                    const isBuild = stageId === 'build';
+                    const isLaunch = stageId === 'launch';
+                    const isMonetise = stageId === 'monetise';
+
+                    return (
+                      <li key={stageId}>
+                        <div>
+                          <button
+                            onClick={() => {
+                              onStageChange(stageId);
+                              setIsMobileOpen(false);
+                            }}
+                            className={cn(
+                              "w-full flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium transition-all",
+                              "hover:bg-neutral-100",
+                              isActive
+                                ? "bg-purple-50 text-purple-600 border border-purple-200"
+                                : "text-neutral-700"
+                            )}
+                          >
+                            <div
+                              className={cn(
+                                "flex items-center justify-center h-8 w-8 rounded-md",
+                                isActive ? "bg-purple-100" : "bg-neutral-100"
+                              )}
+                            >
+                              <Icon
+                                className={cn(
+                                  "h-5 w-5",
+                                  isActive ? "text-purple-600" : "text-neutral-600"
+                                )}
+                              />
+                            </div>
+                            <span className="flex-1 text-left">{stage.name}</span>
+                            {getStatusIndicator(stageId)}
+                          </button>
+
+                          {/* Validation sub-sections */}
+                          {isValidate && isValidateExpanded && projectId && (
+                            <ul className="ml-4 mt-1 space-y-1 border-l border-neutral-200 pl-2">
+                              {validationSubSections.map((subSection) => {
+                                const SubIcon = subSection.icon;
+                                const isSubActive = activeValidationSubSection === subSection.id;
+                                const href = `/project/${projectId}/validate${
+                                  subSection.id ? `/${subSection.id}` : ''
+                                }`;
+
+                                return (
+                                  <li key={subSection.id}>
+                                    <Link
+                                      href={href}
+                                      onClick={() => setIsMobileOpen(false)}
+                                      className={cn(
+                                        "flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all",
+                                        "hover:bg-neutral-50",
+                                        isSubActive
+                                          ? "bg-purple-50 text-purple-700 font-medium"
+                                          : "text-neutral-600"
+                                      )}
+                                    >
+                                      <SubIcon className="h-4 w-4" />
+                                      <span>{subSection.label}</span>
+                                    </Link>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          )}
+
+                          {/* Design sub-sections */}
+                          {isDesign && isDesignExpanded && projectId && (
+                            <ul className="ml-4 mt-1 space-y-1 border-l border-neutral-200 pl-2">
+                              {designSubSections.map((subSection) => {
+                                const SubIcon = subSection.icon;
+                                const isSubActive = activeDesignSubSection === subSection.id;
+                                const href = `/project/${projectId}/design${
+                                  subSection.id ? `/${subSection.id}` : ''
+                                }`;
+
+                                return (
+                                  <li key={subSection.id}>
+                                    <Link
+                                      href={href}
+                                      onClick={() => setIsMobileOpen(false)}
+                                      className={cn(
+                                        "flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all",
+                                        "hover:bg-neutral-50",
+                                        isSubActive
+                                          ? "bg-purple-50 text-purple-700 font-medium"
+                                          : "text-neutral-600"
+                                      )}
+                                    >
+                                      <SubIcon className="h-4 w-4" />
+                                      <span>{subSection.label}</span>
+                                    </Link>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          )}
+
+                          {/* Build sub-sections */}
+                          {isBuild && isBuildExpanded && projectId && (
+                            <ul className="ml-4 mt-1 space-y-1 border-l border-neutral-200 pl-2">
+                              {buildSubSections.map((subSection) => {
+                                const SubIcon = subSection.icon;
+                                const isSubActive = activeBuildSubSection === subSection.id;
+                                const href = `/project/${projectId}/build${
+                                  subSection.id ? `/${subSection.id}` : ''
+                                }`;
+
+                                return (
+                                  <li key={subSection.id}>
+                                    <Link
+                                      href={href}
+                                      onClick={() => setIsMobileOpen(false)}
+                                      className={cn(
+                                        "flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all",
+                                        "hover:bg-neutral-50",
+                                        isSubActive
+                                          ? "bg-purple-50 text-purple-700 font-medium"
+                                          : "text-neutral-600"
+                                      )}
+                                    >
+                                      <SubIcon className="h-4 w-4" />
+                                      <span>{subSection.label}</span>
+                                    </Link>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          )}
+
+                          {/* Launch sub-sections */}
+                          {isLaunch && isLaunchExpanded && projectId && (
+                            <ul className="ml-4 mt-1 space-y-1 border-l border-neutral-200 pl-2">
+                              {launchSubSections.map((subSection) => {
+                                const SubIcon = subSection.icon;
+                                const isSubActive = activeLaunchSubSection === subSection.id;
+                                const href = `/project/${projectId}/launch${
+                                  subSection.id ? `/${subSection.id}` : ''
+                                }`;
+
+                                return (
+                                  <li key={subSection.id}>
+                                    <Link
+                                      href={href}
+                                      onClick={() => setIsMobileOpen(false)}
+                                      className={cn(
+                                        "flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all",
+                                        "hover:bg-neutral-50",
+                                        isSubActive
+                                          ? "bg-purple-50 text-purple-700 font-medium"
+                                          : "text-neutral-600"
+                                      )}
+                                    >
+                                      <SubIcon className="h-4 w-4" />
+                                      <span>{subSection.label}</span>
+                                    </Link>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          )}
+
+                          {/* Monetise sub-sections */}
+                          {isMonetise && isMonetiseExpanded && projectId && (
+                            <ul className="ml-4 mt-1 space-y-1 border-l border-neutral-200 pl-2">
+                              {monetiseSubSections.map((subSection) => {
+                                const SubIcon = subSection.icon;
+                                const isSubActive = activeMonetiseSubSection === subSection.id;
+                                const href = `/project/${projectId}/monetise${
+                                  subSection.id ? `/${subSection.id}` : ''
+                                }`;
+
+                                return (
+                                  <li key={subSection.id}>
+                                    <Link
+                                      href={href}
+                                      onClick={() => setIsMobileOpen(false)}
+                                      className={cn(
+                                        "flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all",
+                                        "hover:bg-neutral-50",
+                                        isSubActive
+                                          ? "bg-purple-50 text-purple-700 font-medium"
+                                          : "text-neutral-600"
+                                      )}
+                                    >
+                                      <SubIcon className="h-4 w-4" />
+                                      <span>{subSection.label}</span>
+                                    </Link>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          )}
                         </div>
-                        <span className="flex-1 text-left">{stage.name}</span>
-                        {getStatusIndicator(stageId)}
-                      </button>
-                      
-                      {/* Validation sub-sections */}
-                      {isValidate && isValidateExpanded && projectId && (
-                        <ul className="ml-4 mt-1 space-y-1 border-l border-neutral-200 pl-2">
-                          {validationSubSections.map((subSection) => {
-                            const SubIcon = subSection.icon;
-                            const isSubActive = activeValidationSubSection === subSection.id;
-                            const href = `/project/${projectId}/validate${subSection.id ? `/${subSection.id}` : ''}`;
-
-                            return (
-                              <li key={subSection.id}>
-                                <Link
-                                  href={href}
-                                  onClick={() => setIsMobileOpen(false)}
-                                  className={cn(
-                                    "flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all",
-                                    "hover:bg-neutral-50",
-                                    isSubActive
-                                      ? "bg-purple-50 text-purple-700 font-medium"
-                                      : "text-neutral-600"
-                                  )}
-                                >
-                                  <SubIcon className="h-4 w-4" />
-                                  <span>{subSection.label}</span>
-                                </Link>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      )}
-
-                      {/* Design sub-sections */}
-                      {isDesign && isDesignExpanded && projectId && (
-                        <ul className="ml-4 mt-1 space-y-1 border-l border-neutral-200 pl-2">
-                          {designSubSections.map((subSection) => {
-                            const SubIcon = subSection.icon;
-                            const isSubActive = activeDesignSubSection === subSection.id;
-                            const href = `/project/${projectId}/design${subSection.id ? `/${subSection.id}` : ''}`;
-
-                            return (
-                              <li key={subSection.id}>
-                                <Link
-                                  href={href}
-                                  onClick={() => setIsMobileOpen(false)}
-                                  className={cn(
-                                    "flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all",
-                                    "hover:bg-neutral-50",
-                                    isSubActive
-                                      ? "bg-purple-50 text-purple-700 font-medium"
-                                      : "text-neutral-600"
-                                  )}
-                                >
-                                  <SubIcon className="h-4 w-4" />
-                                  <span>{subSection.label}</span>
-                                </Link>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      )}
-
-                      {/* Build sub-sections */}
-                      {isBuild && isBuildExpanded && projectId && (
-                        <ul className="ml-4 mt-1 space-y-1 border-l border-neutral-200 pl-2">
-                          {buildSubSections.map((subSection) => {
-                            const SubIcon = subSection.icon;
-                            const isSubActive = activeBuildSubSection === subSection.id;
-                            const href = `/project/${projectId}/build${subSection.id ? `/${subSection.id}` : ''}`;
-
-                            return (
-                              <li key={subSection.id}>
-                                <Link
-                                  href={href}
-                                  onClick={() => setIsMobileOpen(false)}
-                                  className={cn(
-                                    "flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all",
-                                    "hover:bg-neutral-50",
-                                    isSubActive
-                                      ? "bg-purple-50 text-purple-700 font-medium"
-                                      : "text-neutral-600"
-                                  )}
-                                >
-                                  <SubIcon className="h-4 w-4" />
-                                  <span>{subSection.label}</span>
-                                </Link>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      )}
-
-                      {/* Launch sub-sections */}
-                      {isLaunch && isLaunchExpanded && projectId && (
-                        <ul className="ml-4 mt-1 space-y-1 border-l border-neutral-200 pl-2">
-                          {launchSubSections.map((subSection) => {
-                            const SubIcon = subSection.icon;
-                            const isSubActive = activeLaunchSubSection === subSection.id;
-                            const href = `/project/${projectId}/launch${subSection.id ? `/${subSection.id}` : ''}`;
-
-                            return (
-                              <li key={subSection.id}>
-                                <Link
-                                  href={href}
-                                  onClick={() => setIsMobileOpen(false)}
-                                  className={cn(
-                                    "flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all",
-                                    "hover:bg-neutral-50",
-                                    isSubActive
-                                      ? "bg-purple-50 text-purple-700 font-medium"
-                                      : "text-neutral-600"
-                                  )}
-                                >
-                                  <SubIcon className="h-4 w-4" />
-                                  <span>{subSection.label}</span>
-                                </Link>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      )}
-
-                      {/* Monetise sub-sections */}
-                      {isMonetise && isMonetiseExpanded && projectId && (
-                        <ul className="ml-4 mt-1 space-y-1 border-l border-neutral-200 pl-2">
-                          {monetiseSubSections.map((subSection) => {
-                            const SubIcon = subSection.icon;
-                            const isSubActive = activeMonetiseSubSection === subSection.id;
-                            const href = `/project/${projectId}/monetise${subSection.id ? `/${subSection.id}` : ''}`;
-
-                            return (
-                              <li key={subSection.id}>
-                                <Link
-                                  href={href}
-                                  onClick={() => setIsMobileOpen(false)}
-                                  className={cn(
-                                    "flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all",
-                                    "hover:bg-neutral-50",
-                                    isSubActive
-                                      ? "bg-purple-50 text-purple-700 font-medium"
-                                      : "text-neutral-600"
-                                  )}
-                                >
-                                  <SubIcon className="h-4 w-4" />
-                                  <span>{subSection.label}</span>
-                                </Link>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      )}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <div className="mt-3 rounded-lg border border-dashed border-neutral-300 bg-neutral-50 p-3 text-sm text-neutral-500">
+                  Select a project to open stages.
+                </div>
+              )}
+            </div>
           </nav>
         </div>
       </aside>

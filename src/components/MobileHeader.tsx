@@ -5,13 +5,13 @@ import { Button } from "@/components/ui/button";
 import { UserButton, SignedIn, SignedOut, SignInButton } from "@clerk/nextjs";
 
 interface MobileHeaderProps {
-  projectTitle: string;
+  title: string;
   isSidebarOpen: boolean;
   onSidebarToggle: () => void;
 }
 
 export default function MobileHeader({
-  projectTitle,
+  title,
   isSidebarOpen,
   onSidebarToggle,
 }: MobileHeaderProps) {
@@ -35,7 +35,7 @@ export default function MobileHeader({
       {/* Project Title */}
       <div className="flex-1 px-3 min-w-0">
         <h1 className="text-base font-semibold text-neutral-900 truncate">
-          {projectTitle || "Untitled Project"}
+          {title || "Untitled Project"}
         </h1>
       </div>
 
@@ -53,7 +53,7 @@ export default function MobileHeader({
           />
         </SignedIn>
         <SignedOut>
-          <SignInButton mode="modal">
+          <SignInButton mode="redirect">
             <Button
               variant="ghost"
               size="sm"

@@ -68,6 +68,7 @@ export default function ProjectList() {
       }),
     [filteredProjects]
   );
+  const isSearching = Boolean(searchQuery.trim());
 
   async function createProject() {
     if (!title.trim()) {
@@ -181,7 +182,7 @@ export default function ProjectList() {
       </Card>
 
       {/* Create Project Form */}
-      <Card className="border-white/10 bg-white/5 backdrop-blur-md">
+      <Card id="create-project" className="border-white/10 bg-white/5 backdrop-blur-md">
         <CardHeader>
           <CardTitle className="text-white">Create New Project</CardTitle>
         </CardHeader>
@@ -242,13 +243,27 @@ export default function ProjectList() {
 
       {/* Projects Grid */}
       {sortedProjects.length === 0 ? (
-        <Card className="border-white/10 bg-white/5 backdrop-blur-md">
-          <CardContent className="py-12 text-center">
-            <p className="text-white/70">
-              {searchQuery ? "No projects match your search." : "No projects yet. Create one above."}
-            </p>
-          </CardContent>
-        </Card>
+        isSearching ? (
+          <Card className="border-white/10 bg-white/5 backdrop-blur-md">
+            <CardContent className="py-12 text-center">
+              <p className="text-white/70">No projects match your search.</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card className="border-dashed border-white/20 bg-white/5 backdrop-blur-md">
+            <CardHeader className="text-center">
+              <CardTitle className="text-2xl text-white">No projects yet</CardTitle>
+              <CardDescription className="text-white/70">
+                Create your first project to start your journey.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex justify-center pb-12">
+              <Button asChild className="bg-white text-gray-900 hover:bg-white/90">
+                <a href="#create-project">Create project</a>
+              </Button>
+            </CardContent>
+          </Card>
+        )
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {sortedProjects.map((project) => {
