@@ -579,7 +579,9 @@ export default function StageWorkspace({ projectId, hideSidebar = false }: Stage
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const isIdeateNotStarted = useMemo(() => {
     const ideateStatus = stageData?.ideate?.status ?? "pending";
-    return ideateStatus === "pending" || ideateStatus === "not_started" || !stageData?.ideate;
+    // Consider Ideate "not started" when there is no record yet
+    // or when the status is still pending.
+    return !stageData?.ideate || ideateStatus === "pending";
   }, [stageData]);
 
   const projectSummary = useMemo(() => generateProjectSummary(stageData), [stageData]);
