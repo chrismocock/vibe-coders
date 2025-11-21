@@ -18,9 +18,18 @@ export function ProjectLayoutClient({
 }: ProjectLayoutClientProps) {
   const pathname = usePathname();
 
-  let activeStage: "dashboard" | "ideate" | "validate" | "design" | "build" | "launch" | "monetise" =
-    "dashboard";
-  if (pathname?.includes("/validate")) {
+  let activeStage:
+    | "dashboard"
+    | "progress"
+    | "ideate"
+    | "validate"
+    | "design"
+    | "build"
+    | "launch"
+    | "monetise" = "dashboard";
+  if (pathname?.includes("/progress")) {
+    activeStage = "progress";
+  } else if (pathname?.includes("/validate")) {
     activeStage = "validate";
   } else if (pathname?.includes("/ideate")) {
     activeStage = "ideate";

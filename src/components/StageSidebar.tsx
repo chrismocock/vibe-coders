@@ -50,6 +50,10 @@ const stageConfigs = {
     name: 'Dashboard',
     icon: LayoutGrid,
   },
+  progress: {
+    name: 'Project Progress',
+    icon: TrendingUp,
+  },
   ideate: {
     name: 'Ideate',
     icon: Lightbulb,
@@ -74,7 +78,13 @@ const stageConfigs = {
     name: 'Monetise',
     icon: Coins,
   },
-};
+} as const;
+
+const SIDEBAR_STAGE_ORDER = [
+  'dashboard',
+  'progress',
+  ...STAGE_ORDER.filter((stageId) => stageId !== 'dashboard'),
+] as const;
 
 interface StageData {
   id: string;
@@ -348,8 +358,8 @@ export default function StageSidebar({
   };
 
   const getStatusIndicator = (stageId: string) => {
-    // Dashboard doesn't have a status indicator
-    if (stageId === 'dashboard') return null;
+    // Dashboard and Project Progress don't have a status indicator
+    if (stageId === 'dashboard' || stageId === 'progress') return null;
     
     const status = stageData[stageId]?.status;
     if (status === 'completed') {
@@ -430,7 +440,7 @@ export default function StageSidebar({
 
               {hasProjectSelected ? (
                 <ul className="mt-3 space-y-1">
-                  {STAGE_ORDER.map((stageId) => {
+                  {SIDEBAR_STAGE_ORDER.map((stageId) => {
                     if (!isStageEnabled(stageId)) {
                       return null;
                     }

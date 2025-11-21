@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 type JourneyStage =
   | "projects"
   | "dashboard"
+  | "progress"
   | "ideate"
   | "validate"
   | "design"
@@ -54,6 +55,11 @@ export default function DashboardShell({
 
     if (!projectId) {
       router.push("/projects");
+      return;
+    }
+
+    if (stageId === "progress") {
+      router.push(`/project/${projectId}/progress`);
       return;
     }
 
