@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { usePathname } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import StageSidebar from "@/components/StageSidebar";
 import ProjectTitleEditor from "@/components/ProjectTitleEditor";
 import ProjectDashboard from "@/components/ProjectDashboard";
+import FirstTimeProjectDashboard from "@/components/dashboard/FirstTimeProjectDashboard";
 import { ResultsCard } from "@/components/validation/ResultsCard";
 import DesignOverviewHub from "@/components/design/DesignOverviewHub";
 import ProductBlueprint from "@/components/design/ProductBlueprint";
@@ -576,6 +577,13 @@ export default function StageWorkspace({ projectId, hideSidebar = false }: Stage
   const [activeStage, setActiveStage] = useState<string>(getInitialActiveStage());
   const [projectTitle, setProjectTitle] = useState<string>("Untitled Project");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const isIdeateNotStarted = useMemo(() => {
+    const ideateStatus = stageData?.ideate?.status ?? "pending";
+    return ideateStatus === "pending" || ideateStatus === "not_started" || !stageData?.ideate;
+  }, [stageData]);
+
+  const projectSummary = useMemo(() => generateProjectSummary(stageData), [stageData]);
+
   const [editingIdea, setEditingIdea] = useState<Record<string, string>>({});
   const [activeTabs, setActiveTabs] = useState<Record<string, string>>({});
   const autoSaveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -1585,13 +1593,22 @@ export default function StageWorkspace({ projectId, hideSidebar = false }: Stage
           <Tabs value={activeStage} onValueChange={setActiveStage} className="w-full">
             {/* Dashboard Tab */}
             <TabsContent value="dashboard" className="mt-0">
-              <ProjectDashboard
-                projectId={projectId}
-                stageData={stageData}
-                projectTitle={projectTitle}
-                logoUrl={logoUrl}
-                onLogoUpdate={setLogoUrl}
-              />
+              {isIdeateNotStarted ? (
+                <FirstTimeProjectDashboard
+                  projectId={projectId}
+                  projectTitle={projectTitle}
+                  projectSummary={projectSummary}
+                  logoUrl={logoUrl}
+                />
+              ) : (
+                <ProjectDashboard
+                  projectId={projectId}
+                  stageData={stageData}
+                  projectTitle={projectTitle}
+                  logoUrl={logoUrl}
+                  onLogoUpdate={setLogoUrl}
+                />
+              )}
             </TabsContent>
 
             {/* Stage Tabs */}
@@ -2311,4 +2328,70 @@ export default function StageWorkspace({ projectId, hideSidebar = false }: Stage
       </div>
     </div>
   );
+}
+
+function generateProjectSummary(stageData: Record<string, StageData>): string | undefined {
+  const parts: string[] = [];
+
+  const ideateData = stageData["ideate"];
+  if (ideateData?.input) {
+    try {
+      const parsedInput = JSON.parse(ideateData.input);
+      const selectedIdea = parsedInput.selectedIdea || "";
+      if (selectedIdea.trim()) {
+        const sentences = selectedIdea
+          .split(/[.!?]/)
+          .filter((sentence: string) => sentence.trim().length > 20);
+        if (sentences.length > 0) {
+          parts.push(sentences.slice(0, 2).join(". ").trim());
+        }
+      }
+    } catch {
+      // ignore parse errors
+    }
+  }
+
+  const validateData = stageData["validate"];
+  if (validateData?.input) {
+    try {
+      const parsedInput = JSON.parse(validateData.input);
+      const problemStatement = parsedInput.problemStatement || "";
+      const solutionDescription = parsedInput.solutionDescription || "";
+
+      if (problemStatement && !parts.length) {
+        parts.push(problemStatement.split(/[.!?]/)[0]?.trim() || "");
+      }
+
+      if (solutionDescription) {
+        const solutionText = solutionDescription.split(/[.!?]/).slice(0, 1)[0]?.trim();
+        if (solutionText) {
+          parts.push(solutionText);
+        }
+      }
+    } catch {
+      // ignore parse errors
+    }
+  }
+
+  const designData = stageData["design"];
+  if (designData?.input) {
+    try {
+      const parsedInput = JSON.parse(designData.input);
+      const productType = parsedInput.productType || "";
+      if (productType) {
+        parts.push(
+          `Built as a ${productType.toLowerCase()}, this solution addresses critical market needs.`
+        );
+      }
+    } catch {
+      // ignore parse errors
+    }
+  }
+
+  if (!parts.length) {
+    return undefined;
+  }
+
+  const summary = parts.join(" ");
+  return summary.endsWith(".") ? summary : `${summary}.`;
 }
