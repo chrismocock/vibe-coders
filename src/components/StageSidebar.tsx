@@ -1,15 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { 
+import {
   LayoutGrid,
-  Lightbulb, 
-  Users, 
-  Wrench, 
-  Rocket, 
-  MessageSquare, 
+  Lightbulb,
+  Users,
+  Wrench,
+  Rocket,
+  MessageSquare,
   Coins,
   CheckCircle2,
   LayoutDashboard,
@@ -33,11 +33,17 @@ import {
   BarChart3,
   Zap,
   CreditCard,
-  FolderKanban
+  FolderKanban,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-const STAGE_ORDER = ["dashboard", "ideate", "validate", "design", "build", "launch", "monetise"] as const;
+import {
+  STAGE_ORDER,
+  VALIDATE_SUB_STAGES,
+  DESIGN_SUB_STAGES,
+  BUILD_SUB_STAGES,
+  LAUNCH_SUB_STAGES,
+  MONETISE_SUB_STAGES,
+} from "@/lib/stageMetadata";
 
 const stageConfigs = {
   dashboard: {
@@ -90,59 +96,103 @@ interface StageSidebarProps {
   setIsMobileOpen?: (open: boolean) => void;
 }
 
-const validationSubSections = [
-  { id: '', label: 'Overview', icon: LayoutDashboard },
-  { id: 'problem', label: 'Problem', icon: AlertCircle },
-  { id: 'market', label: 'Market', icon: TrendingUp },
-  { id: 'competition', label: 'Competition', icon: Users },
-  { id: 'audience', label: 'Audience', icon: UserCheck },
-  { id: 'feasibility', label: 'Feasibility', icon: Wrench },
-  { id: 'pricing', label: 'Pricing', icon: DollarSign },
-  { id: 'go-to-market', label: 'Go-To-Market', icon: Rocket },
-];
+const validationSubSections = VALIDATE_SUB_STAGES.map((s) => ({
+  ...s,
+  icon:
+    s.id === "problem"
+      ? AlertCircle
+      : s.id === "market"
+      ? TrendingUp
+      : s.id === "competition"
+      ? Users
+      : s.id === "audience"
+      ? UserCheck
+      : s.id === "feasibility"
+      ? Wrench
+      : s.id === "pricing"
+      ? DollarSign
+      : s.id === "go-to-market"
+      ? Rocket
+      : LayoutDashboard,
+}));
 
-const designSubSections = [
-  { id: '', label: 'Overview', icon: LayoutDashboard },
-  { id: 'product-blueprint', label: 'Product Blueprint', icon: Package },
-  { id: 'user-personas', label: 'User Personas', icon: Users },
-  { id: 'user-journey', label: 'User Journey', icon: Map },
-  { id: 'information-architecture', label: 'Information Architecture', icon: Layout },
-  { id: 'wireframes', label: 'Wireframes & Layouts', icon: FileImage },
-  { id: 'brand-identity', label: 'Brand & Visual Identity', icon: Palette },
-  { id: 'mvp-definition', label: 'MVP Definition', icon: Target },
-  { id: 'design-summary', label: 'Design Summary & Export', icon: FileText },
-];
+const designSubSections = DESIGN_SUB_STAGES.map((s) => ({
+  ...s,
+  icon:
+    s.id === "product-blueprint"
+      ? Package
+      : s.id === "user-personas"
+      ? Users
+      : s.id === "user-journey"
+      ? Map
+      : s.id === "information-architecture"
+      ? Layout
+      : s.id === "wireframes"
+      ? FileImage
+      : s.id === "brand-identity"
+      ? Palette
+      : s.id === "mvp-definition"
+      ? Target
+      : s.id === "design-summary"
+      ? FileText
+      : LayoutDashboard,
+}));
 
-const buildSubSections = [
-  { id: '', label: 'Overview', icon: LayoutDashboard },
-  { id: 'mvp-scope', label: 'MVP Scope', icon: Target },
-  { id: 'features', label: 'Features & User Stories', icon: FileText },
-  { id: 'data-model', label: 'Data Model', icon: Database },
-  { id: 'screens', label: 'Screens & Components', icon: Layout },
-  { id: 'integrations', label: 'Integrations', icon: Plug },
-  { id: 'developer-pack', label: 'Developer Pack', icon: Package },
-];
+const buildSubSections = BUILD_SUB_STAGES.map((s) => ({
+  ...s,
+  icon:
+    s.id === "mvp-scope"
+      ? Target
+      : s.id === "features"
+      ? FileText
+      : s.id === "data-model"
+      ? Database
+      : s.id === "screens"
+      ? Layout
+      : s.id === "integrations"
+      ? Plug
+      : s.id === "developer-pack"
+      ? Package
+      : LayoutDashboard,
+}));
 
-const launchSubSections = [
-  { id: '', label: 'Overview', icon: LayoutDashboard },
-  { id: 'strategy', label: 'Launch Strategy', icon: Target },
-  { id: 'messaging', label: 'Messaging & Positioning', icon: MessageSquare },
-  { id: 'landing', label: 'Landing Page & Onboarding', icon: Home },
-  { id: 'adopters', label: 'Early Adopters & Outreach', icon: Users },
-  { id: 'assets', label: 'Marketing Assets', icon: Image },
-  { id: 'metrics', label: 'Tracking & Metrics', icon: BarChart3 },
-  { id: 'pack', label: 'Launch Pack', icon: Package },
-];
+const launchSubSections = LAUNCH_SUB_STAGES.map((s) => ({
+  ...s,
+  icon:
+    s.id === "strategy"
+      ? Target
+      : s.id === "messaging"
+      ? MessageSquare
+      : s.id === "landing"
+      ? Home
+      : s.id === "adopters"
+      ? Users
+      : s.id === "assets"
+      ? Image
+      : s.id === "metrics"
+      ? BarChart3
+      : s.id === "pack"
+      ? Package
+      : LayoutDashboard,
+}));
 
-const monetiseSubSections = [
-  { id: '', label: 'Overview', icon: LayoutDashboard },
-  { id: 'pricing', label: 'Pricing Strategy', icon: DollarSign },
-  { id: 'offer', label: 'Offer & Plan Builder', icon: Package },
-  { id: 'checkout', label: 'Checkout & Payment Flow', icon: CreditCard },
-  { id: 'activation', label: 'Activation & Onboarding', icon: Zap },
-  { id: 'assets', label: 'Monetisation Assets', icon: Image },
-  { id: 'pack', label: 'Revenue Pack', icon: FileText },
-];
+const monetiseSubSections = MONETISE_SUB_STAGES.map((s) => ({
+  ...s,
+  icon:
+    s.id === "pricing"
+      ? DollarSign
+      : s.id === "offer"
+      ? Package
+      : s.id === "checkout"
+      ? CreditCard
+      : s.id === "activation"
+      ? Zap
+      : s.id === "assets"
+      ? Image
+      : s.id === "pack"
+      ? FileText
+      : LayoutDashboard,
+}));
 
 export default function StageSidebar({
   activeStage,
@@ -262,6 +312,41 @@ export default function StageSidebar({
   const hasProjectSelected = Boolean(projectId);
   const isProjectsActive = activeStage === 'projects';
 
+  const [stageSettings, setStageSettings] = useState<Record<string, boolean>>({});
+
+  // Load global stage visibility settings
+  useEffect(() => {
+    async function loadSettings() {
+      try {
+        const res = await fetch("/api/stage-settings");
+        if (!res.ok) return;
+        const data: { settings: { stage: string; sub_stage: string | null; enabled: boolean }[] } =
+          await res.json();
+        const map: Record<string, boolean> = {};
+        for (const row of data.settings || []) {
+          const key = row.sub_stage ? `${row.stage}:${row.sub_stage}` : row.stage;
+          map[key] = row.enabled;
+        }
+        setStageSettings(map);
+      } catch (error) {
+        console.error("Failed to load stage settings", error);
+      }
+    }
+    loadSettings();
+  }, []);
+
+  const isStageEnabled = (stageId: string) => {
+    const value = stageSettings[stageId];
+    // default: enabled when no explicit setting
+    return value !== false;
+  };
+
+  const isSubStageEnabled = (stageId: string, subId: string) => {
+    const key = `${stageId}:${subId}`;
+    const value = stageSettings[key];
+    return value !== false;
+  };
+
   const getStatusIndicator = (stageId: string) => {
     // Dashboard doesn't have a status indicator
     if (stageId === 'dashboard') return null;
@@ -346,6 +431,9 @@ export default function StageSidebar({
               {hasProjectSelected ? (
                 <ul className="mt-3 space-y-1">
                   {STAGE_ORDER.map((stageId) => {
+                    if (!isStageEnabled(stageId)) {
+                      return null;
+                    }
                     const stage = stageConfigs[stageId];
                     const Icon = stage.icon;
                     const isActive = activeStage === stageId;
@@ -392,7 +480,11 @@ export default function StageSidebar({
                           {/* Validation sub-sections */}
                           {isValidate && isValidateExpanded && projectId && (
                             <ul className="ml-4 mt-1 space-y-1 border-l border-neutral-200 pl-2">
-                              {validationSubSections.map((subSection) => {
+                              {validationSubSections
+                                .filter((subSection) =>
+                                  isSubStageEnabled("validate", subSection.id || ""),
+                                )
+                                .map((subSection) => {
                                 const SubIcon = subSection.icon;
                                 const isSubActive = activeValidationSubSection === subSection.id;
                                 const href = `/project/${projectId}/validate${
@@ -417,14 +509,18 @@ export default function StageSidebar({
                                     </Link>
                                   </li>
                                 );
-                              })}
+                                })}
                             </ul>
                           )}
 
                           {/* Design sub-sections */}
                           {isDesign && isDesignExpanded && projectId && (
                             <ul className="ml-4 mt-1 space-y-1 border-l border-neutral-200 pl-2">
-                              {designSubSections.map((subSection) => {
+                              {designSubSections
+                                .filter((subSection) =>
+                                  isSubStageEnabled("design", subSection.id || ""),
+                                )
+                                .map((subSection) => {
                                 const SubIcon = subSection.icon;
                                 const isSubActive = activeDesignSubSection === subSection.id;
                                 const href = `/project/${projectId}/design${
@@ -449,14 +545,18 @@ export default function StageSidebar({
                                     </Link>
                                   </li>
                                 );
-                              })}
+                                })}
                             </ul>
                           )}
 
                           {/* Build sub-sections */}
                           {isBuild && isBuildExpanded && projectId && (
                             <ul className="ml-4 mt-1 space-y-1 border-l border-neutral-200 pl-2">
-                              {buildSubSections.map((subSection) => {
+                              {buildSubSections
+                                .filter((subSection) =>
+                                  isSubStageEnabled("build", subSection.id || ""),
+                                )
+                                .map((subSection) => {
                                 const SubIcon = subSection.icon;
                                 const isSubActive = activeBuildSubSection === subSection.id;
                                 const href = `/project/${projectId}/build${
@@ -481,14 +581,18 @@ export default function StageSidebar({
                                     </Link>
                                   </li>
                                 );
-                              })}
+                                })}
                             </ul>
                           )}
 
                           {/* Launch sub-sections */}
                           {isLaunch && isLaunchExpanded && projectId && (
                             <ul className="ml-4 mt-1 space-y-1 border-l border-neutral-200 pl-2">
-                              {launchSubSections.map((subSection) => {
+                              {launchSubSections
+                                .filter((subSection) =>
+                                  isSubStageEnabled("launch", subSection.id || ""),
+                                )
+                                .map((subSection) => {
                                 const SubIcon = subSection.icon;
                                 const isSubActive = activeLaunchSubSection === subSection.id;
                                 const href = `/project/${projectId}/launch${
@@ -513,14 +617,18 @@ export default function StageSidebar({
                                     </Link>
                                   </li>
                                 );
-                              })}
+                                })}
                             </ul>
                           )}
 
                           {/* Monetise sub-sections */}
                           {isMonetise && isMonetiseExpanded && projectId && (
                             <ul className="ml-4 mt-1 space-y-1 border-l border-neutral-200 pl-2">
-                              {monetiseSubSections.map((subSection) => {
+                              {monetiseSubSections
+                                .filter((subSection) =>
+                                  isSubStageEnabled("monetise", subSection.id || ""),
+                                )
+                                .map((subSection) => {
                                 const SubIcon = subSection.icon;
                                 const isSubActive = activeMonetiseSubSection === subSection.id;
                                 const href = `/project/${projectId}/monetise${
@@ -545,7 +653,7 @@ export default function StageSidebar({
                                     </Link>
                                   </li>
                                 );
-                              })}
+                                })}
                             </ul>
                           )}
                         </div>

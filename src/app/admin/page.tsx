@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import UserManagement from "@/components/admin/UserManagement";
 import AIConfig from "@/components/admin/AIConfig";
+import StageSettings from "@/components/admin/StageSettings";
 import { 
   Users, 
   Settings, 
@@ -37,7 +38,7 @@ export default function AdminDashboard() {
     password: ""
   });
   const [isCreatingTestUsers, setIsCreatingTestUsers] = useState(false);
-  const [activeTab, setActiveTab] = useState<'users' | 'ai-config'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'ai-config' | 'stages'>('users');
 
   const router = useRouter();
 
@@ -324,6 +325,17 @@ export default function AdminDashboard() {
                 <Bot className="h-4 w-4 inline mr-2" />
                 AI Configuration
               </button>
+              <button
+                onClick={() => setActiveTab('stages')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'stages'
+                    ? 'border-purple-500 text-purple-600'
+                    : 'border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300'
+                }`}
+              >
+                <Database className="h-4 w-4 inline mr-2" />
+                Stages
+              </button>
             </nav>
           </div>
         </div>
@@ -339,6 +351,10 @@ export default function AdminDashboard() {
 
         {activeTab === 'ai-config' && (
           <AIConfig onRefresh={loadUsers} />
+        )}
+
+        {activeTab === 'stages' && (
+          <StageSettings />
         )}
       </div>
 
