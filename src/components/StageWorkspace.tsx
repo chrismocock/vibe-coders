@@ -21,18 +21,18 @@ import WireframesLayouts from "@/components/design/WireframesLayouts";
 import BrandVisualIdentity from "@/components/design/BrandVisualIdentity";
 import MVPDefinition from "@/components/design/MVPDefinition";
 import DesignSummaryExport from "@/components/design/DesignSummaryExport";
-import { 
-  Lightbulb, 
-  Users, 
-  Wrench, 
-  Rocket, 
-  MessageSquare, 
+import {
+  Lightbulb,
+  Users,
+  Wrench,
+  Rocket,
+  MessageSquare,
   Coins,
   Save,
   Loader2,
   CheckCircle2,
   AlertCircle,
-  Wand2
+  Wand2,
 } from "lucide-react";
 
 interface StageData {
@@ -1558,7 +1558,7 @@ export default function StageWorkspace({ projectId, hideSidebar = false }: Stage
         <StageSidebar
           activeStage={activeStage}
           stageData={stageData}
-          onStageChange={setActiveStage}
+          onStageChange={(stage) => setActiveStage(stage)}
           projectId={projectId}
         />
       )}

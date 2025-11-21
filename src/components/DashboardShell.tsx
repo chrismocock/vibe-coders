@@ -46,7 +46,7 @@ export default function DashboardShell({
   const displayTitle =
     projectId && projectTitle ? projectTitle : projectId ? "Untitled Project" : headerTitle;
 
-  const handleStageChange = (stageId: JourneyStage) => {
+  const handleStageChange = (stageId: string) => {
     if (stageId === "projects") {
       router.push("/projects");
       return;
