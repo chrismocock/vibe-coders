@@ -562,6 +562,7 @@ export default function StageWorkspace({ projectId, hideSidebar = false }: Stage
   const [error, setError] = useState<string>("");
   const [selectedIdeas, setSelectedIdeas] = useState<Record<string, string>>({});
   const [lastSavedAt, setLastSavedAt] = useState<Record<string, number>>({});
+  const [stageSettings, setStageSettings] = useState<Record<string, boolean>>({});
   
   // Determine initial active stage from pathname
   const getInitialActiveStage = () => {
@@ -593,6 +594,36 @@ export default function StageWorkspace({ projectId, hideSidebar = false }: Stage
   const [designBlueprint, setDesignBlueprint] = useState<any>(null);
   const [activeDesignSection, setActiveDesignSection] = useState<string | null>(null);
   const [validateData, setValidateData] = useState<any>(null);
+
+  // Load global stage visibility settings (shared with StageSidebar)
+  useEffect(() => {
+    async function loadSettings() {
+      try {
+        const res = await fetch("/api/stage-settings");
+        if (!res.ok) return;
+        const data: {
+          settings: { stage: string; sub_stage: string | null; enabled: boolean }[];
+        } = await res.json();
+        const map: Record<string, boolean> = {};
+        for (const row of data.settings || []) {
+          const key = row.sub_stage ? `${row.stage}:${row.sub_stage}` : row.stage;
+          map[key] = row.enabled;
+        }
+        setStageSettings(map);
+      } catch (error) {
+        console.error("Failed to load stage settings", error);
+      }
+    }
+
+    loadSettings();
+  }, []);
+
+  const isSubStageEnabled = (stageId: string, subId: string) => {
+    const key = `${stageId}:${subId}`;
+    const value = stageSettings[key];
+    // default: enabled when no explicit setting
+    return value !== false;
+  };
 
   // Update activeStage when pathname changes
   useEffect(() => {
@@ -1911,8 +1942,14 @@ export default function StageWorkspace({ projectId, hideSidebar = false }: Stage
                     }
                     
                     // Check if this stage uses field groups (tabs)
-                    const fieldGroups = (stage as any).fieldGroups;
-                    const hasFieldGroups = fieldGroups && fieldGroups.length > 0;
+                    const rawFieldGroups = (stage as any).fieldGroups as
+                      | Array<{ id: string; label: string; fieldNames: string[] }>
+                      | undefined;
+                    const fieldGroups =
+                      rawFieldGroups?.filter((group) =>
+                        isSubStageEnabled(stageId, group.id),
+                      ) ?? [];
+                    const hasFieldGroups = fieldGroups.length > 0;
 
                     // Render with tabs if fieldGroups exist, otherwise render normally
                     if (hasFieldGroups) {
@@ -1927,11 +1964,13 @@ export default function StageWorkspace({ projectId, hideSidebar = false }: Stage
                             className="w-full"
                           >
                             <TabsList className={`grid w-full gap-2 h-auto p-1 bg-neutral-100 ${
-                              fieldGroups.length === 2 ? 'grid-cols-2' :
-                              fieldGroups.length === 3 ? 'grid-cols-2 md:grid-cols-3' :
-                              'grid-cols-2 md:grid-cols-4'
+                              fieldGroups.length === 2
+                                ? 'grid-cols-2'
+                                : fieldGroups.length === 3
+                                ? 'grid-cols-2 md:grid-cols-3'
+                                : 'grid-cols-2 md:grid-cols-4'
                             }`}>
-                              {fieldGroups.map((group: { id: string; label: string; fieldNames: string[] }) => {
+                              {fieldGroups.map((group) => {
                                 const status = getTabCompletionStatus(stageId, group.fieldNames);
                                 const isComplete = status.total > 0 && status.completed === status.total;
                                 
@@ -1954,7 +1993,7 @@ export default function StageWorkspace({ projectId, hideSidebar = false }: Stage
                               })}
                             </TabsList>
                             
-                            {fieldGroups.map((group: { id: string; label: string; fieldNames: string[] }) => (
+                            {fieldGroups.map((group) => (
                               <TabsContent key={group.id} value={group.id} className="mt-4 space-y-4">
                                 {group.fieldNames.map((fieldName) => {
                                   const field = stage.formSchema.fields.find(f => f.name === fieldName);

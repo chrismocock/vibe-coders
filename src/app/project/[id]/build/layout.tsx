@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useParams } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -29,6 +30,38 @@ function BuildNav() {
   const params = useParams();
   const projectId = params.id as string;
   const { buildPath } = useBuildBlueprint();
+  const [stageSettings, setStageSettings] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    async function loadStageSettings() {
+      try {
+        const res = await fetch("/api/stage-settings");
+        if (!res.ok) return;
+        const data: {
+          settings: { stage: string; sub_stage: string | null; enabled: boolean }[];
+        } = await res.json();
+        const map: Record<string, boolean> = {};
+        for (const row of data.settings || []) {
+          const key = row.sub_stage ? `${row.stage}:${row.sub_stage}` : row.stage;
+          map[key] = row.enabled;
+        }
+        setStageSettings(map);
+      } catch (error) {
+        console.error("Failed to load stage settings", error);
+      }
+    }
+
+    loadStageSettings();
+  }, []);
+
+  const isSubStageEnabled = (subId: string) => {
+    // Only apply to build sub-pages; overview is controlled by the stage itself.
+    if (!subId) return true;
+    const key = `build:${subId}`;
+    const value = stageSettings[key];
+    // Default to enabled if no explicit setting exists.
+    return value !== false;
+  };
 
   // Get the current build sub-section from pathname
   const currentSubSection = pathname.split("/build/")[1]?.split("/")[0] || "";
@@ -40,6 +73,10 @@ function BuildNav() {
   return (
     <nav className="flex gap-2 border-b border-neutral-200 overflow-x-auto">
       {navItems.map((item) => {
+        if (!isSubStageEnabled(item.href)) {
+          return null;
+        }
+
         const href = `/project/${projectId}/build${item.href ? `/${item.href}` : ""}`;
         const isActive = currentSubSection === item.href || (isOverview && item.href === "");
         const Icon = item.icon;
