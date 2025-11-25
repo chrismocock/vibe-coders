@@ -42,6 +42,21 @@ const mockIdeas: GeneratedIdea[] = [
   },
 ];
 
+const PILLAR_KEY_TO_LABEL: Record<string, string> = {
+  audienceFit: "Audience Fit",
+  competition: "Competition",
+  marketDemand: "Market Demand",
+  feasibility: "Feasibility",
+  pricingPotential: "Pricing Potential",
+};
+
+const PILLAR_LABEL_TO_KEY: Record<string, string> = Object.entries(
+  PILLAR_KEY_TO_LABEL,
+).reduce((acc, [key, label]) => {
+  acc[label.toLowerCase()] = key;
+  return acc;
+}, {} as Record<string, string>);
+
 export default function IdeateWizardPage() {
   const params = useParams();
   const projectId = params.id as string;
@@ -59,6 +74,27 @@ export default function IdeateWizardPage() {
   const [aiReview, setAiReview] = useState<string>("");
   const [isLoadingReview, setIsLoadingReview] = useState(false);
   const [reviewError, setReviewError] = useState<string | null>(null);
+  interface IdeaHistoryEntry {
+    id: string;
+    savedAt: string;
+    title: string;
+    summary: string;
+    content: string;
+    targetMarket?: string | null;
+    targetCountry?: string | null;
+    budget?: string | null;
+    timescales?: string | null;
+    validation?: any;
+  }
+
+  interface IdeaHistoryEntry {
+    id: string;
+    savedAt: string;
+    title: string;
+    summary: string;
+    validation?: any;
+  }
+
   const [savedData, setSavedData] = useState<{
     input: any;
     output: any;
@@ -83,7 +119,26 @@ export default function IdeateWizardPage() {
   });
   const [isSavingEditedIdea, setIsSavingEditedIdea] = useState(false);
   const [isImprovingIdea, setIsImprovingIdea] = useState(false);
-  const [refinementHighlights, setRefinementHighlights] = useState<string[] | null>(null);
+  const [applyingSuggestionId, setApplyingSuggestionId] = useState<string | null>(null);
+  const [isRevalidating, setIsRevalidating] = useState(false);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [suggestionError, setSuggestionError] = useState<string | null>(null);
+  const [draftValidation, setDraftValidation] = useState<InitialFeedbackData | null>(null);
+  type ScoreDelta = { from: number | null; to: number; change: number | null };
+  const [validationDeltas, setValidationDeltas] = useState<Partial<Record<string, ScoreDelta>>>({});
+
+  interface RefinementSuggestion {
+    id: string;
+    pillar: string;
+    pillarKey: string;
+    score: number | null;
+    issue: string;
+    rationale: string;
+    suggestion: string;
+    estimatedImpact: number;
+  }
+
+  const [refinementSuggestions, setRefinementSuggestions] = useState<RefinementSuggestion[] | null>(null);
 
   // Load saved ideate data on mount
   useEffect(() => {
@@ -96,6 +151,9 @@ export default function IdeateWizardPage() {
           if (ideateStage) {
             try {
               const parsedInput = JSON.parse(ideateStage.input);
+              if (!Array.isArray(parsedInput.ideaHistory)) {
+                parsedInput.ideaHistory = [];
+              }
               // Try to parse output as JSON (new format), fallback to string (old format)
               let parsedOutput: any = ideateStage.output || '';
               try {
@@ -964,6 +1022,7 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
         targetCountry: targetCountry || null,
         budget: budget || null,
         timescales: timescales || null,
+        ideaHistory: [],
       };
 
       // Prepare output with AI review and initial feedback
@@ -1321,24 +1380,319 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
     return inputData.userInput || "";
   };
 
+  const buildHistoryEntry = (inputSnapshot: any, outputSnapshot: any): IdeaHistoryEntry => {
+    const ideaText = getSavedIdeaText(inputSnapshot);
+    const aiReviewText =
+      typeof outputSnapshot === "object" && outputSnapshot !== null
+        ? outputSnapshot.aiReview ?? ""
+        : String(outputSnapshot ?? "");
+    const ideaInfo = extractIdeaFromReview(
+      aiReviewText,
+      inputSnapshot.userInput || null,
+      inputSnapshot.selectedIdea || null,
+    );
+    return {
+      id:
+        typeof crypto !== "undefined" && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `version-${Date.now()}`,
+      savedAt: new Date().toISOString(),
+      title: ideaInfo.title,
+      summary: ideaInfo.description,
+      content: ideaText,
+      targetMarket: inputSnapshot.targetMarket || null,
+      targetCountry: inputSnapshot.targetCountry || null,
+      budget: inputSnapshot.budget || null,
+      timescales: inputSnapshot.timescales || null,
+      validation:
+        typeof outputSnapshot === "object" && outputSnapshot !== null
+          ? outputSnapshot.initialFeedback ?? null
+          : null,
+    };
+  };
+
   const handleEditIdea = () => {
     if (!savedData) return;
     const inputData = savedData.input || {};
+    const existingFeedback =
+      typeof savedData.output === "object" && savedData.output !== null
+        ? (savedData.output as any).initialFeedback ?? null
+        : null;
+    const ideaNarrative = getSavedIdeaText(inputData);
+
     setEditForm({
-      ideaText: getSavedIdeaText(inputData),
+      ideaText: ideaNarrative,
       targetMarket: inputData.targetMarket || "",
       targetCountry: inputData.targetCountry || "",
       budget: inputData.budget || "",
       timescales: inputData.timescales || "",
     });
-    setRefinementHighlights(null);
+    setRefinementSuggestions(null);
+    setSuggestionError(null);
+    setDraftValidation(existingFeedback);
+    setValidationDeltas({});
     setIsEditingExisting(true);
     window.scrollTo({ top: 0, behavior: "smooth" });
+    if (ideaNarrative && existingFeedback) {
+      void loadPillarSuggestions(ideaNarrative, existingFeedback);
+    }
   };
 
   const handleCancelEdit = () => {
     setIsEditingExisting(false);
-    setRefinementHighlights(null);
+    setRefinementSuggestions(null);
+    setSuggestionError(null);
+    setDraftValidation(null);
+    setValidationDeltas({});
+    setSuggestionsLoading(false);
+    setIsRevalidating(false);
+  };
+
+  const handleRestoreVersion = (entry: IdeaHistoryEntry) => {
+    setEditForm({
+      ideaText: entry.content,
+      targetMarket: entry.targetMarket || "",
+      targetCountry: entry.targetCountry || "",
+      budget: entry.budget || "",
+      timescales: entry.timescales || "",
+    });
+    setRefinementSuggestions(null);
+    setSuggestionError(null);
+    const fallbackValidation =
+      entry.validation ||
+      (typeof savedData?.output === "object" && savedData?.output
+        ? (savedData.output as any).initialFeedback ?? null
+        : null);
+    setDraftValidation(fallbackValidation);
+    setValidationDeltas({});
+    setIsEditingExisting(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    if (entry.content && fallbackValidation) {
+      void loadPillarSuggestions(entry.content, fallbackValidation);
+    }
+  };
+
+  const cloneInputSnapshot = () => {
+    if (!savedData?.input) {
+      return {};
+    }
+    try {
+      return JSON.parse(JSON.stringify(savedData.input));
+    } catch {
+      return { ...(savedData.input as any) };
+    }
+  };
+
+  const buildDraftInputSnapshot = (ideaText: string) => {
+    if (!savedData) {
+      return null;
+    }
+    const clonedInput = cloneInputSnapshot();
+    clonedInput.targetMarket = editForm.targetMarket || null;
+    clonedInput.targetCountry = editForm.targetCountry || null;
+    clonedInput.budget = editForm.budget || null;
+    clonedInput.timescales = editForm.timescales || null;
+
+    if (clonedInput.mode === "surprise-me") {
+      let normalizedSelected = clonedInput.selectedIdea;
+      if (!normalizedSelected || typeof normalizedSelected === "string") {
+        normalizedSelected = {
+          title:
+            typeof normalizedSelected === "string"
+              ? normalizedSelected || "Improved Idea"
+              : clonedInput.selectedIdea?.title || "Improved Idea",
+          description: ideaText,
+        };
+      } else {
+        normalizedSelected = {
+          ...normalizedSelected,
+          description: ideaText,
+        };
+        if (!normalizedSelected.title) {
+          normalizedSelected.title = "Improved Idea";
+        }
+      }
+      clonedInput.selectedIdea = normalizedSelected;
+    } else {
+      clonedInput.userInput = ideaText;
+    }
+
+    return clonedInput;
+  };
+
+  const tokenizeRationale = (text?: string | null) => {
+    if (!text) return [];
+    return text
+      .split(/[\n\.]/)
+      .map((entry) => entry.replace(/^[\-\*\•]\s*/, "").trim())
+      .filter((entry) => entry.length > 0)
+      .slice(0, 3);
+  };
+
+  const getScoreBadgeClasses = (score: number) => {
+    if (score >= 75) return "bg-green-100 text-green-700 border-green-200";
+    if (score >= 55) return "bg-yellow-100 text-yellow-700 border-yellow-200";
+    return "bg-red-100 text-red-700 border-red-200";
+  };
+
+  const getProgressColor = (score: number) => {
+    if (score >= 75) return "bg-green-500";
+    if (score >= 55) return "bg-yellow-500";
+    return "bg-red-500";
+  };
+
+
+  const computeScoreDeltas = (
+    previous: InitialFeedbackData | null,
+    next: InitialFeedbackData,
+  ): Record<string, ScoreDelta> => {
+    const deltas: Record<string, ScoreDelta> = {};
+    if (!next?.scores) return deltas;
+    for (const [key, data] of Object.entries(next.scores)) {
+      const currentScore =
+        typeof (data as any)?.score === "number" ? (data as any).score : 0;
+      const previousScore =
+        typeof previous?.scores?.[key as keyof InitialFeedbackData["scores"]]?.score === "number"
+          ? previous!.scores[key as keyof InitialFeedbackData["scores"]].score
+          : null;
+      deltas[key] = {
+        from: previousScore,
+        to: currentScore,
+        change: typeof previousScore === "number" ? currentScore - previousScore : null,
+      };
+    }
+    if (typeof next.overallConfidence === "number") {
+      const prevConfidence =
+        typeof previous?.overallConfidence === "number"
+          ? previous.overallConfidence
+          : null;
+      deltas.overallConfidence = {
+        from: prevConfidence,
+        to: next.overallConfidence,
+        change:
+          typeof prevConfidence === "number"
+            ? next.overallConfidence - prevConfidence
+            : null,
+      };
+    }
+    return deltas;
+  };
+
+  const loadPillarSuggestions = async (
+    ideaText: string,
+    feedback: InitialFeedbackData | null,
+  ) => {
+    if (!ideaText?.trim() || !feedback?.scores) {
+      setRefinementSuggestions(null);
+      return;
+    }
+
+    const pillars = Object.entries(feedback.scores).map(([key, value]) => ({
+      key,
+      label: PILLAR_KEY_TO_LABEL[key] || key,
+      score: typeof value?.score === "number" ? value.score : null,
+      rationale: value?.rationale || "",
+    }));
+
+    const weakPillars = pillars.filter(
+      (pillar) => typeof pillar.score === "number" && pillar.score < 75,
+    );
+
+    if (!weakPillars.length) {
+      setSuggestionError(null);
+      setRefinementSuggestions([]);
+      return;
+    }
+
+    setSuggestionsLoading(true);
+    setSuggestionError(null);
+
+    try {
+      const response = await fetch("/api/ai/ideate/suggestions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          idea: ideaText,
+          pillarWeaknesses: weakPillars.map((pillar) => ({
+            pillar: pillar.label,
+            score: pillar.score ?? 0,
+            rationale: pillar.rationale,
+            weaknesses: tokenizeRationale(pillar.rationale),
+          })),
+          pillarScores: feedback.scores ?? null,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.error || "Failed to load AI suggestions");
+      }
+
+      const data = await response.json();
+      const suggestionsArray: any[] = Array.isArray(data?.suggestions) ? data.suggestions : [];
+      const mapped = suggestionsArray.map((item: any, index: number) => {
+        const normalizedLabel = typeof item?.pillar === "string" ? item.pillar : "Unknown";
+        const labelKey = normalizedLabel.toLowerCase();
+        const pillarKey = PILLAR_LABEL_TO_KEY[labelKey] || labelKey;
+        const targetPillar = pillars.find(
+          (pillar) => pillar.label.toLowerCase() === normalizedLabel.toLowerCase(),
+        );
+        return {
+          id: `${pillarKey}-${index}`,
+          pillar: normalizedLabel,
+          pillarKey,
+          score: targetPillar?.score ?? null,
+          issue: item?.issue || "",
+          rationale: item?.rationale || "",
+          suggestion: item?.suggestion || "",
+          estimatedImpact:
+            typeof item?.estimatedImpact === "number"
+              ? Math.max(1, Math.round(item.estimatedImpact))
+              : typeof targetPillar?.score === "number"
+              ? Math.max(1, Math.min(15, 85 - (targetPillar?.score ?? 0)))
+              : 5,
+        } as RefinementSuggestion;
+      });
+
+      setRefinementSuggestions(mapped);
+    } catch (error) {
+      console.error("Suggestion fetch error:", error);
+      setSuggestionError(
+        error instanceof Error ? error.message : "Failed to fetch AI suggestions",
+      );
+      setRefinementSuggestions(null);
+    } finally {
+      setSuggestionsLoading(false);
+    }
+  };
+
+  const revalidateDraftIdea = async (ideaText: string) => {
+    if (!ideaText.trim()) {
+      toast.error("Please describe your idea before validating.");
+      return null;
+    }
+    const draftInput = buildDraftInputSnapshot(ideaText);
+    if (!draftInput) {
+      toast.error("Unable to prepare idea data for validation.");
+      return null;
+    }
+
+    setIsRevalidating(true);
+    try {
+      const { reviewText, feedbackData } = await regenerateReviewAndFeedback(draftInput);
+      setDraftValidation((prev) => {
+        setValidationDeltas(computeScoreDeltas(prev, feedbackData));
+        return feedbackData;
+      });
+      setAiReview(reviewText || "");
+      return feedbackData;
+    } catch (error) {
+      console.error("Draft validation error:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to run validation");
+      return null;
+    } finally {
+      setIsRevalidating(false);
+    }
   };
 
   const buildReviewPayload = (input: any) => ({
@@ -1395,7 +1749,8 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
         : null;
 
     setIsImprovingIdea(true);
-    setRefinementHighlights(null);
+    setRefinementSuggestions(null);
+    setSuggestionError(null);
 
     try {
       const response = await fetch("/api/ai/ideate/refine", {
@@ -1418,18 +1773,75 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
       }
 
       const data = await response.json();
+      let updatedIdeaText = editForm.ideaText;
       if (typeof data.idea === "string") {
-        setEditForm((prev) => ({ ...prev, ideaText: data.idea.trim() }));
-      }
-      if (Array.isArray(data.highlights)) {
-        setRefinementHighlights(data.highlights);
+        updatedIdeaText = data.idea.trim();
+        setEditForm((prev) => ({ ...prev, ideaText: updatedIdeaText }));
       }
       toast.success("Idea refined with AI");
+      const newFeedback = await revalidateDraftIdea(updatedIdeaText);
+      if (newFeedback) {
+        await loadPillarSuggestions(updatedIdeaText, newFeedback);
+      }
     } catch (error) {
       console.error("Refine idea error:", error);
       toast.error(error instanceof Error ? error.message : "Failed to refine idea");
     } finally {
       setIsImprovingIdea(false);
+    }
+  };
+
+  const handleApplySuggestion = async (suggestion: RefinementSuggestion) => {
+    if (!editForm.ideaText.trim()) {
+      toast.error("Please enter your idea before applying suggestions.");
+      return;
+    }
+
+    const existingFeedback =
+      typeof savedData?.output === "object" && savedData?.output
+        ? savedData.output.initialFeedback ?? null
+        : null;
+
+    setApplyingSuggestionId(suggestion.id);
+    try {
+      const response = await fetch("/api/ai/ideate/refine", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          idea: editForm.ideaText,
+          mode: savedData?.input?.mode ?? null,
+          targetMarket: editForm.targetMarket || null,
+          targetCountry: editForm.targetCountry || null,
+          budget: editForm.budget || null,
+          timescales: editForm.timescales || null,
+          initialFeedback: existingFeedback,
+          forcedSuggestion: suggestion.suggestion,
+          forcedPillar: suggestion.pillar,
+          issue: suggestion.issue,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.error || "Failed to apply suggestion");
+      }
+
+      const data = await response.json();
+      let updatedIdeaText = editForm.ideaText;
+      if (typeof data.idea === "string") {
+        updatedIdeaText = data.idea.trim();
+        setEditForm((prev) => ({ ...prev, ideaText: updatedIdeaText }));
+      }
+      toast.success(`Applied ${suggestion.pillar} improvement`);
+      const newFeedback = await revalidateDraftIdea(updatedIdeaText);
+      if (newFeedback) {
+        await loadPillarSuggestions(updatedIdeaText, newFeedback);
+      }
+    } catch (error) {
+      console.error("Apply suggestion error:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to apply suggestion");
+    } finally {
+      setApplyingSuggestionId(null);
     }
   };
 
@@ -1467,6 +1879,18 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
         updatedInput.userInput = editForm.ideaText;
       }
 
+      const existingHistory: IdeaHistoryEntry[] = Array.isArray(originalInput.ideaHistory)
+        ? originalInput.ideaHistory
+        : [];
+      const currentSnapshot =
+        savedData && savedData.output
+          ? buildHistoryEntry(originalInput, savedData.output)
+          : null;
+      const updatedHistory = currentSnapshot
+        ? [currentSnapshot, ...existingHistory]
+        : existingHistory;
+      updatedInput.ideaHistory = updatedHistory.slice(0, 5);
+
       const { reviewText, feedbackData } = await regenerateReviewAndFeedback(updatedInput);
 
       const saveResponse = await fetch(`/api/projects/${projectId}/stages`, {
@@ -1497,7 +1921,10 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
       setAiReview(reviewText);
       setInitialFeedback(feedbackData);
       setIsEditingExisting(false);
-      setRefinementHighlights(null);
+      setRefinementSuggestions(null);
+      setDraftValidation(null);
+      setValidationDeltas({});
+      setSuggestionError(null);
       setShowFullReview(false);
     } catch (error) {
       console.error("Save edited idea error:", error);
@@ -1532,7 +1959,7 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
       // Clear all state
       setSavedData(null);
       setIsEditingExisting(false);
-      setRefinementHighlights(null);
+      setRefinementSuggestions(null);
       setCurrentStep(1);
       setSelectedMode(null);
       setUserInput("");
@@ -1549,6 +1976,11 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
       setInitialFeedback(null);
       setIsLoadingInitialFeedback(false);
       setReviewError(null);
+      setDraftValidation(null);
+      setValidationDeltas({});
+      setSuggestionError(null);
+      setSuggestionsLoading(false);
+      setIsRevalidating(false);
       
       // Reload the page to ensure clean state
       window.location.reload();
@@ -1612,6 +2044,9 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
     );
     const parsedReview = parseReviewSections(aiReviewText);
     const { truncated: previewText, isComplete } = smartTruncate(aiReviewText, 600);
+    const ideaHistory: IdeaHistoryEntry[] = Array.isArray(inputData.ideaHistory)
+      ? inputData.ideaHistory
+      : [];
     
     // Get mode display text
     const modeText = inputData.mode === 'explore-idea' ? 'Explore an Idea' : 
@@ -1681,16 +2116,255 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
                 </div>
               </div>
 
-              {refinementHighlights && refinementHighlights.length > 0 && (
-                <div className="rounded-lg border border-purple-200 bg-purple-50 p-4">
-                  <p className="text-sm font-semibold text-purple-900 mb-2">AI Suggestions</p>
-                  <ul className="list-disc pl-5 space-y-1 text-sm text-purple-900">
-                    {refinementHighlights.map((highlight, idx) => (
-                      <li key={idx}>{highlight}</li>
-                    ))}
-                  </ul>
+              {draftValidation && (
+                <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 space-y-4">
+                  <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-neutral-900">Validation snapshot</p>
+                      <p className="text-xs text-neutral-500">
+                        Track how each pillar responds to your edits. Aim for at least 85% per pillar to unlock
+                        high confidence — weak pillars will receive targeted suggestions.
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => revalidateDraftIdea(editForm.ideaText)}
+                      disabled={isRevalidating || isSavingEditedIdea}
+                    >
+                      {isRevalidating ? (
+                        <>
+                          <Loader2 className="h-3 w-3 animate-spin mr-2" />
+                          Validating
+                        </>
+                      ) : (
+                        "Re-run validation"
+                      )}
+                    </Button>
+                  </div>
+                  <div className="rounded-lg border border-neutral-200 bg-white p-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                        Overall confidence
+                      </p>
+                      <p className="text-3xl font-bold text-neutral-900">
+                        {draftValidation.overallConfidence}%
+                      </p>
+                    </div>
+                    {typeof validationDeltas.overallConfidence?.change === "number" && validationDeltas.overallConfidence.change !== 0 && (
+                      <span
+                        className={cn(
+                          "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold border",
+                          validationDeltas.overallConfidence.change > 0
+                            ? "bg-green-50 text-green-700 border-green-200"
+                            : "bg-red-50 text-red-700 border-red-200",
+                        )}
+                      >
+                        {validationDeltas.overallConfidence.change > 0 ? "+" : ""}
+                        {validationDeltas.overallConfidence.change} pts since last run
+                      </span>
+                    )}
+                  </div>
+                  {isRevalidating ? (
+                    <div className="flex items-center gap-2 rounded-lg border border-dashed border-neutral-200 bg-white p-4 text-sm text-neutral-600">
+                      <Loader2 className="h-4 w-4 animate-spin text-purple-600" />
+                      Re-validating idea with the latest edits...
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                      {Object.entries(draftValidation.scores).map(([key, value]) => {
+                        const label = PILLAR_KEY_TO_LABEL[key] || key;
+                        const score = typeof value?.score === "number" ? value.score : 0;
+                        const deltaInfo = validationDeltas[key];
+                        const deltaValue =
+                          typeof deltaInfo?.change === "number" && deltaInfo.change !== 0
+                            ? deltaInfo.change
+                            : null;
+                        return (
+                          <div
+                            key={key}
+                            className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm space-y-2"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <p className="text-sm font-semibold text-neutral-900">{label}</p>
+                                {value?.rationale && (
+                                  <p className="text-xs text-neutral-500 line-clamp-2 mt-1">
+                                    {value.rationale}
+                                  </p>
+                                )}
+                              </div>
+                              <span
+                                className={cn(
+                                  "rounded-full border px-2 py-0.5 text-xs font-semibold",
+                                  getScoreBadgeClasses(score),
+                                )}
+                              >
+                                {score}%
+                              </span>
+                            </div>
+                            <Progress value={score} className={cn("h-2", getProgressColor(score))} />
+                            {deltaValue !== null && (
+                              <p
+                                className={cn(
+                                  "text-xs font-medium",
+                                  deltaValue > 0 ? "text-green-600" : "text-red-600",
+                                )}
+                              >
+                                {deltaValue > 0 ? "+" : ""}
+                                {deltaValue} pts vs last run
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
+
+              <div className="rounded-xl border border-purple-200 bg-purple-50 p-4 space-y-4">
+                <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-purple-900">AI Suggestions</p>
+                    <p className="text-xs text-purple-700">
+                      Targeted recommendations for the weakest pillars. Apply a suggestion to rewrite
+                      your narrative and instantly re-validate the idea.
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-purple-700 hover:text-purple-900"
+                    onClick={() => {
+                      if (draftValidation) {
+                        void loadPillarSuggestions(editForm.ideaText, draftValidation);
+                      }
+                    }}
+                    disabled={suggestionsLoading || !draftValidation}
+                  >
+                    {suggestionsLoading ? (
+                      <>
+                        <Loader2 className="h-3 w-3 animate-spin mr-2" />
+                        Refreshing
+                      </>
+                    ) : (
+                      "Refresh suggestions"
+                    )}
+                  </Button>
+                </div>
+
+                {suggestionError && (
+                  <div className="rounded-lg border border-red-200 bg-white/70 p-3 text-sm text-red-700">
+                    {suggestionError}
+                  </div>
+                )}
+
+                {suggestionsLoading ? (
+                  <div className="rounded-lg border border-dashed border-purple-200 bg-white/60 p-4 text-sm text-purple-800">
+                    Generating pillar-aligned suggestions...
+                  </div>
+                ) : Array.isArray(refinementSuggestions) && refinementSuggestions.length === 0 ? (
+                  <div className="rounded-lg border border-purple-100 bg-white/60 p-4 text-sm text-purple-800">
+                    All pillars are above the target threshold. Great work!
+                  </div>
+                ) : Array.isArray(refinementSuggestions) ? (
+                  <div className="space-y-3">
+                    {refinementSuggestions.map((suggestion) => (
+                      <div
+                        key={suggestion.id}
+                        className="rounded-lg border border-purple-100 bg-white p-4 space-y-3 shadow-sm"
+                      >
+                        <div className="flex flex-wrap items-center gap-3 justify-between">
+                          <div className="flex-1 min-w-[200px]">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-semibold text-neutral-900">
+                                {suggestion.pillar}
+                              </span>
+                              {typeof suggestion.score === "number" && (
+                                <span className="text-xs text-neutral-500">
+                                  Current score: {suggestion.score}%
+                                </span>
+                              )}
+                            </div>
+                            {suggestion.rationale && (
+                              <p className="text-xs text-neutral-500 mt-1">
+                                {suggestion.rationale}
+                              </p>
+                            )}
+                          </div>
+                          <span className="inline-flex items-center rounded-full border border-purple-200 bg-purple-50 px-3 py-0.5 text-xs font-semibold text-purple-800">
+                            +{suggestion.estimatedImpact}% projected lift
+                          </span>
+                        </div>
+                        <div className="rounded-md bg-purple-50/80 border border-purple-100 p-3 space-y-1">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-purple-700">
+                            Weakness
+                          </p>
+                          <p className="text-sm text-purple-900">{suggestion.issue}</p>
+                          {typeof suggestion.score === "number" && (
+                            <div className="mt-3 space-y-1">
+                              <div className="flex items-center justify-between text-[11px] font-medium text-purple-800">
+                                <span>Current {suggestion.score}%</span>
+                                <span>Target 85%</span>
+                              </div>
+                              <Progress
+                                value={Math.min(100, (suggestion.score / 85) * 100)}
+                                className="h-1.5 bg-purple-100 [&_[data-slot=progress-indicator]]:bg-purple-500"
+                              />
+                              <p className="text-[11px] text-purple-700">
+                                Needs +{Math.max(0, 85 - suggestion.score)} pts to hit target
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                            AI recommendation
+                          </p>
+                          <p className="text-sm text-neutral-900 mt-1">{suggestion.suggestion}</p>
+                        </div>
+                        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                          <p className="text-xs text-neutral-500">
+                            Applies to: <span className="font-semibold">{suggestion.pillar}</span>
+                            {typeof suggestion.score === "number" && (
+                              <>
+                                {" "}
+                                · After apply ≈{" "}
+                                {Math.min(85, suggestion.score + suggestion.estimatedImpact)}%
+                              </>
+                            )}
+                          </p>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            className="bg-white text-purple-700 border border-purple-200 hover:bg-purple-100"
+                            onClick={() => handleApplySuggestion(suggestion)}
+                            disabled={
+                              applyingSuggestionId === suggestion.id ||
+                              isSavingEditedIdea ||
+                              isRevalidating
+                            }
+                          >
+                            {applyingSuggestionId === suggestion.id ? (
+                              <>
+                                <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                                Applying
+                              </>
+                            ) : (
+                              "Apply suggestion"
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : draftValidation ? (
+                  <div className="rounded-lg border border-purple-100 bg-white/60 p-4 text-sm text-purple-800">
+                    Run validation to see targeted suggestions.
+                  </div>
+                ) : null}
+              </div>
 
               <div className="flex flex-wrap gap-3 pt-2">
                 <Button
@@ -1784,7 +2458,7 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
           </CardHeader>
         </Card>
 
-        {/* Summary Cards - Mode removed, only show if other fields exist */}
+        {/* Summary Cards */}
         {(inputData.targetMarket || inputData.budget || inputData.timescales) && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {inputData.targetMarket && (
@@ -1826,6 +2500,63 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
             </Card>
           )}
           </div>
+        )}
+
+        {/* Idea History */}
+        {ideaHistory.length > 0 && (
+          <Card className="border border-neutral-200 bg-white shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-lg font-semibold text-neutral-900">Idea History</CardTitle>
+                <CardDescription className="text-sm text-neutral-600">
+                  Track how your idea evolved across iterations
+                </CardDescription>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleEditIdea()}
+              >
+                New Iteration
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {ideaHistory.map((entry) => (
+                <div
+                  key={entry.id}
+                  className="rounded-lg border border-neutral-200 p-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between"
+                >
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-neutral-900">
+                      {entry.title}
+                    </p>
+                    <p className="text-xs text-neutral-500">
+                      Saved {new Date(entry.savedAt).toLocaleString()}
+                    </p>
+                    <p className="mt-2 text-sm text-neutral-700 line-clamp-3">
+                      {entry.summary}
+                    </p>
+                    {entry.validation?.overallConfidence !== undefined && (
+                      <p className="mt-1 text-xs text-neutral-500">
+                        Confidence: {entry.validation.overallConfidence}%
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() =>
+                        handleRestoreVersion(entry)
+                      }
+                    >
+                      Restore
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
         )}
 
         {/* Key Insights - What I Noticed */}

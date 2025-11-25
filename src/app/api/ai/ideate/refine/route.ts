@@ -3,6 +3,22 @@ import OpenAI from "openai";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
+const PILLAR_NAMES = [
+  "Audience Fit",
+  "Competition",
+  "Market Demand",
+  "Feasibility",
+  "Pricing Potential",
+];
+
+const PILLAR_KEY_TO_LABEL: Record<string, string> = {
+  audienceFit: "Audience Fit",
+  competition: "Competition",
+  marketDemand: "Market Demand",
+  feasibility: "Feasibility",
+  pricingPotential: "Pricing Potential",
+};
+
 export async function POST(req: Request) {
   try {
     const {
@@ -13,6 +29,9 @@ export async function POST(req: Request) {
       budget,
       timescales,
       initialFeedback,
+      forcedSuggestion,
+      forcedPillar,
+      issue,
     } = await req.json();
 
     if (!idea || typeof idea !== "string") {
@@ -39,40 +58,79 @@ export async function POST(req: Request) {
       contextParts.push(`Timeline: ${timescales}`);
     }
 
+    const lowPillars: { name: string; score: number; rationale?: string }[] = [];
     if (initialFeedback?.scores) {
-      const weakAreas = Object.entries(initialFeedback.scores)
-        .filter(([, value]) => {
-          const numericScore = (value as any)?.score;
-          return typeof numericScore === "number" && numericScore < 70;
-        })
-        .map(([key]) =>
-          key
-            .replace(/([A-Z])/g, " $1")
-            .replace(/^./, (str) => str.toUpperCase())
-            .trim(),
-        );
-
-      if (weakAreas.length > 0) {
+      for (const [key, value] of Object.entries(initialFeedback.scores)) {
+        const label = PILLAR_KEY_TO_LABEL[key] || key;
+        const numericScore = (value as any)?.score;
+        if (typeof numericScore === "number" && numericScore < 80) {
+          lowPillars.push({
+            name: label,
+            score: numericScore,
+            rationale: typeof (value as any)?.rationale === "string" ? (value as any).rationale : undefined,
+          });
+        }
+      }
+      if (lowPillars.length > 0) {
         contextParts.push(
-          `Focus on improving: ${weakAreas.join(", ")} based on prior validation scores.`,
+          `Pillars needing improvement:\n${lowPillars
+            .map(
+              (pillar) =>
+                `- ${pillar.name}: score ${pillar.score}% ${
+                  pillar.rationale ? `(${pillar.rationale})` : ""
+                }`,
+            )
+            .join("\n")}`,
         );
       }
     }
 
-    const systemPrompt = `You are a startup mentor who helps founders iteratively refine their ideas.
-Respond ONLY with valid JSON that contains two fields:
+    const normalizedForcedPillar = forcedPillar
+      ? PILLAR_NAMES.find((name) => name.toLowerCase() === String(forcedPillar).toLowerCase()) ||
+        PILLAR_KEY_TO_LABEL[forcedPillar as keyof typeof PILLAR_KEY_TO_LABEL] ||
+        null
+      : null;
+
+const systemPrompt = `You are a startup mentor who helps founders iteratively refine their ideas.
+Respond ONLY with valid JSON exactly in this structure:
 {
   "idea": "<improved idea text with paragraphs>",
-  "highlights": ["point 1", "point 2", ...]
+  "suggestions": [
+    { 
+      "text": "<specific adjustment>", 
+      "impact": <number between 1 and 15>,
+      "pillars": ["Audience Fit", "Competition", "Market Demand", "Feasibility", "Pricing Potential"]
+    }
+  ]
 }
-The "idea" field should be a refined, polished version of the input idea.
-The "highlights" field should contain 2-4 short bullet points describing what you improved.`;
+- "idea" must contain the refined narrative.
+- "suggestions" must be 2-4 short, actionable improvements with:
+  * an estimated impact percentage (1-15) representing potential validation score lift
+  * an array of impacted validation pillars chosen ONLY from the list provided (omit duplicates, omit unknown names)
+Do not output any additional text outside this JSON.`;
+
+    const instructionSegments: string[] = [];
+    if (normalizedForcedPillar && issue) {
+      instructionSegments.push(
+        `Focus on improving the ${normalizedForcedPillar} pillar by resolving this issue: "${issue}". Apply only the changes necessary to fix this weakness and keep the rest of the narrative intact.`,
+      );
+    } else if (forcedSuggestion) {
+      instructionSegments.push(
+        `Rewrite the idea to incorporate the following improvement without changing the overall intent:\n"${forcedSuggestion}"`,
+      );
+    }
 
     const userPrompt = `Existing idea:
 ${idea}
 
 Additional context:
 ${contextParts.join("\n") || "No additional details."}
+
+${instructionSegments.join("\n")} 
+
+${lowPillars.length
+  ? `Provide exactly one suggestion for each pillar listed above. Set the "pillars" array to that pillar's name only, and base the improvement on the issue noted.`
+  : `If no specific pillars are listed, provide up to two general improvements and set "pillars" to ["Overall"].`}
 
 Rewrite the idea to improve clarity, differentiation, and business viability.
 Preserve the original intent, but address weaknesses and make the positioning stronger.`;
@@ -88,7 +146,7 @@ Preserve the original intent, but address weaknesses and make the positioning st
 
     const content = completion.choices[0]?.message?.content?.trim();
     let refinedIdea = idea;
-    let highlights: string[] = [];
+    let suggestions: { text: string; impact: number; pillars: string[] }[] = [];
 
     if (content) {
       try {
@@ -96,17 +154,48 @@ Preserve the original intent, but address weaknesses and make the positioning st
         if (typeof parsed.idea === "string") {
           refinedIdea = parsed.idea.trim();
         }
-        if (Array.isArray(parsed.highlights)) {
-          highlights = parsed.highlights
-            .map((item: any) => (typeof item === "string" ? item.trim() : ""))
-            .filter(Boolean);
+        if (Array.isArray(parsed.suggestions)) {
+          suggestions = parsed.suggestions
+            .map((item: any) => {
+              const rawPillars: string[] = Array.isArray(item?.pillars)
+                ? item.pillars
+                : [];
+              const normalizedPillars = rawPillars
+                .map((pillar) => {
+                  if (typeof pillar !== "string") return null;
+                  const trimmed = pillar.trim();
+                  const match = PILLAR_NAMES.find(
+                    (name) => name.toLowerCase() === trimmed.toLowerCase(),
+                  );
+                  return match || null;
+                })
+                .filter((pillar): pillar is string => Boolean(pillar));
+              return {
+                text: typeof item?.text === "string" ? item.text.trim() : "",
+                impact:
+                  typeof item?.impact === "number"
+                    ? Math.max(1, Math.min(15, Math.round(item.impact)))
+                    : 5,
+                pillars:
+                  normalizedPillars.length > 0 ? normalizedPillars : ["Overall"],
+              };
+            })
+            .filter((item: { text: string }) => item.text.length > 0);
+        } else if (Array.isArray(parsed.highlights)) {
+          suggestions = parsed.highlights
+            .map((item: any) => ({
+              text: typeof item === "string" ? item.trim() : "",
+              impact: 5,
+              pillars: ["Overall"],
+            }))
+            .filter((item: { text: string }) => item.text.length > 0);
         }
       } catch {
         refinedIdea = content;
       }
     }
 
-    return NextResponse.json({ idea: refinedIdea, highlights });
+    return NextResponse.json({ idea: refinedIdea, suggestions });
   } catch (error) {
     console.error("Ideate refine API error:", error);
     return NextResponse.json(
