@@ -18,8 +18,8 @@ const SuggestionSchema = z.object({
   pillar: PillarEnum,
   issue: z.string().min(4),
   rationale: z.string().min(4),
-  suggestion: z.string().min(8),
-  estimatedImpact: z.number(),
+  suggestion: z.string().min(12),
+  estimatedImpact: z.number().min(1).max(85),
 });
 
 const ResponseSchema = z.object({
@@ -40,6 +40,33 @@ const PILLAR_NAME_MAP: Record<string, PillarLabel> = {
 };
 
 const MAX_GENERATION_ATTEMPTS = 3;
+
+const STRICT_ACTION_VERBS = ["Add", "Insert", "Modify", "Clarify", "Rewrite", "Extend"];
+
+const FORBIDDEN_PHRASES = [
+  "competitive edge",
+  "positioning",
+  "value proposition",
+  "refine narrative",
+  "unique value",
+  "holistic",
+  "streamline",
+  "optimize",
+  "enhance clarity",
+  "drive engagement",
+  "strengthen proposition",
+  "robust",
+  "overall",
+  "enhance differentiation",
+  "improve narrative",
+  "refine messaging",
+  "highlight features",
+  "position yourself",
+  "generic marketing advice",
+  "improve planning",
+  "user insights",
+  "add unique features",
+];
 
 interface PillarWeakness {
   pillar: PillarLabel;
@@ -79,6 +106,45 @@ const referencesRationale = (referenceText: string, suggestionText: string) => {
   return keywords.some((keyword) => haystack.includes(keyword));
 };
 
+const countWords = (text: string) => {
+  return text
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean).length;
+};
+
+const isOneSentence = (text: string) => {
+  const normalized = text.trim();
+  if (!normalized.endsWith(".")) {
+    return false;
+  }
+  const periodMatches = normalized.match(/\./g) || [];
+  const questionMatches = normalized.match(/\?/g) || [];
+  const exclamationMatches = normalized.match(/!/g) || [];
+  return periodMatches.length === 1 && questionMatches.length === 0 && exclamationMatches.length === 0;
+};
+
+const containsRationaleVerbatim = (rationale: string, suggestionText: string) => {
+  if (!rationale) return false;
+  return suggestionText.includes(rationale);
+};
+
+const referencesAIProductOverview = (text: string) => {
+  return /ai product overview/i.test(text);
+};
+
+const startsWithActionVerb = (text: string) => {
+  const trimmed = text.trim();
+  if (!trimmed.length) return false;
+  const [firstWord] = trimmed.split(/\s+/);
+  return STRICT_ACTION_VERBS.some((verb) => verb.toLowerCase() === firstWord.toLowerCase());
+};
+
+const containsForbiddenLanguage = (text: string) => {
+  const lower = text.toLowerCase();
+  return FORBIDDEN_PHRASES.some((phrase) => lower.includes(phrase));
+};
+
 const serializeWeaknesses = (weaknesses: PillarWeakness[]) =>
   weaknesses
     .map(
@@ -94,7 +160,7 @@ const serializeWeaknesses = (weaknesses: PillarWeakness[]) =>
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { idea, pillarWeaknesses, pillarScores } = body || {};
+    const { idea, pillarWeaknesses, pillarScores, aiProductOverview } = body || {};
 
     if (!idea || typeof idea !== "string") {
       return NextResponse.json({ error: "Idea text is required" }, { status: 400 });
@@ -108,9 +174,19 @@ export async function POST(req: Request) {
       .map((weakness: any) => {
         if (!weakness || typeof weakness !== "object") return null;
         const normalizedPillar = normalizePillarLabel(weakness.pillar);
-        if (!normalizedPillar || typeof weakness.score !== "number") return null;
+        if (
+          !normalizedPillar ||
+          typeof weakness.score !== "number" ||
+          Number.isNaN(weakness.score) ||
+          weakness.score >= 75
+        ) {
+          return null;
+        }
         const sanitizedRationale =
           typeof weakness.rationale === "string" ? weakness.rationale.trim() : "";
+        if (!sanitizedRationale) {
+          return null;
+        }
         const weaknessNotes = Array.isArray(weakness.weaknesses)
           ? (weakness.weaknesses as any[])
               .map((item) => (typeof item === "string" ? item : ""))
@@ -146,6 +222,7 @@ export async function POST(req: Request) {
         : null;
 
     const weaknessSummary = serializeWeaknesses(formattedWeaknesses);
+    const sanitizedOverview = typeof aiProductOverview === "string" ? aiProductOverview.trim() : "";
 
     const systemPrompt = `You are a strict startup validation coach.
 Return ONLY valid JSON in this schema:
@@ -163,13 +240,21 @@ Return ONLY valid JSON in this schema:
 Rules:
 - Generate ONE suggestion per weak pillar and keep array length identical to pillarWeaknesses.
 - Mirror the pillar name exactly.
-- Reference the provided rationale directly.
-- No extra text, markdown, or bullet points.
-- Any schema violation invalidates the response.`;
+- The "issue" and "rationale" fields MUST repeat the provided rationale text exactly.
+- Each suggestion must be exactly one sentence (ending with a single period), begin with Add/Insert/Modify/Clarify/Rewrite/Extend, mention the phrase "AI Product Overview", stay at or below 25 words, and include the rationale verbatim.
+- Suggestions must describe tangible edits to the AI Product Overview section only. No changes to idea text, marketing copy, or general strategy.
+- Forbidden phrases: ${FORBIDDEN_PHRASES.join(", ")}.
+- No extra text, markdown, or bullet points. Output JSON only.
+- If you cannot comply, return the JSON structure with empty strings.
+- Any schema violation, forbidden phrase, or missing rationale reference invalidates the response.`;
 
-    const userPrompt = `Startup idea:\n${idea}\n\nOverall pillar scores:\n${
+    const userPrompt = `Startup idea:\n${idea}\n\nCurrent AI Product Overview:\n${
+      sanitizedOverview || "Not provided"
+    }\n\nOverall pillar scores:\n${
       scoresSummary || "Not provided"
-    }\n\nWeak pillars needing improvement:\n${weaknessSummary}\n\nInstructions:\n- Generate ONE improvement suggestion for EACH entry in pillarWeaknesses.\n- Explicitly reference the weakness rationale when summarising the issue.\n- Propose a concrete edit to the idea that will improve that pillar.\n- Follow the JSON schema exactly with no filler.`;
+    }\n\nWeak pillars needing improvement:\n${weaknessSummary}\n\nInstructions:\n- FOR EACH weak pillar, generate ONE improvement suggestion.\n- Each suggestion must propose a concrete edit to the AI Product Overview (not the idea text) that resolves the rationale.\n- Start with Add, Insert, Modify, Clarify, Rewrite, or Extend; mention "AI Product Overview"; include the full rationale text verbatim; keep it one sentence under 25 words.\n- Forbidden phrases: ${FORBIDDEN_PHRASES.join(
+      ", ",
+    )}.\n- Output strict JSON only.`;
 
     const generateRawSuggestions = async () => {
       const completion = await openai.chat.completions.create({
@@ -206,17 +291,57 @@ Rules:
         }
 
         const target = allowedWeaknessMap.get(normalizedPillar)!;
-        const combinedSuggestionText = `${suggestion.rationale} ${suggestion.suggestion}`;
-        const referencesPrimaryRationale = referencesRationale(
-          target.rationale,
-          combinedSuggestionText,
-        );
-        const referencesWeaknessList = target.weaknesses.some((weakness) =>
-          referencesRationale(weakness, combinedSuggestionText),
-        );
+        const normalizedTargetRationale = (target.rationale || "").trim();
+        const trimmedIssue = suggestion.issue.trim();
+        const trimmedRationale = suggestion.rationale.trim();
+        const trimmedSuggestion = suggestion.suggestion.trim();
 
-        if (!referencesPrimaryRationale && !referencesWeaknessList) {
-          throw new Error(`Suggestion for ${normalizedPillar} failed rationale reference check`);
+        if (!trimmedIssue || !trimmedRationale || !trimmedSuggestion) {
+          throw new Error("Suggestion payload missing required text");
+        }
+
+        if (
+          containsForbiddenLanguage(trimmedSuggestion) ||
+          containsForbiddenLanguage(trimmedIssue) ||
+          containsForbiddenLanguage(trimmedRationale)
+        ) {
+          throw new Error("Suggestion contains forbidden generic language");
+        }
+
+        if (trimmedIssue !== normalizedTargetRationale) {
+          throw new Error("Suggestion issue must match validation rationale exactly");
+        }
+
+        if (trimmedRationale !== normalizedTargetRationale) {
+          throw new Error("Suggestion rationale must match validation rationale exactly");
+        }
+
+        if (!startsWithActionVerb(trimmedSuggestion)) {
+          throw new Error("Suggestion must start with an approved action verb");
+        }
+
+        if (!isOneSentence(trimmedSuggestion)) {
+          throw new Error("Suggestion must be exactly one sentence");
+        }
+
+        if (countWords(trimmedSuggestion) > 25) {
+          throw new Error("Suggestion exceeds 25-word limit");
+        }
+
+        if (!referencesAIProductOverview(trimmedSuggestion)) {
+          throw new Error('Suggestion must reference "AI Product Overview"');
+        }
+
+        if (!containsRationaleVerbatim(normalizedTargetRationale, trimmedSuggestion)) {
+          throw new Error("Suggestion must include rationale verbatim");
+        }
+
+        const rationaleReferenced = referencesRationale(
+          normalizedTargetRationale,
+          trimmedSuggestion,
+        );
+        if (!rationaleReferenced) {
+          throw new Error("Suggestion text does not explicitly reference rationale keywords");
         }
 
         seen.add(normalizedPillar);
@@ -224,9 +349,9 @@ Rules:
 
         return {
           pillar: normalizedPillar,
-          issue: suggestion.issue.trim(),
-          rationale: suggestion.rationale.trim(),
-          suggestion: suggestion.suggestion.trim(),
+          issue: trimmedIssue,
+          rationale: trimmedRationale,
+          suggestion: trimmedSuggestion,
           estimatedImpact: enforcedImpact,
           score: target.score,
         };
