@@ -1932,6 +1932,18 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
       });
       if (revalidationResult) {
         const { feedbackData, aiProductOverview: latestOverview } = revalidationResult;
+        // Update savedData with the latest overview to ensure component displays full text
+        if (latestOverview) {
+          setAiReview(latestOverview);
+          setSavedData((prev) => {
+            if (!prev) return prev;
+            const nextOutput =
+              typeof prev.output === "object" && prev.output !== null
+                ? { ...prev.output, aiReview: latestOverview }
+                : { aiReview: latestOverview, initialFeedback: (prev.output as any)?.initialFeedback ?? null };
+            return { ...prev, output: nextOutput };
+          });
+        }
         await loadPillarSuggestions(updatedIdeaText, feedbackData, latestOverview);
       }
     } catch (error) {

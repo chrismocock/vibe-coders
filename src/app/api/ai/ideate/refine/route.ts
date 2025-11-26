@@ -119,14 +119,24 @@ Respond ONLY with valid JSON:
 {
   "aiProductOverview": "<updated overview text>"
 }
+
+CRITICAL REQUIREMENTS:
+- You MUST return the COMPLETE and FULL AI Product Overview with ALL sections preserved.
+- The overview typically includes these sections: Overview paragraph, Key Features, Target Market, Unique Value Proposition, Monetization, Roadmap, and Founder Insight.
+- You MUST preserve ALL existing sections, even if you only modify one section to address the rationale.
+- Do NOT truncate, shorten, or omit any sections.
+- Do NOT return only the modified section - return the ENTIRE overview.
+
 Rules:
-- Modify ONLY the AI Product Overview content.
+- Modify ONLY the specific part of the AI Product Overview that addresses the provided rationale.
 - Incorporate the provided suggestion and resolve the cited rationale directly.
-- Keep structure, tone, and sections intact unless a change is required to address the rationale.
+- Keep ALL other sections completely intact - preserve their exact content, structure, and formatting.
+- Maintain the same structure, tone, and all sections as the original.
 - Do not alter unrelated sections or introduce new topics.
+- The response must contain the FULL overview text, not a partial or truncated version.
 - No commentary or additional fields outside the JSON schema.`;
 
-      const overviewUserPrompt = `Current AI Product Overview:
+      const overviewUserPrompt = `Current AI Product Overview (COMPLETE - preserve ALL sections):
 ${sanitizedOverview}
 
 Validation context:
@@ -139,11 +149,13 @@ ${sanitizedForcedSuggestion}
 Additional context:
 ${contextParts.join("\n") || "No extra context."}
 
-Rewrite the AI Product Overview so it explicitly resolves the rationale while preserving everything else.`;
+IMPORTANT: You must return the COMPLETE AI Product Overview with ALL sections intact. Modify only the specific section that addresses the rationale, but preserve ALL other sections exactly as they are. Do NOT truncate or omit any sections. Return the FULL overview text including Overview, Key Features, Target Market, Unique Value Proposition, Monetization, Roadmap, and Founder Insight sections.`;
 
       const completion = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         temperature: 0.4,
+        response_format: { type: "json_object" },
+        max_tokens: 4000,
         messages: [
           { role: "system", content: overviewSystemPrompt },
           { role: "user", content: overviewUserPrompt },
