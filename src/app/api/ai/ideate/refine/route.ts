@@ -65,7 +65,7 @@ export async function POST(req: Request) {
       for (const [key, value] of Object.entries(initialFeedback.scores)) {
         const label = PILLAR_KEY_TO_LABEL[key] || key;
         const numericScore = (value as any)?.score;
-        if (typeof numericScore === "number" && numericScore < 80) {
+        if (typeof numericScore === "number" && numericScore < 75) {
           lowPillars.push({
             name: label,
             score: numericScore,
@@ -96,11 +96,20 @@ export async function POST(req: Request) {
       typeof aiProductOverview === "string" ? aiProductOverview.trim() : "";
     const forcedIssue = typeof issue === "string" ? issue.trim() : "";
     const forcedRationale = typeof rationale === "string" ? rationale.trim() : "";
+    const sanitizedForcedSuggestion =
+      typeof forcedSuggestion === "string" ? forcedSuggestion.trim() : "";
 
     if (normalizedForcedPillar && forcedIssue && forcedRationale) {
       if (!sanitizedOverview) {
         return NextResponse.json(
           { error: "AI Product Overview text is required to apply suggestions" },
+          { status: 400 },
+        );
+      }
+
+      if (!sanitizedForcedSuggestion) {
+        return NextResponse.json(
+          { error: "Suggestion text is required to update the AI Product Overview" },
           { status: 400 },
         );
       }
@@ -125,7 +134,7 @@ Validation context:
 - Rationale: "${forcedRationale}"
 
 Suggestion to apply:
-${forcedSuggestion || "No additional suggestion text provided."}
+${sanitizedForcedSuggestion}
 
 Additional context:
 ${contextParts.join("\n") || "No extra context."}

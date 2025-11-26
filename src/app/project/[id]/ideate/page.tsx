@@ -2580,25 +2580,7 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
             </CardContent>
           </Card>
 
-          {savedInitialFeedback && (
-            <div className="rounded-lg border border-neutral-200 bg-white shadow-sm p-4 space-y-3">
-              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                <div className="text-sm text-neutral-600">
-                  <span className="font-semibold text-neutral-900">Saved Initial Feedback</span> is the scorecard from your last completed run. Keep it hidden if it’s distracting, or open it to compare with your current validation snapshot.
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowInitialFeedbackReport((prev) => !prev)}
-                >
-                  {showInitialFeedbackReport ? "Hide saved report" : "Show saved report"}
-                </Button>
-              </div>
-              {showInitialFeedbackReport && (
-                <InitialFeedback feedback={savedInitialFeedback} />
-              )}
-            </div>
-          )}
+          {/* Saved Initial Feedback intentionally hidden while editing */}
         </div>
       );
     }
@@ -2906,23 +2888,13 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
         </Card>
 
         {/* Initial Feedback Section */}
-          {!isEditingExisting && savedInitialFeedback && (
-            <div className="rounded-lg border border-neutral-200 bg-white shadow-sm p-4 space-y-3">
-              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                <div className="text-sm text-neutral-600">
-                  This saved Initial Feedback snapshot powers the AI fixes above. Toggle it on when you want to compare against the working scores.
-                </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowInitialFeedbackReport((prev) => !prev)}
-              >
-                {showInitialFeedbackReport ? "Hide saved report" : "Show saved report"}
-              </Button>
+        {!isEditingExisting && savedInitialFeedback && (
+          <div className="space-y-3">
+            <div className="text-sm text-neutral-600">
+              <span className="font-semibold text-neutral-900">Initial Feedback (saved)</span> – latest archived report
+              from your last completed Ideate run.
             </div>
-            {showInitialFeedbackReport && (
-              <InitialFeedback feedback={savedInitialFeedback} />
-            )}
+            <InitialFeedback feedback={savedInitialFeedback} />
           </div>
         )}
       </div>
