@@ -127,12 +127,19 @@ CRITICAL REQUIREMENTS:
 - Do NOT truncate, shorten, or omit any sections.
 - Do NOT return only the modified section - return the ENTIRE overview.
 
+PRIMARY OBJECTIVE:
+- Your modification MUST improve the target pillar score by directly addressing the weakness identified in the rationale.
+- The change should strengthen the aspect that was flagged as weak, making it more compelling and addressing the specific concern.
+- DO NOT weaken or remove content that supports other pillars - this could cause other scores to decrease.
+
 Rules:
 - Modify ONLY the specific part of the AI Product Overview that addresses the provided rationale.
 - Incorporate the provided suggestion and resolve the cited rationale directly.
+- Make the modification STRONGER and more compelling to improve the target pillar score.
 - Keep ALL other sections completely intact - preserve their exact content, structure, and formatting.
+- Do NOT remove or weaken content that supports other validation pillars (Audience Fit, Competition, Market Demand, Feasibility, Pricing Potential).
 - Maintain the same structure, tone, and all sections as the original.
-- Do not alter unrelated sections or introduce new topics.
+- Do not alter unrelated sections or introduce new topics that could negatively impact other pillars.
 - The response must contain the FULL overview text, not a partial or truncated version.
 - No commentary or additional fields outside the JSON schema.`;
 
@@ -140,16 +147,27 @@ Rules:
 ${sanitizedOverview}
 
 Validation context:
-- Pillar: ${normalizedForcedPillar}
-- Rationale: "${forcedRationale}"
+- Target Pillar to Improve: ${normalizedForcedPillar}
+- Current Weakness (Rationale): "${forcedRationale}"
+- This pillar needs improvement. Your modification should directly address this weakness and strengthen this aspect.
 
 Suggestion to apply:
 ${sanitizedForcedSuggestion}
 
+IMPORTANT: The suggestion above describes HOW to improve the ${normalizedForcedPillar} pillar. Do NOT simply add the weakness statement - instead, implement the constructive improvement described in the suggestion. The suggestion tells you what positive content or changes to make.
+
 Additional context:
 ${contextParts.join("\n") || "No extra context."}
 
-IMPORTANT: You must return the COMPLETE AI Product Overview with ALL sections intact. Modify only the specific section that addresses the rationale, but preserve ALL other sections exactly as they are. Do NOT truncate or omit any sections. Return the FULL overview text including Overview, Key Features, Target Market, Unique Value Proposition, Monetization, Roadmap, and Founder Insight sections.`;
+CRITICAL INSTRUCTIONS:
+1. Interpret the suggestion as a directive for improvement - it describes what positive content to add or how to strengthen the section.
+2. Modify the section that addresses the "${normalizedForcedPillar}" pillar to implement the improvement described in the suggestion.
+3. The modification should directly counter or resolve the weakness: "${forcedRationale}" by adding compelling content that addresses it.
+4. If the suggestion says "Add to AI Product Overview: [something]", interpret this as adding positive, strengthening content (not the weakness statement itself).
+5. Preserve ALL other sections exactly as they are - do not weaken content that supports other pillars.
+6. Return the COMPLETE AI Product Overview with ALL sections intact (Overview, Key Features, Target Market, Unique Value Proposition, Monetization, Roadmap, and Founder Insight).
+7. Do NOT truncate, shorten, or omit any sections.
+8. The goal is to improve the ${normalizedForcedPillar} score while maintaining or improving all other pillar scores.`;
 
       const completion = await openai.chat.completions.create({
         model: "gpt-4o-mini",

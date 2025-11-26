@@ -19,7 +19,7 @@ const SuggestionSchema = z.object({
   issue: z.string().min(4),
   rationale: z.string().min(4),
   suggestion: z.string().min(12),
-  estimatedImpact: z.number().min(1).max(85).optional(),
+  estimatedImpact: z.number().min(1).max(20),
 });
 
 const ResponseSchema = z.object({
@@ -237,7 +237,14 @@ export async function POST(req: Request) {
       idea,
       aiProductOverview: sanitizedOverview || "Not provided",
       pillarScores: pillarScores ?? null,
-      pillarWeaknesses: formattedWeaknesses,
+      pillarWeaknesses: formattedWeaknesses.map(w => ({
+        pillar: w.pillar,
+        score: w.score,
+        rationale: w.rationale,
+        weaknesses: w.weaknesses,
+        // Add guidance for what kind of improvement would help
+        improvementGuidance: `The ${w.pillar} pillar scores ${w.score}% because: ${w.rationale}. To improve this score, suggest specific positive content or changes that address this weakness, not just restating the problem.`
+      })),
       weaknessSummary,
     };
 
@@ -249,55 +256,50 @@ Respond ONLY with valid JSON that matches this schema:
       "pillar": "Audience Fit" | "Competition" | "Market Demand" | "Feasibility" | "Pricing Potential",
       "issue": "<short label>",
       "rationale": "<exact rationale text>",
-      "suggestion": "<specific edit>"
+      "suggestion": "<specific edit>",
+      "estimatedImpact": <number between 1 and 20>
     }
   ]
 }
-WORD LIMIT GUIDELINES (not strictly enforced):
-- Aim to keep suggestions concise (around 25 words or fewer) for readability.
-- If the rationale text is long, you may use the fallback pattern: "Add to AI Product Overview: \"<rationale>\"."
-- The full rationale text must be provided in the "rationale" field.
+
+CRITICAL: Suggestions must provide CONSTRUCTIVE IMPROVEMENTS, not just restate the weakness.
 
 Rules:
 - Generate exactly ONE suggestion per weak pillar (score < 75) and keep the array length identical to the provided pillarWeaknesses.
 - Mirror the pillar names exactly as provided.
 - The "rationale" field MUST repeat the provided rationale text verbatim and the "issue" field should be a concise label derived from the same weakness.
-- Each suggestion must be a single sentence ending with a period, begin with Add/Insert/Modify/Clarify/Rewrite/Extend, explicitly mention "AI Product Overview", and include the rationale text (or a truncated version if the full rationale is very long).
-- Copy the rationale text exactly as provided (same casing and wording) and wrap it in double quotes inside the sentence.
-- The "rationale" field in your JSON response must contain the FULL rationale text verbatim. The "suggestion" field can contain the full rationale or a truncated version if it's very long.
-- If the rationale is long, you may use the fallback pattern "Add to AI Product Overview: \"<rationale>\"."
-- Suggestions must describe tangible edits to the AI Product Overview only — never rewrite the user idea or add unrelated topics.
+- Each suggestion must be a single sentence ending with a period, begin with Add/Insert/Modify/Clarify/Rewrite/Extend, explicitly mention "AI Product Overview", and describe HOW to improve the pillar.
+- **DO NOT simply add the weakness statement - instead, describe what positive content to add or how to strengthen the relevant section.**
+- Suggestions must describe tangible edits to the AI Product Overview that will IMPROVE the pillar score by addressing the weakness.
 - Forbidden phrases: ${FORBIDDEN_PHRASES.join(", ")}.
+- **CRITICAL: "estimatedImpact" must be a realistic, conservative estimate (1-20 points) of how much the validation score could improve if this suggestion is applied. Consider the current score, the severity of the weakness, and the potential impact of the suggested change. Be conservative - it's better to underestimate than overpromise.**
 - Output strict JSON only with no commentary or prose.
 
-Word Count Examples:
-- "Add to AI Product Overview: \"Idea lacks robust differentiators\"." = 8 words (CORRECT)
-- "Add a line to the AI Product Overview explaining how you solve \"Idea lacks robust differentiators\" by highlighting one automation competitors lack." = 20 words (CORRECT)
-- "Add to AI Product Overview: \"The proposal is feasible with a clear roadmap for MVP development and user engagement, although it will require careful resource management.\"." = 20 words (CORRECT - uses fallback for long rationale)
+Good Suggestion Examples:
+- "Add to the Competition section of the AI Product Overview: specific examples of unique features that differentiate this product from competitors mentioned in the rationale."
+- "Modify the Feasibility section in the AI Product Overview to include a phased development approach that addresses the resource constraints mentioned."
+- "Extend the Pricing Potential section of the AI Product Overview with a tiered pricing strategy that addresses price sensitivity concerns."
 
-If your suggestion exceeds 25 words, you MUST use the fallback pattern: "Add to AI Product Overview: \"<rationale>\"."`;
+Bad Suggestion Examples (DO NOT USE):
+- "Add to AI Product Overview: \"The market is competitive\"." (just restates weakness)
+- "Add to AI Product Overview: \"Building may face resource constraints\"." (just restates weakness)`;
 
     const requiredInstruction = `Generate exactly ONE suggestion for EACH weak pillar.
 
-WORD LIMIT IS CRITICAL - MAX 25 WORDS:
-- Count every word in your suggestion before responding. This includes "Add", "to", "AI", "Product", "Overview", and all words in the rationale.
-- If the rationale is long (15+ words), you MUST use this exact fallback pattern: "Add to AI Product Overview: \"<rationale>\"."
-- The fallback pattern is ALWAYS acceptable and preferred for long rationales.
-- If you are unsure about word count, use the fallback pattern.
-
-Your suggestion must be:
-- A single sentence ending with a period
+Your suggestion must:
+- Be a single sentence ending with a period
 - Begin with Add/Insert/Modify/Clarify/Rewrite/Extend
 - Include the literal text "AI Product Overview"
-- Include the rationale (or truncated version if full rationale is very long) inside double quotes
-- Propose a specific modification to the AI Product Overview section
+- Describe WHAT positive content to add or HOW to strengthen the section to address the weakness
+- NOT simply restate the weakness - provide a constructive improvement
 
-IMPORTANT: The "rationale" field in your JSON must contain the FULL rationale text. The "suggestion" field can contain the full rationale or a truncated version if it's very long.
+IMPORTANT: 
+- The "rationale" field in your JSON must contain the FULL rationale text verbatim.
+- The "suggestion" field must describe an ACTIONABLE improvement, not just the problem.
+- Focus on what positive content or changes will strengthen the pillar and address the weakness.
 
 You MUST output strict JSON that matches the given schema.
-Do NOT include explanations or prose.
-
-When in doubt about word count, ALWAYS use: "Add to AI Product Overview: \"<rationale>\"."`;
+Do NOT include explanations or prose.`;
 
     const userPrompt = `Context:\n${JSON.stringify(suggestionContext, null, 2)}\n\n${requiredInstruction}`;
 
@@ -381,13 +383,21 @@ When in doubt about word count, ALWAYS use: "Add to AI Product Overview: \"<rati
           throw new Error('Suggestion must reference the "AI Product Overview"');
         }
 
-        if (!includesExactRationale(normalizedTargetRationale, trimmedSuggestion)) {
+        // Relaxed validation: suggestion should address the weakness but doesn't need to include exact rationale text
+        // This allows suggestions to describe improvements rather than just restating the problem
+        const addressesWeakness = 
+          includesExactRationale(normalizedTargetRationale, trimmedSuggestion) ||
+          trimmedSuggestion.toLowerCase().includes(normalizedTargetRationale.toLowerCase().substring(0, 20)) ||
+          (normalizedTargetRationale.length > 50 && trimmedSuggestion.toLowerCase().includes(normalizedTargetRationale.toLowerCase().substring(0, 30)));
+        
+        if (!addressesWeakness && normalizedTargetRationale.length < 100) {
+          // Only enforce for short rationales - long ones may be addressed conceptually
           logValidationIssue({
-            type: "missing_rationale",
+            type: "weakness_not_addressed",
             suggestion: trimmedSuggestion,
             rationale: normalizedTargetRationale,
           });
-          throw new Error("Suggestion must include the rationale text (or significant portion if rationale is very long)");
+          // Warning only, don't throw - allow suggestions that describe improvements
         }
 
         const derivedIssue =
@@ -396,14 +406,28 @@ When in doubt about word count, ALWAYS use: "Add to AI Product Overview: \"<rati
           trimmedIssue;
 
         seen.add(normalizedPillar);
-        const enforcedImpact = Math.max(1, 85 - Math.round(target.score));
+        
+        // Use AI-provided estimate if valid, otherwise use conservative fallback
+        let estimatedImpact: number;
+        if (
+          typeof suggestion.estimatedImpact === "number" &&
+          !Number.isNaN(suggestion.estimatedImpact) &&
+          suggestion.estimatedImpact >= 1 &&
+          suggestion.estimatedImpact <= 20
+        ) {
+          estimatedImpact = Math.round(suggestion.estimatedImpact);
+        } else {
+          // Conservative fallback: 40% of gap to 85, capped at 15 points, minimum 3 points
+          const gapTo85 = 85 - Math.round(target.score);
+          estimatedImpact = Math.min(15, Math.max(3, Math.round(gapTo85 * 0.4)));
+        }
 
         return {
           pillar: normalizedPillar,
           issue: derivedIssue,
           rationale: trimmedRationale,
           suggestion: trimmedSuggestion,
-          estimatedImpact: enforcedImpact,
+          estimatedImpact: estimatedImpact,
           score: target.score,
         };
       });

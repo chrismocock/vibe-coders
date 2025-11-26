@@ -1478,31 +1478,6 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
     setIsRevalidating(false);
   };
 
-  const handleRestoreVersion = (entry: IdeaHistoryEntry) => {
-    setEditForm({
-      ideaText: entry.content,
-      targetMarket: entry.targetMarket || "",
-      targetCountry: entry.targetCountry || "",
-      budget: entry.budget || "",
-      timescales: entry.timescales || "",
-    });
-    setRefinementSuggestions(null);
-    setSuggestionError(null);
-    const fallbackValidation =
-      entry.validation ||
-      (typeof savedData?.output === "object" && savedData?.output
-        ? (savedData.output as any).initialFeedback ?? null
-        : null);
-    setDraftValidation(fallbackValidation);
-    setValidationDeltas({});
-    setIsEditingExisting(true);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-    const currentOverview = getCurrentAiProductOverview();
-    if (entry.content && fallbackValidation) {
-      void loadPillarSuggestions(entry.content, fallbackValidation, currentOverview);
-    }
-  };
-
   const cloneInputSnapshot = () => {
     if (!savedData?.input) {
       return {};
@@ -2679,63 +2654,6 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
             </Card>
           )}
           </div>
-        )}
-
-        {/* Idea History */}
-        {ideaHistory.length > 0 && (
-          <Card className="border border-neutral-200 bg-white shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle className="text-lg font-semibold text-neutral-900">Idea History</CardTitle>
-                <CardDescription className="text-sm text-neutral-600">
-                  Track how your idea evolved across iterations
-                </CardDescription>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleEditIdea()}
-              >
-                New Iteration
-              </Button>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {ideaHistory.map((entry) => (
-                <div
-                  key={entry.id}
-                  className="rounded-lg border border-neutral-200 p-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between"
-                >
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold text-neutral-900">
-                      {entry.title}
-                    </p>
-                    <p className="text-xs text-neutral-500">
-                      Saved {new Date(entry.savedAt).toLocaleString()}
-                    </p>
-                    <p className="mt-2 text-sm text-neutral-700 line-clamp-3">
-                      {entry.summary}
-                    </p>
-                    {entry.validation?.overallConfidence !== undefined && (
-                      <p className="mt-1 text-xs text-neutral-500">
-                        Confidence: {entry.validation.overallConfidence}%
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() =>
-                        handleRestoreVersion(entry)
-                      }
-                    >
-                      Restore
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
         )}
 
         {/* Key Insights - What I Noticed */}
