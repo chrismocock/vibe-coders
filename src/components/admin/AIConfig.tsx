@@ -15,7 +15,8 @@ import {
   ChevronDown,
   ChevronRight,
   Settings,
-  Bot
+  Bot,
+  Info
 } from "lucide-react";
 import { defaultAIConfigs } from "@/lib/aiConfig";
 
@@ -338,6 +339,28 @@ export default function AIConfig({ onRefresh }: AIConfigProps) {
                   {/* Mode-Specific System Prompts for Ideate */}
                   {stage.id === 'ideate' && (
                     <>
+                      {/* Ideate Form Structure Documentation */}
+                      <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 space-y-2">
+                        <div className="flex items-start gap-2">
+                          <Info className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                          <div className="space-y-2">
+                            <h4 className="text-sm font-semibold text-blue-900">Ideate Form Structure</h4>
+                            <p className="text-xs text-blue-800">
+                              The Ideate stage form has the following fields:
+                            </p>
+                            <ul className="text-xs text-blue-800 list-disc list-inside space-y-1">
+                              <li><strong>Mode</strong> (required): "What would you like to do?" dropdown with options: "Problem to Solve", "Idea to Explore", "Surprise Me"</li>
+                              <li><strong>Target Market</strong> (optional): Text field for market/industry preference</li>
+                              <li><strong>Problem Statement</strong> (required): Textarea labeled "Problem Statement" - maps to <code className="bg-blue-100 px-1 rounded">${'{input}'}</code> variable</li>
+                              <li><strong>Constraints/Requirements</strong> (optional): Textarea for constraints - maps to <code className="bg-blue-100 px-1 rounded">${'{constraints}'}</code> variable</li>
+                            </ul>
+                            <p className="text-xs text-blue-800 mt-2">
+                              <strong>Prompt Selection:</strong> System prompts are selected based on the mode. User prompt templates are used for "Problem to Solve" and "Idea to Explore" modes. "Surprise Me" mode uses only the system prompt (no user template).
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-neutral-700">
                           System Prompt — Problem to Solve (Ideate)
@@ -345,11 +368,11 @@ export default function AIConfig({ onRefresh }: AIConfigProps) {
                         <Textarea
                           value={config.system_prompt_problem || ''}
                           onChange={(e) => updateConfig(stage.id, 'system_prompt_problem', e.target.value)}
-                          placeholder="System prompt when the user selects 'Problem to Solve'. Falls back to generic system prompt if empty."
+                          placeholder="System prompt when the user selects 'Problem to Solve' mode. Falls back to generic system prompt if empty."
                           className="min-h-[120px] border border-neutral-300 bg-white text-neutral-900 placeholder:text-neutral-400"
                         />
                         <p className="text-xs text-neutral-500">
-                          Used when mode is <em>Problem to Solve</em>. Falls back to generic system prompt if empty.
+                          Used when mode is <em>Problem to Solve</em>. The user provides a problem statement in the "Problem Statement" field. Falls back to generic system prompt if empty.
                         </p>
                       </div>
                       <div className="space-y-2">
@@ -359,11 +382,11 @@ export default function AIConfig({ onRefresh }: AIConfigProps) {
                         <Textarea
                           value={config.system_prompt_idea || ''}
                           onChange={(e) => updateConfig(stage.id, 'system_prompt_idea', e.target.value)}
-                          placeholder="System prompt when the user selects 'Idea to Explore'. Falls back to generic system prompt if empty."
+                          placeholder="System prompt when the user selects 'Idea to Explore' mode. Falls back to generic system prompt if empty."
                           className="min-h-[120px] border border-neutral-300 bg-white text-neutral-900 placeholder:text-neutral-400"
                         />
                         <p className="text-xs text-neutral-500">
-                          Used when mode is <em>Idea to Explore</em>. Falls back to generic system prompt if empty.
+                          Used when mode is <em>Idea to Explore</em>. The user provides an idea in the "Problem Statement" field. Falls back to generic system prompt if empty.
                         </p>
                       </div>
                       <div className="space-y-2">
@@ -373,11 +396,11 @@ export default function AIConfig({ onRefresh }: AIConfigProps) {
                         <Textarea
                           value={config.system_prompt_surprise || ''}
                           onChange={(e) => updateConfig(stage.id, 'system_prompt_surprise', e.target.value)}
-                          placeholder="System prompt when the user selects 'Surprise Me'. Falls back to generic system prompt if empty."
+                          placeholder="System prompt when the user selects 'Surprise Me' mode. Falls back to generic system prompt if empty."
                           className="min-h-[120px] border border-neutral-300 bg-white text-neutral-900 placeholder:text-neutral-400"
                         />
                         <p className="text-xs text-neutral-500">
-                          Used when mode is <em>Surprise Me</em>. Generates creative ideas without user input. Falls back to generic system prompt if empty.
+                          Used when mode is <em>Surprise Me</em>. Generates creative ideas without requiring user input in the "Problem Statement" field. Only uses the system prompt (no user prompt template). Falls back to generic system prompt if empty.
                         </p>
                       </div>
                       <div className="space-y-2">
@@ -547,12 +570,22 @@ export default function AIConfig({ onRefresh }: AIConfigProps) {
                       className="min-h-[100px] border border-neutral-300 bg-white text-neutral-900 placeholder:text-neutral-400"
                     />
                     <p className="text-xs text-neutral-500">
-                      Available variables: <code className="bg-neutral-100 px-1 rounded">${'{mode}'}</code>, <code className="bg-neutral-100 px-1 rounded">${'{market}'}</code>, <code className="bg-neutral-100 px-1 rounded">${'{input}'}</code>, <code className="bg-neutral-100 px-1 rounded">${'{constraints}'}</code>
+                      Available variables: <code className="bg-neutral-100 px-1 rounded">${'{mode}'}</code> (Mode dropdown value), <code className="bg-neutral-100 px-1 rounded">${'{market}'}</code> (Target Market field), <code className="bg-neutral-100 px-1 rounded">${'{input}'}</code> (Problem Statement field), <code className="bg-neutral-100 px-1 rounded">${'{constraints}'}</code> (Constraints/Requirements field)
                     </p>
                   </div>
 
                   {stage.id === 'ideate' && (
                     <>
+                      {/* Note about Surprise Me mode */}
+                      <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                        <div className="flex items-start gap-2">
+                          <Info className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                          <p className="text-xs text-amber-800">
+                            <strong>Note:</strong> "Surprise Me" mode does not use a user prompt template. It relies entirely on the system prompt and only includes the Target Market field value if provided. User prompt templates below are only used for "Problem to Solve" and "Idea to Explore" modes.
+                          </p>
+                        </div>
+                      </div>
+
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-neutral-700">
                           User Prompt Template — Problem to Solve (Ideate)
@@ -560,11 +593,11 @@ export default function AIConfig({ onRefresh }: AIConfigProps) {
                         <Textarea
                           value={config.user_prompt_template_problem || ''}
                           onChange={(e) => updateConfig(stage.id, 'user_prompt_template_problem', e.target.value)}
-                          placeholder="Template when the user selects 'Problem to Solve'. Variables: ${mode}, ${market}, ${input}, ${constraints}"
+                          placeholder="Template when the user selects 'Problem to Solve' mode. Variables: ${mode}, ${market}, ${input}, ${constraints}"
                           className="min-h-[100px] border border-neutral-300 bg-white text-neutral-900 placeholder:text-neutral-400"
                         />
                         <p className="text-xs text-neutral-500">
-                          Used only for Ideate when mode is <em>Problem to Solve</em>.
+                          Used when mode is <em>Problem to Solve</em>. Falls back to generic template if empty. Available variables: <code className="bg-neutral-100 px-1 rounded">${'{mode}'}</code> (Mode value), <code className="bg-neutral-100 px-1 rounded">${'{market}'}</code> (Target Market field), <code className="bg-neutral-100 px-1 rounded">${'{input}'}</code> (Problem Statement field), <code className="bg-neutral-100 px-1 rounded">${'{constraints}'}</code> (Constraints/Requirements field)
                         </p>
                       </div>
                       <div className="space-y-2">
@@ -574,11 +607,11 @@ export default function AIConfig({ onRefresh }: AIConfigProps) {
                         <Textarea
                           value={config.user_prompt_template_idea || ''}
                           onChange={(e) => updateConfig(stage.id, 'user_prompt_template_idea', e.target.value)}
-                          placeholder="Template when the user selects 'Idea to Explore'. Variables: ${mode}, ${market}, ${input}, ${constraints}"
+                          placeholder="Template when the user selects 'Idea to Explore' mode. Variables: ${mode}, ${market}, ${input}, ${constraints}"
                           className="min-h-[100px] border border-neutral-300 bg-white text-neutral-900 placeholder:text-neutral-400"
                         />
                         <p className="text-xs text-neutral-500">
-                          Used only for Ideate when mode is <em>Idea to Explore</em>.
+                          Used when mode is <em>Idea to Explore</em>. Falls back to generic template if empty. Available variables: <code className="bg-neutral-100 px-1 rounded">${'{mode}'}</code> (Mode value), <code className="bg-neutral-100 px-1 rounded">${'{market}'}</code> (Target Market field), <code className="bg-neutral-100 px-1 rounded">${'{input}'}</code> (Problem Statement field), <code className="bg-neutral-100 px-1 rounded">${'{constraints}'}</code> (Constraints/Requirements field)
                         </p>
                       </div>
                       <div className="space-y-2">
