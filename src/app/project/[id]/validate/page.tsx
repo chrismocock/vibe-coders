@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useAllSectionsData } from '@/components/validation/useAllSectionsData';
 import { ValidationOverviewHero } from '@/components/validation/ValidationOverviewHero';
@@ -15,11 +16,14 @@ import { PersonasPreview } from '@/components/validation/PersonasPreview';
 import { FeatureOpportunityPreview } from '@/components/validation/FeatureOpportunityPreview';
 import { IdeaEnhancerPreview } from '@/components/validation/IdeaEnhancerPreview';
 import { SendToDesignBanner } from '@/components/validation/SendToDesignBanner';
-import { Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Loader2, Sparkles } from 'lucide-react';
+import { toast } from 'sonner';
 
 export default function OverviewPage() {
   const params = useParams();
   const projectId = params.id as string;
+  const [isRunningAll, setIsRunningAll] = useState(false);
   const {
     sectionsData,
     overviewData,
@@ -38,6 +42,36 @@ export default function OverviewPage() {
     refresh,
   } = useAllSectionsData(projectId);
 
+  const handleRunAllValidation = async () => {
+    if (!reportDetails?.id) {
+      toast.error('Run validation first to create a report.');
+      return;
+    }
+
+    try {
+      setIsRunningAll(true);
+      const response = await fetch('/api/validation/run-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId, reportId: reportDetails.id }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to run validation on all sections');
+      }
+
+      await refresh();
+      window.dispatchEvent(new Event('section-updated'));
+      toast.success('Full validation completed for all sections.');
+    } catch (error) {
+      console.error('Run all validation error:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to run validation');
+    } finally {
+      setIsRunningAll(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -55,11 +89,30 @@ export default function OverviewPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="space-y-2">
-        <h1 className="text-2xl font-bold text-neutral-900">Your AI Product Advisor</h1>
-        <p className="text-neutral-600">
-          Zero-effort validation, investor-ready insights, and a design-ready blueprint delivered automatically.
-        </p>
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="space-y-2">
+          <h1 className="text-2xl font-bold text-neutral-900">Your AI Product Advisor</h1>
+          <p className="text-neutral-600">
+            Zero-effort validation, investor-ready insights, and a design-ready blueprint delivered automatically.
+          </p>
+        </div>
+        <Button
+          onClick={handleRunAllValidation}
+          disabled={isRunningAll}
+          className="inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white"
+        >
+          {isRunningAll ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Running Validation...
+            </>
+          ) : (
+            <>
+              <Sparkles className="h-4 w-4" />
+              Run Full Validation
+            </>
+          )}
+        </Button>
       </div>
 
       <AIExecutiveSummary summary={executiveSummary} />

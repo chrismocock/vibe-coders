@@ -4,6 +4,13 @@ import { useState, useEffect } from 'react';
 import { SectionResult, PersonaReaction } from '@/server/validation/types';
 import { toast } from 'sonner';
 
+type StageRecord = {
+  stage: string;
+  status: 'pending' | 'in_progress' | 'completed';
+  output?: unknown;
+  input?: unknown;
+};
+
 export function useSectionData(projectId: string, section: string) {
   const [data, setData] = useState<SectionResult | null>(null);
   const [completedActions, setCompletedActions] = useState<string[]>([]);
@@ -24,9 +31,9 @@ export function useSectionData(projectId: string, section: string) {
           throw new Error('Failed to fetch project stages');
         }
 
-        const stagesData = await stagesResponse.json();
+        const stagesData = (await stagesResponse.json()) as { stages?: StageRecord[] };
         const validateStage = stagesData.stages?.find(
-          (s: any) => s.stage === 'validate' && s.status === 'completed'
+          (stage) => stage.stage === 'validate' && stage.status === 'completed'
         );
 
         if (!validateStage?.output) {
@@ -35,11 +42,8 @@ export function useSectionData(projectId: string, section: string) {
           return;
         }
 
-        const outputData = typeof validateStage.output === 'string'
-          ? JSON.parse(validateStage.output)
-          : validateStage.output;
+        const fetchedReportId = extractReportId(validateStage.output);
 
-        const fetchedReportId = outputData.reportId;
         if (!fetchedReportId) {
           setData(null);
           setIsLoading(false);
@@ -151,20 +155,16 @@ export function useSectionData(projectId: string, section: string) {
           throw new Error('Failed to fetch project stages');
         }
 
-        const stagesData = await stagesResponse.json();
+        const stagesData = (await stagesResponse.json()) as { stages?: StageRecord[] };
         const validateStage = stagesData.stages?.find(
-          (s: any) => s.stage === 'validate' && s.status === 'completed'
+          (stage) => stage.stage === 'validate' && stage.status === 'completed'
         );
 
         if (validateStage?.output) {
-          const outputData = typeof validateStage.output === 'string'
-            ? JSON.parse(validateStage.output)
-            : validateStage.output;
-          currentReportId = outputData.reportId;
-          
-          // Cache it for next time
-          if (currentReportId) {
-            setReportId(currentReportId);
+          const extractedId = extractReportId(validateStage.output);
+          if (extractedId) {
+            currentReportId = extractedId;
+            setReportId(extractedId);
           }
         }
       }
@@ -220,18 +220,16 @@ export function useSectionData(projectId: string, section: string) {
       throw new Error('Failed to fetch project stages');
     }
 
-    const stagesData = await stagesResponse.json();
+    const stagesData = (await stagesResponse.json()) as { stages?: StageRecord[] };
     const validateStage = stagesData.stages?.find(
-      (s: any) => s.stage === 'validate' && s.status === 'completed'
+      (stage) => stage.stage === 'validate' && stage.status === 'completed'
     );
 
     if (validateStage?.output) {
-      const outputData = typeof validateStage.output === 'string'
-        ? JSON.parse(validateStage.output)
-        : validateStage.output;
-      if (outputData.reportId) {
-        setReportId(outputData.reportId);
-        return outputData.reportId;
+      const reportIdentifier = extractReportId(validateStage.output);
+      if (reportIdentifier) {
+        setReportId(reportIdentifier);
+        return reportIdentifier;
       }
     }
 
@@ -302,20 +300,16 @@ export function useSectionData(projectId: string, section: string) {
           throw new Error('Failed to fetch project stages');
         }
 
-        const stagesData = await stagesResponse.json();
+        const stagesData = (await stagesResponse.json()) as { stages?: StageRecord[] };
         const validateStage = stagesData.stages?.find(
-          (s: any) => s.stage === 'validate' && s.status === 'completed'
+          (stage) => stage.stage === 'validate' && stage.status === 'completed'
         );
 
         if (validateStage?.output) {
-          const outputData = typeof validateStage.output === 'string'
-            ? JSON.parse(validateStage.output)
-            : validateStage.output;
-          currentReportId = outputData.reportId;
-          
-          // Cache it for next time
-          if (currentReportId) {
-            setReportId(currentReportId);
+          const extractedId = extractReportId(validateStage.output);
+          if (extractedId) {
+            currentReportId = extractedId;
+            setReportId(extractedId);
           }
         }
       }

@@ -22,6 +22,12 @@ const VALIDATION_SECTIONS: ValidationSection[] = [
   'go-to-market',
 ];
 
+type StageRecord = {
+  stage: string;
+  status: 'pending' | 'in_progress' | 'completed';
+  output?: unknown;
+};
+
 export interface SectionData {
   id: string;
   label: string;
@@ -46,9 +52,9 @@ export function useAllSectionsData(projectId: string) {
         throw new Error('Failed to fetch project stages');
       }
 
-      const stagesData = await stagesResponse.json();
+      const stagesData = (await stagesResponse.json()) as { stages?: StageRecord[] };
       const validateStage = stagesData.stages?.find(
-        (s: any) => s.stage === 'validate' && s.status === 'completed'
+        (stage) => stage.stage === 'validate' && stage.status === 'completed'
       );
 
       if (!validateStage?.output) {

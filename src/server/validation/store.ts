@@ -29,7 +29,7 @@ export interface ValidationReportRow {
   opportunity_score: number | null;
   opportunity_score_detail: Record<string, unknown> | null;
   risk_radar: Record<string, unknown> | null;
-  personas: Record<string, unknown>[] | Record<string, unknown> | null;
+  personas: Persona[] | { items?: Persona[] } | null;
   feature_map: Record<string, unknown> | null;
   idea_enhancement: Record<string, unknown> | null;
   persona_reactions: Record<string, unknown> | null;
