@@ -212,7 +212,7 @@ export function rowToValidationReport(row: ValidationReportRow): ValidationRepor
 
   const personasRaw = row.personas;
   const personas: Persona[] | undefined = Array.isArray(personasRaw)
-    ? (personasRaw as Persona[])
+    ? (personasRaw as unknown as Persona[])
     : personasRaw
     ? ((personasRaw as { items?: unknown[] }).items as Persona[] | undefined)
     : undefined;
