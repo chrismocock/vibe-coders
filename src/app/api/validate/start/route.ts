@@ -71,6 +71,11 @@ export async function POST(req: NextRequest) {
               overallConfidence: report.overallConfidence,
               recommendation: report.recommendation,
               rationales: report.rationales,
+              personas: report.personas,
+              featureMap: report.featureMap,
+              ideaEnhancement: report.ideaEnhancement,
+              opportunityScore: report.opportunityScore,
+              riskRadar: report.riskRadar,
             };
             
             // Check if validate stage already exists

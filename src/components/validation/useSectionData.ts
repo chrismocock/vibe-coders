@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { SectionResult } from '@/server/validation/types';
+import { SectionResult, PersonaReaction } from '@/server/validation/types';
 import { toast } from 'sonner';
 
 export function useSectionData(projectId: string, section: string) {
@@ -10,6 +10,7 @@ export function useSectionData(projectId: string, section: string) {
   const [reportId, setReportId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [personaReactions, setPersonaReactions] = useState<PersonaReaction[]>([]);
 
   useEffect(() => {
     async function fetchData() {
@@ -61,12 +62,16 @@ export function useSectionData(projectId: string, section: string) {
         const completedActionsData = reportData.report?.completed_actions || {};
         const sectionCompletedActions = completedActionsData[section] || [];
         setCompletedActions(sectionCompletedActions);
+        const personaReactionsData = reportData.report?.persona_reactions || {};
+        const sectionPersonaReactions = personaReactionsData[section] || [];
+        setPersonaReactions(sectionPersonaReactions);
 
         // For overview, calculate it from other sections
         if (section === 'overview') {
           const sections = Object.entries(sectionResults).filter(([key]) => key !== 'overview');
           
           if (sections.length === 0) {
+            setPersonaReactions([]);
             setData({
               score: 0,
               summary: 'No validation sections have been completed yet. Run individual sections to see an overview.',
@@ -96,6 +101,7 @@ export function useSectionData(projectId: string, section: string) {
               `Key strengths: ${sections.filter(([, r]) => (r as SectionResult).score >= 70).length} sections scored 70+. ` +
               `Areas for improvement: ${sections.filter(([, r]) => (r as SectionResult).score < 40).length} sections scored below 40.`;
 
+            setPersonaReactions([]);
             setData({
               score: avgScore,
               summary,
@@ -189,6 +195,9 @@ export function useSectionData(projectId: string, section: string) {
         const completedActionsData = reportData.report?.completed_actions || {};
         const sectionCompletedActions = completedActionsData[section] || [];
         setCompletedActions(sectionCompletedActions);
+        const personaData = reportData.report?.persona_reactions || {};
+        const sectionPersonaReactions = personaData[section] || [];
+        setPersonaReactions(sectionPersonaReactions);
       }
 
       // Trigger event so overview can refresh if needed
@@ -201,6 +210,75 @@ export function useSectionData(projectId: string, section: string) {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const ensureReportId = async (): Promise<string> => {
+    if (reportId) return reportId;
+
+    const stagesResponse = await fetch(`/api/projects/${projectId}/stages`);
+    if (!stagesResponse.ok) {
+      throw new Error('Failed to fetch project stages');
+    }
+
+    const stagesData = await stagesResponse.json();
+    const validateStage = stagesData.stages?.find(
+      (s: any) => s.stage === 'validate' && s.status === 'completed'
+    );
+
+    if (validateStage?.output) {
+      const outputData = typeof validateStage.output === 'string'
+        ? JSON.parse(validateStage.output)
+        : validateStage.output;
+      if (outputData.reportId) {
+        setReportId(outputData.reportId);
+        return outputData.reportId;
+      }
+    }
+
+    throw new Error('No validation report found');
+  };
+
+  const refreshPersonaReactions = async () => {
+    const currentReportId = await ensureReportId();
+
+    const response = await fetch(`/api/validation/section-reactions/${section}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectId, reportId: currentReportId }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || 'Failed to refresh persona reactions');
+    }
+
+    const result = await response.json();
+    setPersonaReactions(result.reactions || []);
+  };
+
+  const deepenAnalysis = async () => {
+    const currentReportId = await ensureReportId();
+
+    const response = await fetch(`/api/validation/deep-dive/${section}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectId, reportId: currentReportId }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || 'Failed to deepen analysis');
+    }
+
+    const result = await response.json();
+    setData((prev) =>
+      prev
+        ? {
+            ...prev,
+            deepDive: result.deepDive,
+          }
+        : prev
+    );
   };
 
   const toggleAction = async (actionText: string, completed: boolean) => {
@@ -279,6 +357,16 @@ export function useSectionData(projectId: string, section: string) {
     }
   };
 
-  return { data, completedActions, isLoading, error, rerunSection, toggleAction };
+  return {
+    data,
+    completedActions,
+    personaReactions,
+    isLoading,
+    error,
+    rerunSection,
+    toggleAction,
+    refreshPersonaReactions,
+    deepenAnalysis,
+  };
 }
 

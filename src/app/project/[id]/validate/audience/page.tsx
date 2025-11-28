@@ -7,7 +7,16 @@ import { useSectionData } from '@/components/validation/useSectionData';
 export default function AudiencePage() {
   const params = useParams();
   const projectId = params.id as string;
-  const { data, completedActions, isLoading, rerunSection, toggleAction } = useSectionData(projectId, 'audience');
+  const {
+    data,
+    completedActions,
+    personaReactions,
+    isLoading,
+    rerunSection,
+    toggleAction,
+    refreshPersonaReactions,
+    deepenAnalysis,
+  } = useSectionData(projectId, 'audience');
 
   return (
     <div className="space-y-6">
@@ -26,6 +35,9 @@ export default function AudiencePage() {
         isLoading={isLoading}
         onRerun={rerunSection}
         onToggleAction={toggleAction}
+        onDeepenAnalysis={deepenAnalysis}
+        personaReactions={personaReactions}
+        onRefreshPersonaReactions={refreshPersonaReactions}
         projectId={projectId}
       />
     </div>

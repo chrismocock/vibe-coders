@@ -6,11 +6,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { RefreshCw, CheckCircle2, Loader2, Circle, ArrowRight } from 'lucide-react';
+import { RefreshCw, CheckCircle2, Loader2, Circle, ArrowRight, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { SectionResult } from '@/server/validation/types';
+import { SectionResult, PersonaReaction } from '@/server/validation/types';
 import { toast } from 'sonner';
 import { getNextStep } from './sectionNavigation';
+import { SectionInsightsGrid } from './SectionInsightsGrid';
+import { AISuggestionsPanel } from './AISuggestionsPanel';
+import { PersonaReactionsPanel } from './PersonaReactionsPanel';
+import { DeepDiveInsightsPanel } from './DeepDiveInsightsPanel';
 
 interface SectionDisplayProps {
   section: string;
@@ -20,6 +24,9 @@ interface SectionDisplayProps {
   isLoading?: boolean;
   onRerun: () => Promise<void>;
   onToggleAction?: (actionText: string, completed: boolean) => Promise<void>;
+  onDeepenAnalysis: () => Promise<void>;
+  personaReactions: PersonaReaction[];
+  onRefreshPersonaReactions: () => Promise<void>;
   projectId: string;
 }
 
@@ -31,10 +38,14 @@ export function SectionDisplay({
   isLoading = false,
   onRerun,
   onToggleAction,
+  onDeepenAnalysis,
+  personaReactions,
+  onRefreshPersonaReactions,
   projectId,
 }: SectionDisplayProps) {
   const [isRerunning, setIsRerunning] = useState(false);
   const [togglingActions, setTogglingActions] = useState<Set<string>>(new Set());
+  const [isDeepening, setIsDeepening] = useState(false);
 
   const getScoreColor = (score: number) => {
     if (score >= 70) return 'bg-green-500';
@@ -48,10 +59,6 @@ export function SectionDisplay({
     return 'Weak';
   };
 
-  const getScoreBadgeVariant = (score: number): 'outline' => {
-    return 'outline';
-  };
-
   const handleRerun = async () => {
     try {
       setIsRerunning(true);
@@ -62,6 +69,19 @@ export function SectionDisplay({
       toast.error(`Failed to update ${sectionLabel} section`);
     } finally {
       setIsRerunning(false);
+    }
+  };
+
+  const handleDeepen = async () => {
+    try {
+      setIsDeepening(true);
+      await onDeepenAnalysis();
+      toast.success(`Deeper analysis generated for ${sectionLabel}`);
+    } catch (error) {
+      console.error('Error deepening analysis:', error);
+      toast.error(`Failed to deepen ${sectionLabel} insights`);
+    } finally {
+      setIsDeepening(false);
     }
   };
 
@@ -117,7 +137,7 @@ export function SectionDisplay({
               </CardDescription>
             </div>
             <Badge
-              variant={getScoreBadgeVariant(data.score)}
+              variant="outline"
               className={cn(
                 'text-sm font-semibold',
                 data.score >= 70
@@ -143,14 +163,9 @@ export function SectionDisplay({
       </Card>
 
       {/* Summary Card */}
-      <Card className="border border-neutral-200 bg-white">
-        <CardHeader>
-          <CardTitle className="text-lg font-semibold text-neutral-900">Key Insights</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-neutral-700 leading-relaxed whitespace-pre-wrap">{data.summary}</p>
-        </CardContent>
-      </Card>
+      <SectionInsightsGrid summary={data.summary} insights={data.insightBreakdown} />
+
+      <AISuggestionsPanel suggestions={data.suggestions} />
 
       {/* Actions Card */}
       <Card className="border border-neutral-200 bg-white">
@@ -234,9 +249,32 @@ export function SectionDisplay({
         </CardContent>
       </Card>
 
+      <PersonaReactionsPanel reactions={personaReactions} onRefresh={onRefreshPersonaReactions} />
+
+      <DeepDiveInsightsPanel deepDive={data.deepDive} />
+
       {/* Action Buttons */}
       <div className="flex flex-col sm:flex-row gap-3 sm:justify-between sm:items-center">
-        {/* Re-run Button */}
+        {/* Deepen Analysis Button */}
+        <Button
+          onClick={handleDeepen}
+          disabled={isDeepening}
+          className="flex items-center gap-2 w-full sm:w-auto bg-purple-600 hover:bg-purple-700 text-white"
+        >
+          {isDeepening ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Deepening...
+            </>
+          ) : (
+            <>
+              <Sparkles className="h-4 w-4" />
+              Deepen Analysis
+            </>
+          )}
+        </Button>
+
+        {/* Refresh Button */}
         <Button
           onClick={handleRerun}
           disabled={isRerunning}

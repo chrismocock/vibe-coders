@@ -9,8 +9,20 @@ export async function runMarketSection(
 Always respond with valid JSON only in this exact format:
 {
   "score": <number 0-100>,
-  "summary": "<comprehensive analysis (300-500 words) covering market size, growth, trends, demand signals, and market opportunity>",
-  "actions": ["<action 1>", "<action 2>", "<action 3>", "<action 4>", "<action 5>"]
+  "summary": "<120-160 word synthesis on market demand>",
+  "insightBreakdown": {
+    "discoveries": "<Key demand signals>",
+    "meaning": "<What those signals mean>",
+    "impact": "<Impact on market opportunity>",
+    "recommendations": "<Specific change or double-down>"
+  },
+  "actions": ["<3-5 sharp validation actions>"],
+  "suggestions": {
+    "features": ["<feature implication>"],
+    "positioning": ["<market positioning idea>"],
+    "audience": ["<audience or vertical to lean into>"],
+    "copy": ["<copy or messaging angle>"]
+  }
 }
 
 Score guidelines:
@@ -19,7 +31,7 @@ Score guidelines:
 - 40-59: Weak demand, niche market, low urgency, unclear willingness to pay
 - 0-39: Very weak demand, declining market, no clear need, no willingness to pay
 
-Actions should be 3-5 specific, actionable validation steps that help validate market demand. Focus on validation activities like market research, competitor analysis, market size validation, customer interviews, and demand testing.`;
+Actions and suggestions must be specific and founder-ready (no generic statements).`;
 
   const userPrompt = `Evaluate the market demand for this startup idea:
 

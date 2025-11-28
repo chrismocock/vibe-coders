@@ -8,7 +8,13 @@ import { ScoreBreakdownChart } from '@/components/validation/ScoreBreakdownChart
 import { CompletionTracker } from '@/components/validation/CompletionTracker';
 import { PriorityActions } from '@/components/validation/PriorityActions';
 import { NextStepsCard } from '@/components/validation/NextStepsCard';
-import { InsightsSummary } from '@/components/validation/InsightsSummary';
+import { AIExecutiveSummary } from '@/components/validation/AIExecutiveSummary';
+import { OpportunityScoreCard } from '@/components/validation/OpportunityScoreCard';
+import { RiskRadarCard } from '@/components/validation/RiskRadarCard';
+import { PersonasPreview } from '@/components/validation/PersonasPreview';
+import { FeatureOpportunityPreview } from '@/components/validation/FeatureOpportunityPreview';
+import { IdeaEnhancerPreview } from '@/components/validation/IdeaEnhancerPreview';
+import { SendToDesignBanner } from '@/components/validation/SendToDesignBanner';
 import { Loader2 } from 'lucide-react';
 
 export default function OverviewPage() {
@@ -21,7 +27,15 @@ export default function OverviewPage() {
     sectionsNeedingAttention,
     strongestSection,
     weakestSection,
+    opportunityScore,
+    riskRadar,
+    personas,
+    featureMap,
+    ideaEnhancement,
+    executiveSummary,
+    reportDetails,
     isLoading,
+    refresh,
   } = useAllSectionsData(projectId);
 
   if (isLoading) {
@@ -42,47 +56,49 @@ export default function OverviewPage() {
     <div className="space-y-6">
       {/* Header */}
       <div className="space-y-2">
-        <h1 className="text-2xl font-bold text-neutral-900">Validation Overview</h1>
+        <h1 className="text-2xl font-bold text-neutral-900">Your AI Product Advisor</h1>
         <p className="text-neutral-600">
-          Overall validation summary across all sections. This overview is automatically calculated from your completed validation sections.
+          Zero-effort validation, investor-ready insights, and a design-ready blueprint delivered automatically.
         </p>
       </div>
 
-      {/* Hero Section with Recommendation */}
-      <ValidationOverviewHero
-        score={metrics.averageScore}
-        recommendation={metrics.recommendation as 'build' | 'revise' | 'drop'}
-        completedCount={metrics.completedCount}
-        totalCount={metrics.totalCount}
-        strongSections={metrics.strongSections}
-      />
+      <AIExecutiveSummary summary={executiveSummary} />
 
-      {/* Two Column Layout */}
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Left Column - Main Content */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Section Score Grid */}
+      <div className="grid gap-6 xl:grid-cols-3">
+        <div className="space-y-6 xl:col-span-2">
+          <OpportunityScoreCard score={opportunityScore} />
+          <RiskRadarCard risk={riskRadar} />
+          <PersonasPreview personas={personas} />
+          <FeatureOpportunityPreview featureMap={featureMap} />
+
           <div>
-            <h2 className="text-lg font-semibold text-neutral-900 mb-4">All Sections</h2>
+            <h2 className="text-lg font-semibold text-neutral-900 mb-4">Section Scores</h2>
             <SectionScoreGrid sections={sectionsData} projectId={projectId} />
           </div>
 
-          {/* Score Breakdown Chart */}
           <ScoreBreakdownChart sections={sectionsData} />
 
-          {/* Priority Actions */}
           {allActions.length > 0 && (
-            <PriorityActions
-              sections={sectionsData}
-              allActions={allActions}
-              projectId={projectId}
-            />
+            <PriorityActions sections={sectionsData} allActions={allActions} projectId={projectId} />
           )}
         </div>
 
-        {/* Right Column - Sidebar */}
         <div className="space-y-6">
-          {/* Completion Tracker */}
+          <ValidationOverviewHero
+            score={metrics.averageScore}
+            recommendation={metrics.recommendation as 'build' | 'revise' | 'drop'}
+            completedCount={metrics.completedCount}
+            totalCount={metrics.totalCount}
+            strongSections={metrics.strongSections}
+          />
+
+          <IdeaEnhancerPreview
+            enhancement={ideaEnhancement}
+            projectId={projectId}
+            reportId={reportDetails?.id}
+            onRefresh={refresh}
+          />
+
           <CompletionTracker
             sections={sectionsData}
             projectId={projectId}
@@ -90,17 +106,6 @@ export default function OverviewPage() {
             totalCount={metrics.totalCount}
           />
 
-          {/* Insights Summary */}
-          <InsightsSummary
-            sections={sectionsData}
-            averageScore={metrics.averageScore}
-            strongestSection={strongestSection}
-            weakestSection={weakestSection}
-            strongSections={metrics.strongSections}
-            weakSections={metrics.weakSections}
-          />
-
-          {/* Next Steps */}
           <NextStepsCard
             sections={sectionsData}
             recommendation={metrics.recommendation as 'build' | 'revise' | 'drop'}
@@ -111,6 +116,8 @@ export default function OverviewPage() {
           />
         </div>
       </div>
+
+      <SendToDesignBanner projectId={projectId} reportId={reportDetails?.id} />
     </div>
   );
 }

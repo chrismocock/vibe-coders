@@ -9,8 +9,20 @@ export async function runAudienceSection(
 Always respond with valid JSON only in this exact format:
 {
   "score": <number 0-100>,
-  "summary": "<comprehensive analysis (300-500 words) covering audience fit, demographics, behaviors, needs, and product-market fit>",
-  "actions": ["<action 1>", "<action 2>", "<action 3>", "<action 4>", "<action 5>"]
+  "summary": "<120-160 words covering audience structure>",
+  "insightBreakdown": {
+    "discoveries": "<What you uncovered>",
+    "meaning": "<Why this matters>",
+    "impact": "<Impact on the product idea>",
+    "recommendations": "<What the founder should change>"
+  },
+  "actions": ["<3-5 sharp validation actions>"],
+  "suggestions": {
+    "features": ["<feature opportunity>"],
+    "positioning": ["<positioning idea>"],
+    "audience": ["<audience segment or angle>"],
+    "copy": ["<copy or messaging hook>"]
+  }
 }
 
 Score guidelines:
@@ -19,7 +31,7 @@ Score guidelines:
 - 40-59: Weak audience fit, vague target audience, unclear needs, weak product-market fit
 - 0-39: Poor audience fit, undefined audience, no clear needs, no product-market fit
 
-Actions should be 3-5 specific, actionable validation steps that help validate audience fit and product-market fit. Focus on validation activities like user interviews, persona validation, audience surveys, product-market fit tests, and customer discovery.`;
+Actions and suggestions must be specific, founder-ready tasks (no generic advice).`;
 
   const userPrompt = `Evaluate the audience fit for this startup idea:
 

@@ -9,8 +9,20 @@ export async function runGoToMarketSection(
 Always respond with valid JSON only in this exact format:
 {
   "score": <number 0-100>,
-  "summary": "<comprehensive analysis (300-500 words) covering GTM strategy, channels, positioning, messaging, and customer acquisition>",
-  "actions": ["<action 1>", "<action 2>", "<action 3>", "<action 4>", "<action 5>"]
+  "summary": "<120-160 word GTM assessment>",
+  "insightBreakdown": {
+    "discoveries": "<Key GTM findings>",
+    "meaning": "<What those findings mean>",
+    "impact": "<Impact on launch or growth>",
+    "recommendations": "<Specific GTM adjustment>"
+  },
+  "actions": ["<3-5 sharp validation or GTM actions>"],
+  "suggestions": {
+    "features": ["<feature or bundle suggestion>"],
+    "positioning": ["<positioning tweak>"],
+    "audience": ["<audience or segment play>"],
+    "copy": ["<headline or messaging idea>"]
+  }
 }
 
 Score guidelines:
@@ -19,7 +31,7 @@ Score guidelines:
 - 40-59: Weak GTM strategy, limited channels, unclear positioning, weak messaging, high CAC
 - 0-39: No GTM strategy, no viable channels, no positioning, poor messaging, very high CAC
 
-Actions should be 3-5 specific, actionable validation steps that help validate GTM strategy and distribution channels. Focus on validation activities like channel testing, messaging validation, landing page tests, customer acquisition cost analysis, and distribution channel experiments.`;
+Actions and suggestions must be actionable to a founder/operator.`;
 
   const userPrompt = `Evaluate the go-to-market strategy for this startup idea:
 

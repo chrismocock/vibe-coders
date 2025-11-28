@@ -18,6 +18,18 @@ interface SectionResponse {
   score: number;
   summary: string;
   actions: string[];
+  insightBreakdown?: {
+    discoveries?: string;
+    meaning?: string;
+    impact?: string;
+    recommendations?: string;
+  };
+  suggestions?: {
+    features?: string[];
+    positioning?: string[];
+    audience?: string[];
+    copy?: string[];
+  };
 }
 
 /**
@@ -95,10 +107,34 @@ export async function callSectionValidation(
         throw new Error('No valid actions returned from OpenAI');
       }
 
+      const insightBreakdown = {
+        discoveries: parsed.insightBreakdown?.discoveries || summary,
+        meaning: parsed.insightBreakdown?.meaning || '',
+        impact: parsed.insightBreakdown?.impact || '',
+        recommendations: parsed.insightBreakdown?.recommendations || '',
+      };
+
+      const suggestions = {
+        features: Array.isArray(parsed.suggestions?.features)
+          ? parsed.suggestions?.features.filter((item): item is string => typeof item === 'string' && item.length > 0).slice(0, 6)
+          : [],
+        positioning: Array.isArray(parsed.suggestions?.positioning)
+          ? parsed.suggestions?.positioning.filter((item): item is string => typeof item === 'string' && item.length > 0).slice(0, 6)
+          : [],
+        audience: Array.isArray(parsed.suggestions?.audience)
+          ? parsed.suggestions?.audience.filter((item): item is string => typeof item === 'string' && item.length > 0).slice(0, 6)
+          : [],
+        copy: Array.isArray(parsed.suggestions?.copy)
+          ? parsed.suggestions?.copy.filter((item): item is string => typeof item === 'string' && item.length > 0).slice(0, 6)
+          : [],
+      };
+
       return {
         score,
         summary,
         actions,
+        insightBreakdown,
+        suggestions,
         updated_at: new Date().toISOString(),
       };
     } catch (error) {

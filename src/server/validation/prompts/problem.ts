@@ -9,8 +9,20 @@ export async function runProblemSection(
 Always respond with valid JSON only in this exact format:
 {
   "score": <number 0-100>,
-  "summary": "<comprehensive analysis (300-500 words) covering problem clarity, urgency, severity, frequency, and problem-solution fit>",
-  "actions": ["<action 1>", "<action 2>", "<action 3>", "<action 4>", "<action 5>"]
+  "summary": "<120-160 word narrative on the problem>",
+  "insightBreakdown": {
+    "discoveries": "<Key problem evidence you uncovered>",
+    "meaning": "<What those discoveries mean>",
+    "impact": "<Impact on solution viability>",
+    "recommendations": "<Specific change to make>"
+  },
+  "actions": ["<3-5 sharp validation actions>"],
+  "suggestions": {
+    "features": ["<feature opportunity>"],
+    "positioning": ["<positioning or messaging insight>"],
+    "audience": ["<audience nuance or segment>"],
+    "copy": ["<copy or headline hook>"]
+  }
 }
 
 Score guidelines:
@@ -19,7 +31,7 @@ Score guidelines:
 - 40-59: Problem is somewhat vague, low urgency, affects niche audience, weak problem-solution fit
 - 0-39: Problem is unclear, not urgent, affects very few people, poor problem-solution fit
 
-Actions should be 3-5 specific, actionable validation steps that help validate the problem better. Focus on validation activities like user interviews, surveys, problem validation tests, customer discovery, and hypothesis testing.`;
+Actions and suggestions must be specific founder-ready moves (no generic advice).`;
 
   const userPrompt = `Evaluate the problem for this startup idea:
 

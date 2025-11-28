@@ -15,3 +15,12 @@ export function getAgents(): ValidationAgent[] {
   ];
 }
 
+export { runPersonaModelsAgent } from './personaModels';
+export { runFeatureOpportunityMapAgent } from './featureOpportunityMap';
+export { runIdeaEnhancerAgent } from './ideaEnhancer';
+export { runPersonaReactionsAgent } from './personaReactions';
+export { runOpportunityScoreAgent } from './opportunityScore';
+export { runRiskRadarAgent } from './riskRadar';
+export { runDesignBriefAgent } from './designBrief';
+export { runDeepDiveAgent } from './deepDive';
+

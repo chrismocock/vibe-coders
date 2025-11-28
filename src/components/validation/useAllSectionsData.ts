@@ -1,7 +1,16 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { SectionResult, ValidationSection } from '@/server/validation/types';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import {
+  SectionResult,
+  ValidationReport,
+  ValidationSection,
+  OpportunityScore,
+  RiskRadar,
+  Persona,
+  FeatureMap,
+  IdeaEnhancement,
+} from '@/server/validation/types';
 
 const VALIDATION_SECTIONS: ValidationSection[] = [
   'problem',
@@ -23,65 +32,68 @@ export interface SectionData {
 
 export function useAllSectionsData(projectId: string) {
   const [sectionsData, setSectionsData] = useState<Record<string, SectionResult | null>>({});
+  const [reportDetails, setReportDetails] = useState<ValidationReport | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function fetchAllData() {
-      try {
-        setIsLoading(true);
-        setError(null);
+  const fetchAllData = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
 
-        // First, get the reportId from project stages
-        const stagesResponse = await fetch(`/api/projects/${projectId}/stages`);
-        if (!stagesResponse.ok) {
-          throw new Error('Failed to fetch project stages');
-        }
-
-        const stagesData = await stagesResponse.json();
-        const validateStage = stagesData.stages?.find(
-          (s: any) => s.stage === 'validate' && s.status === 'completed'
-        );
-
-        if (!validateStage?.output) {
-          setSectionsData({});
-          setIsLoading(false);
-          return;
-        }
-
-        const outputData = typeof validateStage.output === 'string'
-          ? JSON.parse(validateStage.output)
-          : validateStage.output;
-
-        const reportId = outputData.reportId;
-        if (!reportId) {
-          setSectionsData({});
-          setIsLoading(false);
-          return;
-        }
-
-        // Fetch the validation report
-        const reportResponse = await fetch(`/api/validate/${reportId}`);
-        if (!reportResponse.ok) {
-          throw new Error('Failed to fetch validation report');
-        }
-
-        const reportData = await reportResponse.json();
-        const sectionResults = reportData.report?.section_results || {};
-        
-        setSectionsData(sectionResults);
-      } catch (err) {
-        console.error('Error fetching all sections data:', err);
-        setError(err instanceof Error ? err.message : 'Failed to fetch section data');
-        setSectionsData({});
-      } finally {
-        setIsLoading(false);
+      const stagesResponse = await fetch(`/api/projects/${projectId}/stages`);
+      if (!stagesResponse.ok) {
+        throw new Error('Failed to fetch project stages');
       }
-    }
 
+      const stagesData = await stagesResponse.json();
+      const validateStage = stagesData.stages?.find(
+        (s: any) => s.stage === 'validate' && s.status === 'completed'
+      );
+
+      if (!validateStage?.output) {
+        setSectionsData({});
+        setReportDetails(null);
+        setIsLoading(false);
+        return;
+      }
+
+      const outputData = typeof validateStage.output === 'string'
+        ? JSON.parse(validateStage.output)
+        : validateStage.output;
+
+      const reportId = outputData.reportId;
+      if (!reportId) {
+        setSectionsData({});
+        setReportDetails(null);
+        setIsLoading(false);
+        return;
+      }
+
+      const reportResponse = await fetch(`/api/validate/${reportId}`);
+      if (!reportResponse.ok) {
+        throw new Error('Failed to fetch validation report');
+      }
+
+      const reportData = await reportResponse.json();
+      const sectionResults = reportData.report?.section_results || {};
+      const normalizedReport = reportData.normalizedReport || null;
+
+      setSectionsData(sectionResults);
+      setReportDetails(normalizedReport);
+    } catch (err) {
+      console.error('Error fetching all sections data:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch section data');
+      setSectionsData({});
+      setReportDetails(null);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [projectId]);
+
+  useEffect(() => {
     fetchAllData();
 
-    // Listen for section updates
     const handleSectionUpdate = () => {
       fetchAllData();
     };
@@ -90,7 +102,7 @@ export function useAllSectionsData(projectId: string) {
     return () => {
       window.removeEventListener('section-updated', handleSectionUpdate);
     };
-  }, [projectId]);
+  }, [fetchAllData]);
 
   // Calculate overview data
   const overviewData = (() => {
@@ -192,6 +204,58 @@ export function useAllSectionsData(projectId: string) {
       )
     : null;
 
+  const opportunityScore: OpportunityScore | null = reportDetails?.opportunityScore ?? null;
+  const riskRadar: RiskRadar | null = reportDetails?.riskRadar ?? null;
+  const personas: Persona[] = reportDetails?.personas ?? [];
+  const featureMap: FeatureMap | null = reportDetails?.featureMap ?? null;
+  const ideaEnhancement: IdeaEnhancement | null = reportDetails?.ideaEnhancement ?? null;
+
+  const executiveSummary = useMemo(() => {
+    if (!reportDetails) {
+      return null;
+    }
+
+    const summary = {
+      strength: '',
+      weakness: '',
+      opportunity: '',
+    };
+
+    if (ideaEnhancement?.whyItWins) {
+      summary.strength = ideaEnhancement.whyItWins;
+    } else if (strongestSection?.result) {
+      summary.strength = `${strongestSection.label} stands out at ${strongestSection.result.score}/100.`;
+    } else {
+      summary.strength = 'Complete more sections to surface strengths.';
+    }
+
+    if (riskRadar) {
+      const riskEntries: Array<[string, number, string | undefined]> = [
+        ['Market', riskRadar.market, riskRadar.commentary?.[0]],
+        ['Competition', riskRadar.competition, riskRadar.commentary?.[1]],
+        ['Technical', riskRadar.technical, riskRadar.commentary?.[2]],
+        ['Monetisation', riskRadar.monetisation, riskRadar.commentary?.[3]],
+        ['Go-To-Market', riskRadar.goToMarket, riskRadar.commentary?.[4]],
+      ];
+      const highestRisk = riskEntries.sort((a, b) => b[1] - a[1])[0];
+      summary.weakness = `Watch the ${highestRisk[0].toLowerCase()} risk at ${highestRisk[1]}/100. ${highestRisk[2] ?? ''}`.trim();
+    } else if (weakestSection?.result) {
+      summary.weakness = `${weakestSection.label} is the weakest area at ${weakestSection.result.score}/100.`;
+    } else {
+      summary.weakness = 'Run more sections to expose risk areas.';
+    }
+
+    if (opportunityScore?.rationale) {
+      summary.opportunity = opportunityScore.rationale;
+    } else if (featureMap?.must?.length) {
+      summary.opportunity = `Focus on must-have feature: ${featureMap.must[0]}.`;
+    } else {
+      summary.opportunity = 'Use Deepen Analysis to surface concrete opportunities.';
+    }
+
+    return summary;
+  }, [featureMap, ideaEnhancement?.whyItWins, opportunityScore?.rationale, reportDetails, riskRadar, strongestSection, weakestSection]);
+
   return {
     sectionsData: getSectionData(),
     overviewData,
@@ -199,8 +263,16 @@ export function useAllSectionsData(projectId: string) {
     sectionsNeedingAttention,
     strongestSection,
     weakestSection,
+    opportunityScore,
+    riskRadar,
+    personas,
+    featureMap,
+    ideaEnhancement,
+    executiveSummary,
+    reportDetails,
     isLoading,
     error,
+    refresh: fetchAllData,
   };
 }
 

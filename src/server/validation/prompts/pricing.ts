@@ -9,8 +9,20 @@ export async function runPricingSection(
 Always respond with valid JSON only in this exact format:
 {
   "score": <number 0-100>,
-  "summary": "<comprehensive analysis (300-500 words) covering pricing potential, willingness to pay, pricing models, and revenue potential>",
-  "actions": ["<action 1>", "<action 2>", "<action 3>", "<action 4>", "<action 5>"]
+  "summary": "<120-160 word pricing readout>",
+  "insightBreakdown": {
+    "discoveries": "<Key pricing findings>",
+    "meaning": "<What those findings mean>",
+    "impact": "<Impact on pricing strategy>",
+    "recommendations": "<Specific pricing move>"
+  },
+  "actions": ["<3-5 sharp validation actions>"],
+  "suggestions": {
+    "features": ["<feature or packaging suggestion>"],
+    "positioning": ["<value messaging angle>"],
+    "audience": ["<audience tiering insight>"],
+    "copy": ["<pricing or value copy>"]
+  }
 }
 
 Score guidelines:
@@ -19,7 +31,7 @@ Score guidelines:
 - 40-59: Weak pricing potential, low willingness to pay, unclear pricing model, limited revenue potential
 - 0-39: Very weak pricing potential, no willingness to pay, no viable pricing model, no revenue potential
 
-Actions should be 3-5 specific, actionable validation steps that help validate pricing potential and willingness to pay. Focus on validation activities like pricing surveys, willingness-to-pay tests, value proposition testing, competitive pricing analysis, and revenue model validation.`;
+Actions and suggestions must be specific and commercially meaningful.`;
 
   const userPrompt = `Evaluate the pricing potential for this startup idea:
 

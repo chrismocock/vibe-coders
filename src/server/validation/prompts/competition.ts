@@ -9,8 +9,20 @@ export async function runCompetitionSection(
 Always respond with valid JSON only in this exact format:
 {
   "score": <number 0-100>,
-  "summary": "<comprehensive analysis (300-500 words) covering competitive landscape, differentiation, positioning, and competitive advantages>",
-  "actions": ["<action 1>", "<action 2>", "<action 3>", "<action 4>", "<action 5>"]
+  "summary": "<120-160 word competitive analysis>",
+  "insightBreakdown": {
+    "discoveries": "<Key competitive insights>",
+    "meaning": "<Why those insights matter>",
+    "impact": "<Impact on ability to win>",
+    "recommendations": "<Specific defensive or offensive move>"
+  },
+  "actions": ["<3-5 sharp validation actions>"],
+  "suggestions": {
+    "features": ["<feature to differentiate>"],
+    "positioning": ["<positioning move>"],
+    "audience": ["<segment to attack or defend>"],
+    "copy": ["<copy hook or proof point>"]
+  }
 }
 
 Score guidelines:
@@ -19,7 +31,7 @@ Score guidelines:
 - 40-59: Strong competition, limited differentiation, weak competitive position
 - 0-39: Very strong competition, no differentiation, no competitive advantage
 
-Actions should be 3-5 specific, actionable validation steps that help validate competitive positioning and differentiation. Focus on validation activities like competitive analysis, differentiation testing, customer preference studies, and market positioning validation.`;
+Actions and suggestions must be specific, founder-ready moves.`;
 
   const userPrompt = `Evaluate the competitive landscape for this startup idea:
 

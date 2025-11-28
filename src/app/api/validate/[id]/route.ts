@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { getSupabaseServer } from '@/lib/supabaseServer';
-import { getValidationReportById } from '@/server/validation/store';
+import { getValidationReportById, rowToValidationReport } from '@/server/validation/store';
 
 export async function GET(
   req: NextRequest,
@@ -41,7 +41,9 @@ export async function GET(
       );
     }
 
-    return NextResponse.json({ report });
+    const normalizedReport = rowToValidationReport(report);
+
+    return NextResponse.json({ report, normalizedReport });
   } catch (err) {
     console.error('API error:', err);
     return NextResponse.json(

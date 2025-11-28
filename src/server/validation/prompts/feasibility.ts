@@ -9,8 +9,20 @@ export async function runFeasibilitySection(
 Always respond with valid JSON only in this exact format:
 {
   "score": <number 0-100>,
-  "summary": "<comprehensive analysis (300-500 words) covering technical feasibility, resource requirements, timeline, and implementation complexity>",
-  "actions": ["<action 1>", "<action 2>", "<action 3>", "<action 4>", "<action 5>"]
+  "summary": "<120-160 word feasibility readout>",
+  "insightBreakdown": {
+    "discoveries": "<Key feasibility findings>",
+    "meaning": "<What that means operationally>",
+    "impact": "<Impact on delivery speed or quality>",
+    "recommendations": "<Specific mitigation>"
+  },
+  "actions": ["<3-5 sharp validation actions>"],
+  "suggestions": {
+    "features": ["<technical feature trade-off>"],
+    "positioning": ["<feasibility-based positioning insight>"],
+    "audience": ["<audience implication if any>"],
+    "copy": ["<copy suggestion to set expectations>"]
+  }
 }
 
 Score guidelines:
@@ -19,7 +31,7 @@ Score guidelines:
 - 40-59: Challenging feasibility, significant resources needed, long timeline, high complexity
 - 0-39: Not feasible, excessive resources needed, unrealistic timeline, very high complexity
 
-Actions should be 3-5 specific, actionable validation steps that help validate technical feasibility and reduce implementation risks. Focus on validation activities like technical proof-of-concepts, prototype testing, resource validation, timeline estimates, and risk assessment.`;
+Actions and suggestions must be concrete and execution ready.`;
 
   const userPrompt = `Evaluate the technical feasibility for this startup idea:
 
