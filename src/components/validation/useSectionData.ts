@@ -11,6 +11,37 @@ type StageRecord = {
   input?: unknown;
 };
 
+const REPORT_ID_PATTERN = /^[0-9a-fA-F-]{32,36}$/;
+
+function extractReportId(output: unknown): string | null {
+  if (!output) {
+    return null;
+  }
+
+  if (typeof output === 'string') {
+    const trimmed = output.trim();
+    if (!trimmed) return null;
+
+    try {
+      const parsed = JSON.parse(trimmed);
+      return extractReportId(parsed);
+    } catch {
+      return REPORT_ID_PATTERN.test(trimmed) ? trimmed : null;
+    }
+  }
+
+  if (typeof output === 'object') {
+    const record = output as Record<string, unknown>;
+    const candidate =
+      record.reportId ?? record.report_id ?? record.reportID ?? record.id;
+    if (typeof candidate === 'string' && candidate.trim()) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
 export function useSectionData(projectId: string, section: string) {
   const [data, setData] = useState<SectionResult | null>(null);
   const [completedActions, setCompletedActions] = useState<string[]>([]);
