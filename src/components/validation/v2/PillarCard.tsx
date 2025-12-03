@@ -1,6 +1,6 @@
 "use client";
 
-import { ValidationPillarResult } from "@/server/validation/types";
+import { ValidationPillarId, ValidationPillarResult } from "@/server/validation/types";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -11,6 +11,16 @@ interface PillarCardProps {
   pillar: ValidationPillarResult;
   busy?: boolean;
 }
+
+const PILLAR_GLOSSARY: Record<ValidationPillarId, string> = {
+  audienceFit: "Audience Fit measures how well the idea resonates with the intended users.",
+  problemClarity: "Problem Clarity captures how clearly the core pain point is articulated.",
+  solutionStrength: "Solution Strength evaluates how effectively the concept solves the problem.",
+  competition: "Competition reviews differentiation and defensibility against alternatives.",
+  marketSize: "Market Size looks at the scale and urgency of the opportunity.",
+  feasibility: "Feasibility covers technical build complexity and delivery risk.",
+  monetisation: "Monetisation examines pricing power and revenue potential.",
+};
 
 const scoreTokens = (score: number) => {
   if (score >= 8) {
@@ -43,9 +53,12 @@ const scoreTokens = (score: number) => {
 export function PillarCard({ pillar, busy }: PillarCardProps) {
   const { label, badgeClass, cardClass, iconWrap, Icon } = scoreTokens(pillar.score);
   return (
-    <Card className={cn("relative overflow-hidden p-4 shadow-sm", cardClass)}>
+    <Card className={cn("relative overflow-hidden p-4 shadow-sm", cardClass)} title={PILLAR_GLOSSARY[pillar.pillarId]}>
       {busy && (
-        <div className="pointer-events-none absolute inset-0 animate-pulse rounded-xl bg-white/70 backdrop-blur-[1px]" />
+        <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-xl">
+          <div className="absolute inset-0 bg-white/65 backdrop-blur-[1px]" />
+          <div className="shimmer-line" />
+        </div>
       )}
       <div className="relative flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -58,7 +71,7 @@ export function PillarCard({ pillar, busy }: PillarCardProps) {
           </div>
         </div>
         <div className="text-right">
-          <Badge className={cn("text-[11px] font-semibold", badgeClass)}>{label}</Badge>
+          <Badge className={cn("rounded-full px-3 py-1 text-xs font-semibold", badgeClass)}>{label}</Badge>
           <p className="mt-1 text-sm font-semibold text-neutral-900">{pillar.score}/10</p>
         </div>
       </div>

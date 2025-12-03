@@ -1,8 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { AIProductOverview, ValidationPillarResult } from "@/server/validation/types";
+import {
+  AIProductOverview,
+  ValidationPillarId,
+  ValidationPillarResult,
+} from "@/server/validation/types";
 
 interface IdeaState {
   ideaStageId: string | null;
@@ -18,6 +22,52 @@ interface PillarResponsePayload {
   validatedIdeaId: string | null;
 }
 
+export type OverviewSectionKey =
+  | "pitch"
+  | "problem"
+  | "personas"
+  | "solution"
+  | "features"
+  | "usp"
+  | "risks"
+  | "monetisation"
+  | "build";
+
+export type SectionDiagnostics = Partial<Record<OverviewSectionKey, ValidationPillarResult[]>>;
+
+const SECTION_PILLAR_MAP: Record<OverviewSectionKey, ValidationPillarId[]> = {
+  pitch: [],
+  problem: ["problemClarity"],
+  personas: ["audienceFit"],
+  solution: ["problemClarity", "solutionStrength"],
+  features: [],
+  usp: ["competition"],
+  risks: [],
+  monetisation: ["monetisation"],
+  build: ["feasibility"],
+};
+
+const LOW_SCORE_THRESHOLD = 7;
+
+function buildSectionDiagnostics(pillars: ValidationPillarResult[]): SectionDiagnostics {
+  const diagnostics: SectionDiagnostics = {};
+
+  (Object.keys(SECTION_PILLAR_MAP) as OverviewSectionKey[]).forEach((section) => {
+    const relevant = SECTION_PILLAR_MAP[section]
+      .map((pillarId) => pillars.find((pillar) => pillar.pillarId === pillarId))
+      .filter(
+        (pillar): pillar is ValidationPillarResult =>
+          Boolean(pillar) && pillar.score < LOW_SCORE_THRESHOLD,
+      );
+
+    if (relevant.length) {
+      diagnostics[section] = relevant;
+    }
+  });
+
+  return diagnostics;
+}
+
 export function useValidationRefinement(projectId: string) {
   const [idea, setIdea] = useState<IdeaState | null>(null);
   const [pillars, setPillars] = useState<ValidationPillarResult[]>([]);
@@ -29,6 +79,7 @@ export function useValidationRefinement(projectId: string) {
   const [saveError, setSaveError] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
   const [validatedIdeaId, setValidatedIdeaId] = useState<string | null>(null);
+  const [lastRefinedAt, setLastRefinedAt] = useState<number | null>(null);
 
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const skipNextAutoSave = useRef(false);
@@ -172,6 +223,7 @@ export function useValidationRefinement(projectId: string) {
       setOverview(data.overview);
       skipNextAutoSave.current = true;
       setLastSavedAt(null);
+      setLastRefinedAt(Date.now());
       await saveSnapshot(data.overview);
       toast.success("✨ Idea refined based on pillar insights.");
     } catch (err) {
@@ -196,6 +248,8 @@ export function useValidationRefinement(projectId: string) {
     [queueAutoSave],
   );
 
+  const sectionDiagnostics = useMemo(() => buildSectionDiagnostics(pillars), [pillars]);
+
   return {
     loading,
     error,
@@ -206,9 +260,11 @@ export function useValidationRefinement(projectId: string) {
     saving,
     saveError,
     lastSavedAt,
+    lastRefinedAt,
     validatedIdeaId,
     improveIdea,
     updateOverview,
+    sectionDiagnostics,
     refetch: fetchPillars,
     saveSnapshot,
   };

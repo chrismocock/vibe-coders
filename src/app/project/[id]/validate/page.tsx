@@ -36,6 +36,8 @@ export default function ValidationRefinementPage() {
     improveIdea,
     updateOverview,
     validatedIdeaId,
+    lastRefinedAt,
+    sectionDiagnostics,
   } = useValidationRefinement(projectId);
 
   const averageScore = useMemo(() => {
@@ -67,6 +69,23 @@ export default function ValidationRefinementPage() {
     return 'Not saved yet';
   }, [lastSavedAt, saveError, saving]);
 
+  const lastRefinedLabel = useMemo(() => {
+    if (improving) return 'Refining now…';
+    if (!lastRefinedAt) return 'Waiting for first refinement';
+
+    const diffMs = Date.now() - lastRefinedAt;
+    const diffMinutes = Math.max(1, Math.floor(diffMs / 60000));
+    if (diffMinutes < 60) {
+      return `Last refined: ${diffMinutes} minute${diffMinutes > 1 ? 's' : ''} ago`;
+    }
+    const diffHours = Math.floor(diffMinutes / 60);
+    if (diffHours < 24) {
+      return `Last refined: ${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+    }
+    const diffDays = Math.floor(diffHours / 24);
+    return `Last refined: ${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+  }, [improving, lastRefinedAt]);
+
   if (loading && !idea) {
     return (
       <div className="flex min-h-[400px] flex-col items-center justify-center text-neutral-600">
@@ -77,7 +96,7 @@ export default function ValidationRefinementPage() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 px-2 py-6 sm:px-4 lg:px-6">
       <header className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
         <p className="text-xs uppercase tracking-wide text-neutral-500">Validation</p>
         <h1 className="text-3xl font-semibold text-neutral-900">AI Refinement Hub</h1>
@@ -120,7 +139,8 @@ export default function ValidationRefinementPage() {
         </section>
       )}
 
-      <section className="space-y-4">
+      <div className="space-y-6">
+        <section className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs uppercase tracking-wide text-neutral-500">Diagnostics</p>
@@ -136,7 +156,7 @@ export default function ValidationRefinementPage() {
         )}
       </section>
 
-      <section className="rounded-2xl border border-dashed border-purple-200 bg-white/60 p-6 shadow-sm">
+        <section className="rounded-2xl border border-dashed border-purple-200 bg-white/60 p-6 shadow-sm">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h3 className="text-2xl font-semibold text-neutral-900">Refine My Idea with AI</h3>
@@ -163,30 +183,31 @@ export default function ValidationRefinementPage() {
             )}
           </Button>
         </div>
-      </section>
-
-      {!!pillars.length && (
-        <section className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <p className="text-sm font-semibold text-neutral-800">AI focused improvements on:</p>
-            <div className="flex flex-wrap gap-2">
-              {focusedPillars.length ? (
-                focusedPillars.map((pillar) => (
-                  <Badge key={pillar.pillarId} className={pillarBadgeClass(pillar.score)}>
-                    {pillar.pillarName}
-                  </Badge>
-                ))
-              ) : (
-                <Badge variant="secondary" className="bg-emerald-50 text-emerald-700">
-                  All pillars strong
-                </Badge>
-              )}
-            </div>
-          </div>
         </section>
-      )}
 
-      <section className="space-y-4">
+        {!!pillars.length && (
+          <section className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <p className="text-sm font-semibold text-neutral-800">AI focused improvements on:</p>
+              <div className="flex flex-wrap gap-2">
+                {focusedPillars.length ? (
+                  focusedPillars.map((pillar) => (
+                    <Badge key={pillar.pillarId} className={pillarBadgeClass(pillar.score)}>
+                      {pillar.pillarName}
+                    </Badge>
+                  ))
+                ) : (
+                  <Badge variant="secondary" className="bg-emerald-50 text-emerald-700">
+                    All pillars strong
+                  </Badge>
+                )}
+              </div>
+            </div>
+          </section>
+        )}
+      </div>
+
+      <section className="space-y-5 border-t border-neutral-200 pt-8">
         <div className="flex flex-col gap-4 border-b border-neutral-200 pb-4 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-xs uppercase tracking-wide text-neutral-500">AI Product Overview</p>
@@ -194,6 +215,7 @@ export default function ValidationRefinementPage() {
             <p className="mt-2 text-sm text-neutral-600">
               This is the improved version of your idea. The Design stage uses this as the blueprint.
             </p>
+            <p className="mt-3 text-xs font-medium text-neutral-500">{lastRefinedLabel}</p>
           </div>
           <div className="flex flex-col gap-2 text-sm text-neutral-600 sm:flex-row sm:items-center sm:gap-4">
             <div className="flex items-center gap-2">
@@ -208,6 +230,7 @@ export default function ValidationRefinementPage() {
           onChange={updateOverview}
           isEditing={isEditingOverview}
           improving={improving}
+          sectionDiagnostics={sectionDiagnostics}
         />
       </section>
 
