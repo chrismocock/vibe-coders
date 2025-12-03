@@ -1,0 +1,217 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+import { AIProductOverview, ValidationPillarResult } from "@/server/validation/types";
+
+interface IdeaState {
+  ideaStageId: string | null;
+  title: string;
+  summary: string;
+  context?: string;
+}
+
+interface PillarResponsePayload {
+  idea: IdeaState;
+  pillars: ValidationPillarResult[];
+  overview: AIProductOverview | null;
+  validatedIdeaId: string | null;
+}
+
+export function useValidationRefinement(projectId: string) {
+  const [idea, setIdea] = useState<IdeaState | null>(null);
+  const [pillars, setPillars] = useState<ValidationPillarResult[]>([]);
+  const [overview, setOverview] = useState<AIProductOverview | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [improving, setImproving] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
+  const [validatedIdeaId, setValidatedIdeaId] = useState<string | null>(null);
+
+  const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const skipNextAutoSave = useRef(false);
+
+  const saveSnapshot = useCallback(async (override?: AIProductOverview | null) => {
+    const overviewToSave = override ?? overview;
+    if (!overviewToSave || !idea || pillars.length === 0) {
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+    setSaveError(false);
+    try {
+      const response = await fetch("/api/validate/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId,
+          idea,
+          pillars,
+          overview: overviewToSave,
+        }),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || "Failed to save validation overview");
+      }
+
+      const data = await response.json();
+      setValidatedIdeaId(data.validatedIdea?.id ?? null);
+      setLastSavedAt(Date.now());
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("section-updated"));
+      }
+    } catch (err) {
+      console.error("Validation auto-save failed:", err);
+      toast.error(err instanceof Error ? err.message : "Failed to save overview");
+      setError(err instanceof Error ? err.message : "Failed to save overview");
+      setSaveError(true);
+    } finally {
+      setSaving(false);
+    }
+  }, [idea, overview, pillars, projectId]);
+
+  const queueAutoSave = useCallback(() => {
+    if (!overview || !idea || pillars.length === 0) {
+      return;
+    }
+
+    if (skipNextAutoSave.current) {
+      skipNextAutoSave.current = false;
+      return;
+    }
+
+    if (autoSaveTimer.current) {
+      clearTimeout(autoSaveTimer.current);
+    }
+
+    autoSaveTimer.current = setTimeout(() => {
+      autoSaveTimer.current = null;
+      void saveSnapshot();
+    }, 1200);
+  }, [idea, overview, pillars, saveSnapshot]);
+
+  const hydrateState = useCallback((payload: PillarResponsePayload) => {
+    setIdea(payload.idea);
+    setPillars(payload.pillars);
+    if (payload.overview) {
+      setOverview(payload.overview);
+      skipNextAutoSave.current = true;
+    }
+    setValidatedIdeaId(payload.validatedIdeaId);
+  }, []);
+
+  const fetchPillars = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/validate/pillars", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId }),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || "Failed to load validation pillars");
+      }
+
+      const data = (await response.json()) as PillarResponsePayload;
+      hydrateState(data);
+      if (!data.overview) {
+        setOverview(null);
+      }
+      setLastSavedAt(data.overview ? Date.now() : null);
+    } catch (err) {
+      console.error("Failed to load pillars:", err);
+      setError(err instanceof Error ? err.message : "Failed to load pillars");
+      toast.error(err instanceof Error ? err.message : "Failed to load pillars");
+    } finally {
+      setLoading(false);
+    }
+  }, [hydrateState, projectId]);
+
+  useEffect(() => {
+    fetchPillars();
+    return () => {
+      if (autoSaveTimer.current) {
+        clearTimeout(autoSaveTimer.current);
+      }
+    };
+  }, [fetchPillars]);
+
+  const improveIdea = useCallback(async () => {
+    if (!idea || pillars.length === 0) {
+      toast.error("Pillars still loading. Please wait.");
+      return;
+    }
+
+    setImproving(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/validate/improve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId,
+          idea,
+          pillars,
+        }),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || "Failed to improve idea");
+      }
+
+      const data = await response.json();
+      setOverview(data.overview);
+      skipNextAutoSave.current = true;
+      setLastSavedAt(null);
+      await saveSnapshot(data.overview);
+      toast.success("✨ Idea refined based on pillar insights.");
+    } catch (err) {
+      console.error("Improve idea failed:", err);
+      toast.error(err instanceof Error ? err.message : "Failed to improve idea");
+      setError(err instanceof Error ? err.message : "Failed to improve idea");
+    } finally {
+      setImproving(false);
+    }
+  }, [idea, pillars, projectId, saveSnapshot]);
+
+  const updateOverview = useCallback(
+    (updater: (prev: AIProductOverview) => AIProductOverview) => {
+      setOverview((prev) => {
+        if (!prev) return prev;
+        const next = updater(prev);
+        setLastSavedAt(null);
+        return next;
+      });
+      queueAutoSave();
+    },
+    [queueAutoSave],
+  );
+
+  return {
+    loading,
+    error,
+    idea,
+    pillars,
+    overview,
+    improving,
+    saving,
+    saveError,
+    lastSavedAt,
+    validatedIdeaId,
+    improveIdea,
+    updateOverview,
+    refetch: fetchPillars,
+    saveSnapshot,
+  };
+}
+
+

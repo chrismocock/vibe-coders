@@ -9,16 +9,16 @@ import { toast } from 'sonner';
 
 interface SendToDesignBannerProps {
   projectId: string;
-  reportId?: string;
+  validatedIdeaId?: string | null;
 }
 
-export function SendToDesignBanner({ projectId, reportId }: SendToDesignBannerProps) {
+export function SendToDesignBanner({ projectId, validatedIdeaId }: SendToDesignBannerProps) {
   const router = useRouter();
   const [isSending, setIsSending] = useState(false);
 
   const handleSend = async () => {
-    if (!reportId) {
-      toast.error('Validation report not available yet.');
+    if (!validatedIdeaId) {
+      toast.error('Generate and save your AI Product Overview first.');
       return;
     }
 
@@ -27,7 +27,7 @@ export function SendToDesignBanner({ projectId, reportId }: SendToDesignBannerPr
       const response = await fetch('/api/validation/to-design', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId, reportId }),
+        body: JSON.stringify({ projectId, validatedIdeaId }),
       });
 
       if (!response.ok) {
@@ -52,12 +52,11 @@ export function SendToDesignBanner({ projectId, reportId }: SendToDesignBannerPr
       </CardHeader>
       <CardContent className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <p className="text-sm text-purple-800">
-          Your AI Product Advisor has assembled personas, feature priorities, and positioning. Send it straight
-          into the Design stage to start wireframes with zero manual prep.
+          The AI Product Overview is ready to seed personas, flows, and blueprints. Send it to the Design stage with one click.
         </p>
         <Button
           onClick={handleSend}
-          disabled={isSending || !reportId}
+          disabled={isSending || !validatedIdeaId}
           className="inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white"
         >
           {isSending ? (

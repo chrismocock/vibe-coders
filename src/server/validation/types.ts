@@ -172,3 +172,52 @@ export type ValidationSection =
   | 'pricing' 
   | 'go-to-market';
 
+export type ValidationPillarId =
+  | 'audienceFit'
+  | 'problemClarity'
+  | 'solutionStrength'
+  | 'competition'
+  | 'marketSize'
+  | 'feasibility'
+  | 'monetisation';
+
+export interface ValidationPillarResult {
+  pillarId: ValidationPillarId;
+  pillarName: string;
+  score: number; // 0-10
+  strength: string;
+  weakness: string;
+  improvementSuggestion: string;
+}
+
+export interface AIProductPersona {
+  name: string;
+  summary: string;
+  needs: string[];
+  motivations?: string[];
+}
+
+export interface AIProductRisk {
+  risk: string;
+  mitigation: string;
+}
+
+export interface AIProductMonetisationOption {
+  model: string;
+  description: string;
+  pricingNotes?: string;
+}
+
+export interface AIProductOverview {
+  refinedPitch: string;
+  problemSummary: string;
+  personas: AIProductPersona[];
+  solution: string;
+  coreFeatures: string[];
+  uniqueValue: string;
+  competition: string;
+  risks: AIProductRisk[];
+  monetisation: AIProductMonetisationOption[];
+  buildNotes: string;
+}
+

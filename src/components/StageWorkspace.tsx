@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { usePathname } from "next/navigation";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -688,27 +689,36 @@ export default function StageWorkspace({ projectId, hideSidebar = false }: Stage
   // Load validation data for design stage
   const loadValidateData = useCallback(async () => {
     try {
-      const validateStage = stageData['validate'];
-      if (validateStage?.output) {
-        try {
-          const outputData = typeof validateStage.output === 'string' 
-            ? JSON.parse(validateStage.output) 
-            : validateStage.output;
-          
-          const reportId = outputData.reportId;
-          if (reportId) {
-            const reportResponse = await fetch(`/api/validate/${reportId}`);
-            if (reportResponse.ok) {
-              const reportData = await reportResponse.json();
-              setValidateData(reportData.report);
-            }
-          }
-        } catch (e) {
-          console.error('Failed to parse validation data:', e);
+      const validateStage = stageData["validate"];
+      if (!validateStage?.output) {
+        setValidateData(null);
+        return;
+      }
+
+      const outputData =
+        typeof validateStage.output === "string"
+          ? JSON.parse(validateStage.output)
+          : validateStage.output;
+
+      if (outputData?.overview) {
+        setValidateData(outputData);
+        return;
+      }
+
+      const reportId = outputData?.reportId;
+      if (reportId) {
+        const reportResponse = await fetch(`/api/validate/${reportId}`);
+        if (reportResponse.ok) {
+          const reportData = await reportResponse.json();
+          setValidateData(reportData.report);
+          return;
         }
       }
+
+      setValidateData(null);
     } catch (error) {
-      console.error('Failed to load validation data:', error);
+      console.error("Failed to load validation data:", error);
+      setValidateData(null);
     }
   }, [stageData]);
 
@@ -1099,71 +1109,6 @@ export default function StageWorkspace({ projectId, hideSidebar = false }: Stage
       setError('Failed to generate field content');
     } finally {
       setFieldLoading(prev => ({ ...prev, [fieldKey]: false }));
-    }
-  }
-
-  async function autoGenerateAllValidateFields() {
-    const ideateData = stageData['ideate'];
-    if (!ideateData?.input) return;
-
-    const ideateInput = JSON.parse(ideateData.input);
-    const ideaContext = ideateInput.selectedIdea || 'A startup idea that needs validation';
-    const validateFields = stageConfigs.validate.formSchema.fields;
-    
-    // Set loading state for all fields
-    const fieldLoadingState: Record<string, boolean> = {};
-    validateFields.forEach(field => {
-      fieldLoadingState[`validate-${field.name}`] = true;
-    });
-    setFieldLoading(prev => ({ ...prev, ...fieldLoadingState }));
-
-    try {
-      // Generate all fields in parallel
-      const fieldPromises = validateFields.map(async (field) => {
-        const response = await fetch('/api/ai/generate-field', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            fieldName: field.name, 
-            fieldType: field.type,
-            idea: ideaContext,
-            existingData: {}
-          })
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          return { fieldName: field.name, content: data.result };
-        }
-        return { fieldName: field.name, content: '' };
-      });
-
-      const results = await Promise.all(fieldPromises);
-      
-      // Update form data with all generated content
-      const newFormData: Record<string, string> = {};
-      results.forEach(result => {
-        newFormData[result.fieldName] = result.content;
-      });
-
-      setFormData(prev => ({
-        ...prev,
-        validate: newFormData
-      }));
-
-      // Auto-save the generated data - pass data directly to avoid React state timing issues
-      await saveStageInputWithStatus('validate', 'in_progress', newFormData);
-
-    } catch (error) {
-      console.error('Auto-generation error:', error);
-      setError('Failed to auto-generate validation fields');
-    } finally {
-      // Clear loading state for all fields
-      const fieldLoadingState: Record<string, boolean> = {};
-      validateFields.forEach(field => {
-        fieldLoadingState[`validate-${field.name}`] = false;
-      });
-      setFieldLoading(prev => ({ ...prev, ...fieldLoadingState }));
     }
   }
 
@@ -1631,6 +1576,82 @@ export default function StageWorkspace({ projectId, hideSidebar = false }: Stage
           const Icon = stage.icon;
           const currentData = stageData[stageId];
           const isCompleted = currentData?.status === 'completed';
+
+          if (stageId === 'validate') {
+            const ideaSummary = stageData['ideate']?.input
+              ? (() => {
+                  try {
+                    const ideateData = JSON.parse(stageData['ideate'].input);
+                    const selectedIdea = ideateData.selectedIdea;
+                    if (selectedIdea && typeof selectedIdea === 'object') {
+                      return selectedIdea.title || selectedIdea.description || 'Selected idea details will appear here after completing the Ideate stage.';
+                    }
+                    if (typeof selectedIdea === 'string' && selectedIdea.trim()) {
+                      const firstLine = selectedIdea.split('\n')[0];
+                      return firstLine || 'Selected idea details will appear here after completing the Ideate stage.';
+                    }
+                    return 'Selected idea details will appear here after completing the Ideate stage.';
+                  } catch {
+                    return 'Complete the Ideate stage first to see your selected idea here.';
+                  }
+                })()
+              : 'Complete the Ideate stage first to see your selected idea here.';
+
+            return (
+              <TabsContent key={stageId} value={stageId} className="mt-6">
+                <Card className="border border-neutral-200 bg-white shadow-sm">
+                  <CardHeader className="pb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-100">
+                        <Icon className="h-5 w-5 text-purple-600" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-xl font-semibold text-neutral-900">
+                          {stage.name}
+                        </CardTitle>
+                        <p className="text-sm text-neutral-600">
+                          AI scores your idea across seven pillars and auto-builds a product overview.
+                        </p>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                      <div className="mb-2 flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4 text-blue-600" />
+                        <h3 className="text-sm font-semibold text-blue-900">Selected Idea</h3>
+                      </div>
+                      <div className="rounded border border-white bg-white p-3 text-sm text-neutral-700">
+                        {ideaSummary}
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg border border-purple-200 bg-purple-50 p-4">
+                      <h3 className="text-sm font-semibold text-purple-900">New Validation Studio</h3>
+                      <p className="mt-1 text-sm text-purple-800">
+                        One click runs all seven diagnostics, generates a polished overview, and hands it straight to Design.
+                      </p>
+                      <Button asChild className="mt-3 bg-purple-600 text-white hover:bg-purple-700">
+                        <Link href={`/project/${projectId}/validate`}>Open Validation Studio</Link>
+                      </Button>
+                    </div>
+
+                    {validateData?.overview && (
+                      <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4">
+                        <p className="text-xs uppercase tracking-wide text-neutral-500">Latest AI Output</p>
+                        <h4 className="mt-2 text-lg font-semibold text-neutral-900">
+                          {validateData.overview.refinedPitch}
+                        </h4>
+                        <p className="mt-2 text-sm text-neutral-700">
+                          {validateData.overview.problemSummary}
+                        </p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            );
+          }
           
           return (
             <TabsContent key={stageId} value={stageId} className="mt-6">
@@ -1649,66 +1670,6 @@ export default function StageWorkspace({ projectId, hideSidebar = false }: Stage
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  {/* Show Selected Idea for Validate Stage */}
-                  {stageId === 'validate' && stageData['ideate']?.status === 'completed' && (
-                    <div className="space-y-4">
-                      <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
-                        <div className="flex items-center gap-2 mb-2">
-                          <CheckCircle2 className="h-4 w-4 text-blue-600" />
-                          <h3 className="text-sm font-semibold text-blue-900">Selected Idea to Validate</h3>
-                        </div>
-                        <div className="text-sm text-blue-800">
-                        <div className="bg-white rounded border p-3 text-neutral-700">
-                          {stageData['ideate']?.input ? 
-                            (() => {
-                              try {
-                                const ideateData = JSON.parse(stageData['ideate'].input);
-                                const selectedIdea = ideateData.selectedIdea;
-                                
-                                // Handle selectedIdea as object (from ideate stage)
-                                if (selectedIdea && typeof selectedIdea === 'object') {
-                                  return selectedIdea.title || selectedIdea.description || 'Selected idea details will appear here after completing the Ideate stage.';
-                                }
-                                
-                                // Handle selectedIdea as string (legacy format)
-                                if (typeof selectedIdea === 'string' && selectedIdea.trim()) {
-                                  const firstLine = selectedIdea.split('\n')[0];
-                                  return firstLine || 'Selected idea details will appear here after completing the Ideate stage.';
-                                }
-                                
-                                return 'Selected idea details will appear here after completing the Ideate stage.';
-                              } catch (e) {
-                                return 'Complete the Ideate stage first to see your selected idea here.';
-                              }
-                            })() :
-                            'Complete the Ideate stage first to see your selected idea here.'
-                          }
-                        </div>
-                        </div>
-                      </div>
-                      
-                      {/* Validate button */}
-                      <Button
-                        onClick={() => autoGenerateAllValidateFields()}
-                        disabled={Object.values(fieldLoading).some(loading => loading)}
-                        className="w-full bg-purple-600 text-white hover:bg-purple-700"
-                        size="lg"
-                      >
-                        {Object.values(fieldLoading).some(loading => loading) ? (
-                          <>
-                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                            Validating...
-                          </>
-                        ) : (
-                          <>
-                            <Wand2 className="h-4 w-4 mr-2" />
-                            Validate My Idea
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  )}
-
 
                   {/* Show Selected Idea for Build Stage */}
                   {stageId === 'build' && stageData['ideate']?.status === 'completed' && (

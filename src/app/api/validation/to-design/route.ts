@@ -1,16 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { resolveValidationReportContext } from '@/server/validation/context';
-import { runDesignBriefAgent } from '@/server/validation/agents';
-import { updateDesignBrief } from '@/server/validation/store';
-import {
-  formatFeatureMap,
-  formatIdeaEnhancement,
-  formatOpportunityScore,
-  formatPersonas,
-  formatRiskRadar,
-  formatScoresForPrompt,
-} from '@/server/validation/formatters';
 import { getSupabaseServer } from '@/lib/supabaseServer';
 
 export async function POST(req: NextRequest) {
@@ -21,38 +10,52 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { projectId, reportId } = body;
+    const { projectId, validatedIdeaId } = body;
 
     if (!projectId || typeof projectId !== 'string') {
       return NextResponse.json({ error: 'projectId is required' }, { status: 400 });
     }
 
-    const context = await resolveValidationReportContext(userId, projectId, reportId);
-    const designBrief = await runDesignBriefAgent({
-      title: context.ideaTitle,
-      summary: context.ideaSummary,
-      personas: formatPersonas(context.report.personas),
-      featureMap: formatFeatureMap(context.report.featureMap),
-      opportunityScore: formatOpportunityScore(context.report.opportunityScore),
-      riskRadar: formatRiskRadar(context.report.riskRadar),
-      ideaEnhancement: formatIdeaEnhancement(context.report.ideaEnhancement),
-    });
-
-    await updateDesignBrief(context.reportId, designBrief);
-
     const supabase = getSupabaseServer();
-    const stagePayload = {
-      designBrief,
-      validationReportId: context.reportId,
-      opportunityScore: context.report.opportunityScore,
-      riskRadar: context.report.riskRadar,
-      ideaEnhancement: context.report.ideaEnhancement,
-      featureMap: context.report.featureMap,
-      personas: context.report.personas,
-      scores: formatScoresForPrompt(context.report),
-    };
+    const { data: project } = await supabase
+      .from('projects')
+      .select('id')
+      .eq('id', projectId)
+      .eq('user_id', userId)
+      .single();
 
-    const inputString = JSON.stringify(stagePayload);
+    if (!project) {
+      return NextResponse.json(
+        { error: 'Project not found or unauthorized' },
+        { status: 404 }
+      );
+    }
+
+    let validatedQuery = supabase
+      .from('validated_ideas')
+      .select('id, pillar_scores, ai_overview')
+      .eq('project_id', projectId)
+      .eq('user_id', userId);
+
+    if (validatedIdeaId) {
+      validatedQuery = validatedQuery.eq('id', validatedIdeaId);
+    }
+
+    const { data: validatedIdea } = await validatedQuery.single();
+
+    if (!validatedIdea?.ai_overview) {
+      return NextResponse.json(
+        { error: 'AI Product Overview not found. Run validation first.' },
+        { status: 400 }
+      );
+    }
+
+    const overview = validatedIdea.ai_overview;
+    const stagePayload = {
+      overview,
+      pillarScores: validatedIdea.pillar_scores,
+      source: 'validated_ideas',
+    };
 
     const { data: existingDesign } = await supabase
       .from('project_stages')
@@ -60,13 +63,13 @@ export async function POST(req: NextRequest) {
       .eq('project_id', projectId)
       .eq('stage', 'design')
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
 
     if (existingDesign) {
       await supabase
         .from('project_stages')
         .update({
-          input: inputString,
+          input: JSON.stringify(stagePayload),
           status: 'in_progress',
           updated_at: new Date().toISOString(),
         })
@@ -76,10 +79,8 @@ export async function POST(req: NextRequest) {
         project_id: projectId,
         user_id: userId,
         stage: 'design',
-        input: inputString,
+        input: JSON.stringify(stagePayload),
         status: 'in_progress',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
       });
     }
 
@@ -87,22 +88,21 @@ export async function POST(req: NextRequest) {
       {
         project_id: projectId,
         user_id: userId,
-        user_personas: designBrief.personas,
+        user_personas: overview.personas,
         mvp_definition: {
-          coreProblems: designBrief.coreProblems,
-          featureSet: designBrief.featureSet,
-          initialUIIdeas: designBrief.initialUIIdeas,
+          refinedPitch: overview.refinedPitch,
+          problemSummary: overview.problemSummary,
+          coreFeatures: overview.coreFeatures,
+          buildNotes: overview.buildNotes,
         },
         product_blueprint: {
-          positioning: designBrief.positioning,
-          valueProposition: designBrief.valueProposition,
-          pricing: designBrief.pricing,
-          competitorGaps: designBrief.competitorGaps,
+          uniqueValue: overview.uniqueValue,
+          competition: overview.competition,
+          solution: overview.solution,
         },
         design_summary: {
-          designBrief,
-          opportunityScore: context.report.opportunityScore,
-          riskRadar: context.report.riskRadar,
+          overview,
+          pillarScores: validatedIdea.pillar_scores,
         },
         last_ai_run: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -111,8 +111,8 @@ export async function POST(req: NextRequest) {
     );
 
     return NextResponse.json({
-      reportId: context.reportId,
-      designBrief,
+      validatedIdeaId: validatedIdea.id,
+      overview,
     });
   } catch (error) {
     console.error('Validation to design error:', error);

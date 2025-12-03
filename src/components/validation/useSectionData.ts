@@ -12,6 +12,8 @@ type StageRecord = {
 };
 
 const REPORT_ID_PATTERN = /^[0-9a-fA-F-]{32,36}$/;
+const LEGACY_REPORT_MISSING_ERROR =
+  'Legacy validation reports are no longer generated. Use the new Validation Hub on the Validate stage to refresh insights.';
 
 function extractReportId(output: unknown): string | null {
   if (!output) {
@@ -201,7 +203,8 @@ export function useSectionData(projectId: string, section: string) {
       }
 
       if (!currentReportId) {
-        throw new Error('No validation report found');
+        toast.error(LEGACY_REPORT_MISSING_ERROR);
+        throw new Error(LEGACY_REPORT_MISSING_ERROR);
       }
 
       // Call the section endpoint
@@ -264,7 +267,8 @@ export function useSectionData(projectId: string, section: string) {
       }
     }
 
-    throw new Error('No validation report found');
+    toast.error(LEGACY_REPORT_MISSING_ERROR);
+    throw new Error(LEGACY_REPORT_MISSING_ERROR);
   };
 
   const refreshPersonaReactions = async () => {

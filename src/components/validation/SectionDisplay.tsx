@@ -66,7 +66,9 @@ export function SectionDisplay({
       toast.success(`${sectionLabel} section updated successfully`);
     } catch (error) {
       console.error('Error rerunning section:', error);
-      toast.error(`Failed to update ${sectionLabel} section`);
+      const message =
+        error instanceof Error ? error.message : `Failed to update ${sectionLabel} section`;
+      toast.error(message);
     } finally {
       setIsRerunning(false);
     }
