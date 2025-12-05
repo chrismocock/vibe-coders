@@ -55,7 +55,10 @@ export async function POST(req: NextRequest) {
       pillars: body.pillars,
     });
 
-    return NextResponse.json({ overview });
+    return NextResponse.json({
+      pillars: body.pillars,
+      aiProductOverview: overview,
+    });
   } catch (error) {
     console.error('Failed to generate AI Product Overview:', error);
     return NextResponse.json(

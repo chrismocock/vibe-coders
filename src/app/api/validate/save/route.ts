@@ -12,7 +12,7 @@ interface SaveRequestBody {
     context?: string;
   };
   pillars: ValidationPillarResult[];
-  overview: AIProductOverview;
+  aiProductOverview: AIProductOverview;
 }
 
 export async function POST(req: NextRequest) {
@@ -23,9 +23,9 @@ export async function POST(req: NextRequest) {
     }
 
     const body = (await req.json()) as SaveRequestBody;
-    if (!body?.projectId || !Array.isArray(body.pillars) || !body.overview) {
+    if (!body?.projectId || !Array.isArray(body.pillars) || !body.aiProductOverview) {
       return NextResponse.json(
-        { error: 'projectId, pillars, and overview are required' },
+        { error: 'projectId, pillars, and aiProductOverview are required' },
         { status: 400 },
       );
     }
@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
           project_id: body.projectId,
           idea_id: ideateStage.id,
           pillar_scores: body.pillars,
-          ai_overview: body.overview,
+          ai_overview: body.aiProductOverview,
         },
         { onConflict: 'project_id' },
       )
@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
     };
 
     const stageOutput = {
-      overview: body.overview,
+      aiProductOverview: body.aiProductOverview,
       validatedIdeaId: savedIdea.id,
     };
 
@@ -139,6 +139,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       validatedIdea: savedIdea,
+      pillars: body.pillars,
+      aiProductOverview: body.aiProductOverview,
     });
   } catch (error) {
     console.error('Failed to save validation overview:', error);

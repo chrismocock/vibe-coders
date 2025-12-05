@@ -32,6 +32,7 @@ const NAV_SECTIONS: { key: OverviewSectionKey; label: string }[] = [
   { key: "personas", label: "Personas" },
   { key: "solution", label: "Solution" },
   { key: "features", label: "Features" },
+  { key: "market", label: "Market & Demand" },
   { key: "usp", label: "USP" },
   { key: "risks", label: "Risks" },
   { key: "monetisation", label: "Monetisation" },
@@ -52,6 +53,7 @@ export function AIProductOverviewPanel({
     personas: null,
     solution: null,
     features: null,
+    market: null,
     usp: null,
     risks: null,
     monetisation: null,
@@ -114,10 +116,10 @@ export function AIProductOverviewPanel({
     return (
       <Card className="border border-dashed border-neutral-300 bg-white p-8 text-center">
         <p className="text-lg font-semibold text-neutral-900">
-          Run "Refine My Idea with AI" to generate your AI Product Overview
+          Run &quot;Refine My Idea with AI&quot; to generate your AI Product Overview
         </p>
         <p className="mt-2 text-neutral-600">
-          You'll get a polished pitch, personas, feature list, risks, monetisation ideas, and build notes—ready for
+          You&apos;ll get a polished pitch, personas, feature list, risks, monetisation ideas, and build notes—ready for
           Design.
         </p>
       </Card>
@@ -333,6 +335,14 @@ function OverviewDocument({ overview, diagnostics, registerRef }: OverviewDocume
         <DocList items={overview.coreFeatures} />
       </SectionBlock>
       <SectionBlock
+        title="Market Size & Demand"
+        sectionKey="market"
+        registerRef={registerRef}
+        diagnostics={diagnostics}
+      >
+        <DocText body={overview.marketSize} />
+      </SectionBlock>
+      <SectionBlock
         title="Unique Value & Competition"
         sectionKey="usp"
         registerRef={registerRef}
@@ -433,6 +443,13 @@ function OverviewEditor({
           onAdd={addCoreFeature}
           onRemove={removeCoreFeature}
           onUpdate={updateCoreFeature}
+        />
+      </EditorSection>
+      <EditorSection title="Market Size & Demand Signals" sectionKey="market" registerRef={registerRef}>
+        <TextSection
+          value={overview.marketSize}
+          onChange={(value) => updateTextField("marketSize", value)}
+          rows={5}
         />
       </EditorSection>
       <EditorSection title="Unique Value & Competition" sectionKey="usp" registerRef={registerRef}>
@@ -629,6 +646,11 @@ function PersonaSection({
                   onChange={(event) => onUpdate(index, "name", event.target.value)}
                   placeholder="Persona name"
                 />
+                <Input
+                  value={persona.role || ""}
+                  onChange={(event) => onUpdate(index, "role", event.target.value)}
+                  placeholder="Role or descriptor (e.g., Solo founder)"
+                />
                 <Textarea
                   value={persona.summary}
                   onChange={(event) => onUpdate(index, "summary", event.target.value)}
@@ -662,6 +684,20 @@ function PersonaSection({
                     )
                   }
                   placeholder="Motivations (comma separated)"
+                />
+                <Input
+                  value={(persona.painPoints || []).join(", ")}
+                  onChange={(event) =>
+                    onUpdate(
+                      index,
+                      "painPoints",
+                      event.target.value
+                        .split(",")
+                        .map((entry) => entry.trim())
+                        .filter(Boolean),
+                    )
+                  }
+                  placeholder="Pain points (comma separated)"
                 />
               </div>
               {personas.length > 1 && (
@@ -836,12 +872,14 @@ function PersonasDoc({ personas }: { personas: AIProductPersona[] }) {
           <p className="text-base font-semibold text-neutral-900">
             {persona.name?.trim() || `Persona ${index + 1}`}
           </p>
+          {persona.role?.trim() && <p className="text-xs uppercase tracking-wide text-neutral-500">{persona.role.trim()}</p>}
           <p className="mt-2 text-sm text-neutral-600">
             {persona.summary?.trim() || EMPTY_PLACEHOLDER}
           </p>
           <div className="mt-3 grid gap-3">
             <DocBullets label="Needs" items={persona.needs || []} />
             <DocBullets label="Motivations" items={persona.motivations || []} />
+            <DocBullets label="Pain Points" items={persona.painPoints || []} />
           </div>
         </div>
       ))}

@@ -18,7 +18,7 @@ interface IdeaState {
 interface PillarResponsePayload {
   idea: IdeaState;
   pillars: ValidationPillarResult[];
-  overview: AIProductOverview | null;
+  aiProductOverview: AIProductOverview | null;
   validatedIdeaId: string | null;
 }
 
@@ -28,6 +28,7 @@ export type OverviewSectionKey =
   | "personas"
   | "solution"
   | "features"
+  | "market"
   | "usp"
   | "risks"
   | "monetisation"
@@ -41,6 +42,7 @@ const SECTION_PILLAR_MAP: Record<OverviewSectionKey, ValidationPillarId[]> = {
   personas: ["audienceFit"],
   solution: ["problemClarity", "solutionStrength"],
   features: [],
+  market: ["marketSize"],
   usp: ["competition"],
   risks: [],
   monetisation: ["monetisation"],
@@ -101,7 +103,7 @@ export function useValidationRefinement(projectId: string) {
           projectId,
           idea,
           pillars,
-          overview: overviewToSave,
+          aiProductOverview: overviewToSave,
         }),
       });
 
@@ -149,8 +151,8 @@ export function useValidationRefinement(projectId: string) {
   const hydrateState = useCallback((payload: PillarResponsePayload) => {
     setIdea(payload.idea);
     setPillars(payload.pillars);
-    if (payload.overview) {
-      setOverview(payload.overview);
+    if (payload.aiProductOverview) {
+      setOverview(payload.aiProductOverview);
       skipNextAutoSave.current = true;
     }
     setValidatedIdeaId(payload.validatedIdeaId);
@@ -173,10 +175,10 @@ export function useValidationRefinement(projectId: string) {
 
       const data = (await response.json()) as PillarResponsePayload;
       hydrateState(data);
-      if (!data.overview) {
+      if (!data.aiProductOverview) {
         setOverview(null);
       }
-      setLastSavedAt(data.overview ? Date.now() : null);
+      setLastSavedAt(data.aiProductOverview ? Date.now() : null);
     } catch (err) {
       console.error("Failed to load pillars:", err);
       setError(err instanceof Error ? err.message : "Failed to load pillars");
@@ -220,11 +222,14 @@ export function useValidationRefinement(projectId: string) {
       }
 
       const data = await response.json();
-      setOverview(data.overview);
+      if (Array.isArray(data.pillars)) {
+        setPillars(data.pillars);
+      }
+      setOverview(data.aiProductOverview);
       skipNextAutoSave.current = true;
       setLastSavedAt(null);
       setLastRefinedAt(Date.now());
-      await saveSnapshot(data.overview);
+      await saveSnapshot(data.aiProductOverview);
       toast.success("✨ Idea refined based on pillar insights.");
     } catch (err) {
       console.error("Improve idea failed:", err);

@@ -1,8 +1,74 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { getSupabaseServer } from '@/lib/supabaseServer';
-import { generateValidationPillars } from '@/server/validation/pillars';
+import { generatePillars } from '@/server/validation/pillars';
 import { extractIdeaDetails } from '@/server/validation/idea';
+import {
+  AIProductMonetisationOption,
+  AIProductOverview,
+  AIProductPersona,
+  AIProductRisk,
+  ValidationPillarResult,
+} from '@/server/validation/types';
+function normalizeOverview(overview: unknown): AIProductOverview | null {
+  if (!overview || typeof overview !== 'object') {
+    return null;
+  }
+
+  const cast = overview as Partial<AIProductOverview>;
+  const sanitizeString = (value: unknown, fallback = '') => {
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      return trimmed.length ? trimmed : fallback;
+    }
+    return fallback;
+  };
+  const sanitizeOptionalString = (value: unknown): string | undefined => {
+    if (typeof value !== 'string') return undefined;
+    const trimmed = value.trim();
+    return trimmed.length ? trimmed : undefined;
+  };
+  const sanitizeArray = <T>(value: unknown): T[] => (Array.isArray(value) ? (value as T[]) : []);
+  const sanitizeStringArray = (value: unknown): string[] =>
+    sanitizeArray<unknown>(value)
+      .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
+      .filter(Boolean);
+  const sanitizeMonetisationOption = (
+    option?: Partial<AIProductMonetisationOption>,
+  ): AIProductMonetisationOption => ({
+    model: sanitizeString(option?.model),
+    description: sanitizeString(option?.description),
+    pricingNotes: sanitizeOptionalString(option?.pricingNotes),
+  });
+  const sanitizeRisk = (risk?: Partial<AIProductRisk>): AIProductRisk => ({
+    risk: sanitizeString(risk?.risk),
+    mitigation: sanitizeString(risk?.mitigation),
+  });
+  const sanitizePersona = (persona?: Partial<AIProductPersona>): AIProductPersona => ({
+    name: sanitizeString(persona?.name),
+    role: sanitizeOptionalString(persona?.role),
+    summary: sanitizeString(persona?.summary),
+    needs: sanitizeStringArray(persona?.needs),
+    motivations: sanitizeStringArray(persona?.motivations),
+    painPoints: sanitizeStringArray(persona?.painPoints),
+  });
+
+  return {
+    refinedPitch: sanitizeString(cast.refinedPitch),
+    problemSummary: sanitizeString(cast.problemSummary),
+    solution: sanitizeString(cast.solution),
+    coreFeatures: sanitizeStringArray(cast.coreFeatures),
+    uniqueValue: sanitizeString(cast.uniqueValue),
+    competition: sanitizeString(cast.competition),
+    marketSize: sanitizeString(cast.marketSize ?? 'Add market sizing details.'),
+    buildNotes: sanitizeString(cast.buildNotes),
+    monetisation: sanitizeArray<Partial<AIProductMonetisationOption>>(cast.monetisation).map(
+      sanitizeMonetisationOption,
+    ),
+    risks: sanitizeArray<Partial<AIProductRisk>>(cast.risks).map(sanitizeRisk),
+    personas: sanitizeArray<Partial<AIProductPersona>>(cast.personas).map(sanitizePersona),
+  };
+}
 
 interface PillarRequestBody {
   projectId: string;
@@ -26,10 +92,15 @@ function extractAiReview(rawOutput?: unknown): string | undefined {
   if (typeof rawOutput === 'string') {
     try {
       const parsed = JSON.parse(rawOutput);
-      const review =
-        (parsed && typeof parsed === 'object' && 'aiReview' in parsed && (parsed as any).aiReview) ||
-        (parsed && typeof parsed === 'object' && 'reviewText' in parsed && (parsed as any).reviewText);
-      return parseCandidate(review) ?? parseCandidate(rawOutput);
+      if (parsed && typeof parsed === 'object') {
+        const parsedRecord = parsed as Record<string, unknown>;
+        const reviewCandidate =
+          parseCandidate(parsedRecord.aiReview) ?? parseCandidate(parsedRecord.reviewText);
+        if (reviewCandidate) {
+          return reviewCandidate;
+        }
+      }
+      return parseCandidate(rawOutput);
     } catch {
       return rawOutput.trim();
     }
@@ -102,12 +173,19 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
 
     const pillars =
-      (savedValidatedIdea?.pillar_scores as Awaited<ReturnType<typeof generateValidationPillars>> | null) ??
-      (await generateValidationPillars({
+      (savedValidatedIdea?.pillar_scores as Awaited<ReturnType<typeof generatePillars>> | null) ??
+      (await generatePillars({
         title: ideaTitle,
         summary: ideaSummary,
         context: ideaContext,
       }));
+
+    const normalizedPillars: ValidationPillarResult[] = pillars.map((pillar) => ({
+      ...pillar,
+      analysis: pillar.analysis ?? `No analysis provided for ${pillar.pillarName}.`,
+    }));
+
+    const aiProductOverview = normalizeOverview(savedValidatedIdea?.ai_overview ?? null);
 
     return NextResponse.json({
       idea: {
@@ -116,8 +194,8 @@ export async function POST(req: NextRequest) {
         summary: ideaSummary,
         context: ideaContext,
       },
-      pillars,
-      overview: savedValidatedIdea?.ai_overview ?? null,
+      pillars: normalizedPillars,
+      aiProductOverview,
       validatedIdeaId: savedValidatedIdea?.id ?? null,
     });
   } catch (error) {

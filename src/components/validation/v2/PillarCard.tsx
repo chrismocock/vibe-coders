@@ -80,6 +80,10 @@ export function PillarCard({ pillar, busy }: PillarCardProps) {
       </div>
       <div className="mt-4 space-y-2 text-sm">
         <div>
+          <p className="font-medium text-neutral-700">Analysis</p>
+          <p className="text-neutral-600">{pillar.analysis}</p>
+        </div>
+        <div>
           <p className="font-medium text-neutral-700">Strength</p>
           <p className="text-neutral-600">{pillar.strength}</p>
         </div>

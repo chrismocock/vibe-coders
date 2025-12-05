@@ -49,6 +49,7 @@ export const ValidationPillarSchema = z.object({
   pillarId: z.string().min(3),
   pillarName: z.string().min(3).max(60),
   score: z.number().min(0).max(10),
+  analysis: z.string().min(20).max(360),
   strength: z.string().min(10).max(240),
   weakness: z.string().min(10).max(240),
   improvementSuggestion: z.string().min(10).max(240),
@@ -71,6 +72,7 @@ Rules:
 - Output ONLY valid JSON that matches the requested schema.
 - Each score must be an integer from 0-10.
 - Keep sentences concise (<=160 chars) and actionable.
+- Provide an “analysis” sentence describing the state of the pillar before strengths/weaknesses.
 - Never invent extra pillars or commentary.`;
 
   const pillarDetails = VALIDATION_PILLAR_DEFINITIONS.map(
@@ -94,6 +96,7 @@ Return JSON:
       "pillarId": "audienceFit",
       "pillarName": "Audience Fit",
       "score": 7,
+      "analysis": "1 sentence snapshot of the pillar status.",
       "strength": "Concise strength sentence.",
       "weakness": "Concise weakness sentence.",
       "improvementSuggestion": "Actionable improvement."

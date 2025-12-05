@@ -185,6 +185,7 @@ export interface ValidationPillarResult {
   pillarId: ValidationPillarId;
   pillarName: string;
   score: number; // 0-10
+  analysis: string;
   strength: string;
   weakness: string;
   improvementSuggestion: string;
@@ -192,9 +193,11 @@ export interface ValidationPillarResult {
 
 export interface AIProductPersona {
   name: string;
+  role?: string;
   summary: string;
   needs: string[];
   motivations?: string[];
+  painPoints?: string[];
 }
 
 export interface AIProductRisk {
@@ -218,6 +221,7 @@ export interface AIProductOverview {
   competition: string;
   risks: AIProductRisk[];
   monetisation: AIProductMonetisationOption[];
+  marketSize: string;
   buildNotes: string;
 }
 
