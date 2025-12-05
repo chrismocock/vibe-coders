@@ -1,6 +1,22 @@
 import OpenAI from 'openai';
 import { AgentResult, AgentScoreKey } from './types';
 
+export type JsonPromptErrorKind = 'config' | 'timeout' | 'bad_response' | 'openai';
+
+export class JsonPromptError extends Error {
+  constructor(
+    message: string,
+    public kind: JsonPromptErrorKind,
+    options?: { cause?: unknown },
+  ) {
+    super(message);
+    this.name = 'JsonPromptError';
+    if (options?.cause) {
+      (this as Error & { cause?: unknown }).cause = options.cause;
+    }
+  }
+}
+
 // Use GPT-5 if available, fallback to gpt-4o
 const MODEL = process.env.OPENAI_GPT5_MODEL || 'gpt-4o';
 
@@ -9,7 +25,10 @@ const MODEL = process.env.OPENAI_GPT5_MODEL || 'gpt-4o';
  */
 function getOpenAIClient(): OpenAI {
   if (!process.env.OPENAI_API_KEY) {
-    throw new Error('OPENAI_API_KEY environment variable is required for validation');
+    throw new JsonPromptError(
+      'OpenAI API key is missing. Set OPENAI_API_KEY for validation features.',
+      'config',
+    );
   }
   return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 }
@@ -33,7 +52,7 @@ function clampScore(score: number): number {
 async function retryWithBackoff<T>(
   fn: () => Promise<T>,
   maxRetries = 2,
-  baseDelay = 1000
+  baseDelay = 1000,
 ): Promise<T> {
   let lastError: Error | null = null;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -41,7 +60,9 @@ async function retryWithBackoff<T>(
       return await fn();
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
-      if (attempt < maxRetries) {
+      const isNonRetryable =
+        lastError instanceof JsonPromptError && lastError.kind === 'config';
+      if (attempt < maxRetries && !isNonRetryable) {
         const delay = baseDelay * Math.pow(2, attempt) + Math.random() * 1000;
         await new Promise(resolve => setTimeout(resolve, delay));
       }
@@ -93,20 +114,35 @@ export async function callJsonPrompt<T>({
 
       const content = completion.choices[0]?.message?.content;
       if (!content) {
-        throw new Error('Empty response from OpenAI');
+        throw new JsonPromptError('OpenAI returned an empty response', 'bad_response');
       }
 
-      const parsed = JSON.parse(content) as T;
+      let parsed: T;
+      try {
+        parsed = JSON.parse(content) as T;
+      } catch (parseError) {
+        throw new JsonPromptError('OpenAI response was not valid JSON', 'bad_response', {
+          cause: parseError,
+        });
+      }
+
       return {
         parsed,
         tokens: completion.usage?.total_tokens,
       };
     } catch (error) {
       clearTimeout(timeout);
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error(`Request timeout after ${timeoutMs}ms`);
+      if (error instanceof JsonPromptError) {
+        throw error;
       }
-      throw error;
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new JsonPromptError(`OpenAI request timed out after ${timeoutMs}ms`, 'timeout', {
+          cause: error,
+        });
+      }
+      throw new JsonPromptError(error instanceof Error ? error.message : 'OpenAI request failed', 'openai', {
+        cause: error,
+      });
     }
   });
 

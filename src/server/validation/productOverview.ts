@@ -1,6 +1,26 @@
-import { AIProductOverviewSchema, ProductOverviewPromptInput } from '@/lib/ai/prompts/validation/productOverview';
-import { callJsonPrompt } from './openai';
+import { ZodError } from 'zod';
+import {
+  AIProductOverviewSchema,
+  ProductOverviewPromptInput,
+} from '@/lib/ai/prompts/validation/productOverview';
+import { callJsonPrompt, JsonPromptError } from './openai';
 import { AIProductOverview } from './types';
+
+export type ValidationAIErrorKind = 'input' | 'config' | 'timeout' | 'provider' | 'schema';
+
+export class ValidationAIError extends Error {
+  constructor(
+    message: string,
+    public kind: ValidationAIErrorKind,
+    options?: { cause?: unknown },
+  ) {
+    super(message);
+    this.name = 'ValidationAIError';
+    if (options?.cause) {
+      (this as Error & { cause?: unknown }).cause = options.cause;
+    }
+  }
+}
 
 export type ProductOverviewServiceInput = ProductOverviewPromptInput;
 
@@ -94,21 +114,66 @@ Follow the required sections and respond with the exact JSON schema.`;
 export async function generateProductOverview(
   input: ProductOverviewServiceInput,
 ): Promise<AIProductOverview> {
-  if (!input.summary?.trim()) {
-    throw new Error('Idea summary is required to generate the AI Product Overview');
+  const summary = input.summary?.trim();
+  if (!summary) {
+    throw new ValidationAIError(
+      'Idea summary is required to generate the AI Product Overview',
+      'input',
+    );
   }
 
-  const prompts = buildProductOverviewPrompt(input);
-
-  const { data } = await callJsonPrompt({
-    systemPrompt: prompts.systemPrompt,
-    userPrompt: prompts.userPrompt,
-    temperature: 0.55,
-    timeoutMs: 60000,
+  const prompts = buildProductOverviewPrompt({
+    ...input,
+    title: input.title?.trim() || 'Untitled Idea',
+    summary,
+    context: input.context?.trim(),
   });
 
-  const parsed = AIProductOverviewSchema.parse(data);
-  return parsed.aiProductOverview;
+  try {
+    const { data } = await callJsonPrompt({
+      systemPrompt: prompts.systemPrompt,
+      userPrompt: prompts.userPrompt,
+      temperature: 0.55,
+      timeoutMs: 60000,
+    });
+
+    const parsed = AIProductOverviewSchema.parse(data);
+    return parsed.aiProductOverview;
+  } catch (error) {
+    if (error instanceof ValidationAIError) {
+      throw error;
+    }
+
+    if (error instanceof JsonPromptError) {
+      const kindMap: Record<JsonPromptError['kind'], ValidationAIErrorKind> = {
+        config: 'config',
+        timeout: 'timeout',
+        bad_response: 'schema',
+        openai: 'provider',
+      };
+
+      const messageMap: Record<JsonPromptError['kind'], string> = {
+        config: error.message,
+        timeout: 'OpenAI timed out while generating the AI Product Overview. Please retry.',
+        bad_response: 'OpenAI returned an unexpected shape for the AI Product Overview.',
+        openai: 'OpenAI failed while generating the AI Product Overview.',
+      };
+
+      throw new ValidationAIError(messageMap[error.kind], kindMap[error.kind], { cause: error });
+    }
+
+    if (error instanceof ZodError) {
+      throw new ValidationAIError(
+        'AI Product Overview response failed schema validation.',
+        'schema',
+        { cause: error },
+      );
+    }
+
+    throw new ValidationAIError('Unexpected error while generating AI Product Overview.', 'provider', {
+      cause: error,
+    });
+  }
 }
 
 

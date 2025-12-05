@@ -59,10 +59,10 @@ function buildSectionDiagnostics(pillars: ValidationPillarResult[]): SectionDiag
   (Object.keys(SECTION_PILLAR_MAP) as OverviewSectionKey[]).forEach((section) => {
     const relevant = SECTION_PILLAR_MAP[section]
       .map((pillarId) => pillars.find((pillar) => pillar.pillarId === pillarId))
-      .filter(
-        (pillar): pillar is ValidationPillarResult =>
-          Boolean(pillar) && pillar.score < LOW_SCORE_THRESHOLD,
-      );
+      .filter((pillar): pillar is ValidationPillarResult => {
+        if (!pillar) return false;
+        return pillar.score < LOW_SCORE_THRESHOLD;
+      });
 
     if (relevant.length) {
       diagnostics[section] = relevant;
@@ -219,12 +219,26 @@ export function useValidationRefinement(projectId: string) {
       });
 
       if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error || "Failed to improve idea");
+        const errData = (await response.json().catch(() => ({}))) as {
+          error?: string;
+          meta?: { kind?: string };
+        };
+        const baseMessage = errData.error || "Failed to improve idea";
+        let detailedMessage = baseMessage;
+        if (errData.meta?.kind === "timeout") {
+          detailedMessage = `${baseMessage}. Please try again in a few seconds.`;
+        } else if (errData.meta?.kind === "config") {
+          detailedMessage = `${baseMessage}. Check OpenAI credentials in project settings.`;
+        }
+        const backendError = new Error(detailedMessage);
+        (backendError as Error & { meta?: unknown }).meta = errData.meta;
+        throw backendError;
       }
 
       const data = await response.json();
-      const updatedPillars = Array.isArray(data.pillars) ? data.pillars : pillars;
+      const updatedPillars: ValidationPillarResult[] = Array.isArray(data.pillars)
+        ? data.pillars
+        : pillars;
       if (Array.isArray(data.pillars)) {
         setPillars(data.pillars);
       }
@@ -241,9 +255,17 @@ export function useValidationRefinement(projectId: string) {
         : "All pillars strong — AI polished the narrative.";
       toast.success(`✨ Idea refined! ${toastMessage}`);
     } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to improve idea";
       console.error("Improve idea failed:", err);
-      toast.error(err instanceof Error ? err.message : "Failed to improve idea");
-      setError(err instanceof Error ? err.message : "Failed to improve idea");
+      toast.error(message, {
+        action: {
+          label: "Retry",
+          onClick: () => {
+            void improveIdea();
+          },
+        },
+      });
+      setError(message);
     } finally {
       setImproving(false);
     }
