@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { AlertTriangle, Circle, ShieldCheck } from "lucide-react";
+import { PillarSkeleton } from "@/components/ui/skeleton";
 
 interface PillarCardProps {
   pillar: ValidationPillarResult;
@@ -27,7 +28,7 @@ const scoreTokens = (score: number) => {
     return {
       label: "Strong",
       badgeClass: "bg-emerald-100 text-emerald-800",
-      cardClass: "border-emerald-200 bg-emerald-50/60",
+      cardClass: "border-emerald-100 bg-emerald-50/70 ring-1 ring-emerald-100/80",
       iconWrap: "bg-emerald-100 text-emerald-600",
       Icon: ShieldCheck,
     };
@@ -36,7 +37,7 @@ const scoreTokens = (score: number) => {
     return {
       label: "Decent",
       badgeClass: "bg-amber-100 text-amber-800",
-      cardClass: "border-amber-200 bg-amber-50/60",
+      cardClass: "border-amber-100 bg-amber-50/70 ring-1 ring-amber-100/80",
       iconWrap: "bg-amber-100 text-amber-600",
       Icon: Circle,
     };
@@ -44,22 +45,31 @@ const scoreTokens = (score: number) => {
   return {
     label: "Needs Work",
     badgeClass: "bg-rose-100 text-rose-800",
-    cardClass: "border-rose-200 bg-rose-50/60",
-    iconWrap: "bg-rose-100 text-rose-600",
+      cardClass: "border-rose-100 bg-rose-50/70 ring-1 ring-rose-100/80",
+      iconWrap: "bg-rose-100 text-rose-600",
     Icon: AlertTriangle,
   };
 };
 
 export function PillarCard({ pillar, busy }: PillarCardProps) {
+  if (busy) {
+    return <PillarSkeleton />;
+  }
+
   const { label, badgeClass, cardClass, iconWrap, Icon } = scoreTokens(pillar.score);
   return (
-    <Card className={cn("relative overflow-hidden p-4 shadow-sm", cardClass)} title={PILLAR_GLOSSARY[pillar.pillarId]}>
-      {busy && (
-        <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-xl">
-          <div className="absolute inset-0 bg-white/65 backdrop-blur-[1px]" />
-          <div className="shimmer-line" />
-        </div>
+    <Card
+      className={cn(
+        "relative overflow-hidden rounded-2xl border-l-4 p-4 shadow-sm transition-transform hover:-translate-y-0.5",
+        cardClass,
+        pillar.score >= 8
+          ? "border-l-emerald-400"
+          : pillar.score >= 5
+            ? "border-l-amber-400"
+            : "border-l-rose-400",
       )}
+      title={PILLAR_GLOSSARY[pillar.pillarId]}
+    >
       <div className="relative flex items-center justify-between">
         <div className="flex items-center gap-3">
           <span className={cn("rounded-full p-2", iconWrap)}>

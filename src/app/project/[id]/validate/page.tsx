@@ -2,22 +2,16 @@
 
 import { useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
-import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { PillarGrid } from '@/components/validation/v2/PillarGrid';
 import { AIProductOverviewPanel } from '@/components/validation/v2/AIProductOverviewPanel';
 import { useValidationRefinement } from '@/components/validation/v2/useValidationRefinement';
 import { SendToDesignBanner } from '@/components/validation/SendToDesignBanner';
+import { IdeaSummaryCard } from '@/components/validation/v2/IdeaSummaryCard';
+import { AIFocusSummary } from '@/components/validation/v2/AIFocusSummary';
 import { Loader2, Sparkles } from 'lucide-react';
-
-const pillarBadgeClass = (score: number) => {
-  if (score >= 8) return 'bg-emerald-50 text-emerald-700';
-  if (score >= 5) return 'bg-amber-50 text-amber-700';
-  return 'bg-rose-50 text-rose-700';
-};
 
 export default function ValidationRefinementPage() {
   const params = useParams();
@@ -30,14 +24,14 @@ export default function ValidationRefinementPage() {
     pillars,
     overview,
     improving,
-    saving,
-    saveError,
     lastSavedAt,
     improveIdea,
     updateOverview,
     validatedIdeaId,
     lastRefinedAt,
     sectionDiagnostics,
+    autoSaveLabel,
+    autoSaveStatus,
   } = useValidationRefinement(projectId);
 
   const averageScore = useMemo(() => {
@@ -56,18 +50,6 @@ export default function ValidationRefinementPage() {
       .filter(Boolean);
     return sentences.slice(0, 2).join(' ');
   }, [idea?.summary]);
-
-  const focusedPillars = useMemo(
-    () => pillars.filter((pillar) => pillar.score < 7),
-    [pillars],
-  );
-
-  const autoSaveLabel = useMemo(() => {
-    if (saving) return 'Saving…';
-    if (saveError) return 'Error saving – retrying…';
-    if (lastSavedAt) return '✓ Auto-saved';
-    return 'Not saved yet';
-  }, [lastSavedAt, saveError, saving]);
 
   const lastRefinedLabel = useMemo(() => {
     if (improving) return 'Refining now…';
@@ -96,8 +78,8 @@ export default function ValidationRefinementPage() {
   }
 
   return (
-    <div className="space-y-8 px-2 py-6 sm:px-4 lg:px-6">
-      <header className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
+    <div className="space-y-10 px-2 pb-24 pt-6 sm:px-4 lg:px-6">
+      <header className="rounded-3xl border border-neutral-200 bg-white/90 p-6 shadow-sm lg:p-8">
         <p className="text-xs uppercase tracking-wide text-neutral-500">Validation</p>
         <h1 className="text-3xl font-semibold text-neutral-900">AI Refinement Hub</h1>
         <p className="mt-2 max-w-3xl text-neutral-600">
@@ -112,21 +94,13 @@ export default function ValidationRefinementPage() {
       </header>
 
       {idea && (
-        <section className="grid gap-4 md:grid-cols-[2fr,1fr]">
-          <Card className="border border-neutral-200 bg-white p-5 shadow-sm">
-            <p className="text-xs uppercase tracking-wide text-neutral-500">Idea Summary</p>
-            <h3 className="mt-2 text-xl font-semibold text-neutral-900">{idea.title}</h3>
-            <p className="mt-2 text-sm text-neutral-600">
-              {ideaPitch || 'No summary captured yet.'}
-            </p>
-            <Link
-              href={ideateHref}
-              className="mt-3 inline-flex items-center text-sm font-medium text-purple-600 hover:text-purple-700"
-            >
-              View full idea →
-            </Link>
-          </Card>
-          <Card className="border border-neutral-200 bg-white p-5 shadow-sm">
+        <section className="grid gap-4 lg:grid-cols-[1.5fr,1fr]">
+          <IdeaSummaryCard
+            title={idea.title}
+            pitch={ideaPitch}
+            href={ideateHref}
+          />
+          <Card className="rounded-2xl border border-neutral-200 bg-gradient-to-br from-white via-purple-50/30 to-white p-5 shadow-sm">
             <p className="text-xs uppercase tracking-wide text-neutral-500">Validation Snapshot</p>
             <p className="mt-1 text-sm text-neutral-600">AI reviewed your idea across 7 pillars.</p>
             <div className="mt-4 flex items-baseline gap-2">
@@ -139,36 +113,47 @@ export default function ValidationRefinementPage() {
         </section>
       )}
 
-      <div className="space-y-6">
-        <section className="space-y-4">
-        <div className="flex items-center justify-between">
+      <section className="rounded-3xl border border-neutral-100 bg-white/80 p-6 shadow-sm ring-1 ring-black/5">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-xs uppercase tracking-wide text-neutral-500">Diagnostics</p>
-            <h2 className="text-xl font-semibold text-neutral-900">7 Pillar Scorecard</h2>
+            <h2 className="text-2xl font-semibold text-neutral-900">7 Pillar Scorecard</h2>
+            <p className="mt-1 text-sm text-neutral-600">
+              Colour-coded strengths and gaps help you see where AI will focus.
+            </p>
           </div>
+          {averageScore !== null && (
+            <div className="rounded-2xl border border-neutral-200 bg-white px-4 py-2 text-right text-sm text-neutral-600">
+              <p className="text-xs uppercase tracking-wide text-neutral-500">Avg Score</p>
+              <span className="text-2xl font-semibold text-neutral-900">{averageScore}/10</span>
+            </div>
+          )}
         </div>
-        {pillars.length ? (
-          <PillarGrid pillars={pillars} busy={improving} />
-        ) : (
-          <Card className="border border-dashed border-neutral-200 bg-white p-6 text-center text-neutral-500">
-            Generating pillar diagnostics…
-          </Card>
-        )}
+        <div className="mt-6">
+          {pillars.length ? (
+            <PillarGrid pillars={pillars} busy={improving} />
+          ) : (
+            <Card className="border border-dashed border-neutral-200 bg-white p-6 text-center text-neutral-500">
+              Generating pillar diagnostics…
+            </Card>
+          )}
+        </div>
       </section>
 
-        <section className="rounded-2xl border border-dashed border-purple-200 bg-white/60 p-6 shadow-sm">
+      <section className="rounded-3xl border border-purple-100 bg-gradient-to-br from-purple-50 via-white to-purple-50/40 p-6 shadow-sm">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
+            <p className="text-xs uppercase tracking-wide text-purple-500">Refinement</p>
             <h3 className="text-2xl font-semibold text-neutral-900">Refine My Idea with AI</h3>
             <p className="mt-1 text-sm text-neutral-600">
-              AI will improve your idea using all 7 pillar diagnostics.
+              AI uses the latest pillar diagnostics to rewrite your Product Overview.
             </p>
           </div>
           <Button
             onClick={improveIdea}
             disabled={improving || !pillars.length}
             size="lg"
-            className="bg-purple-600 px-8 text-white hover:bg-purple-700 disabled:opacity-60"
+            className="bg-purple-600 px-8 text-white shadow-lg shadow-purple-500/20 hover:bg-purple-700 disabled:opacity-60"
           >
             {improving ? (
               <>
@@ -183,46 +168,27 @@ export default function ValidationRefinementPage() {
             )}
           </Button>
         </div>
-        </section>
+      </section>
 
-        {!!pillars.length && (
-          <section className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <p className="text-sm font-semibold text-neutral-800">AI focused improvements on:</p>
-              <div className="flex flex-wrap gap-2">
-                {focusedPillars.length ? (
-                  focusedPillars.map((pillar) => (
-                    <Badge key={pillar.pillarId} className={pillarBadgeClass(pillar.score)}>
-                      {pillar.pillarName}
-                    </Badge>
-                  ))
-                ) : (
-                  <Badge variant="secondary" className="bg-emerald-50 text-emerald-700">
-                    All pillars strong
-                  </Badge>
-                )}
-              </div>
-            </div>
-          </section>
-        )}
-      </div>
+      {!!pillars.length && (
+        <AIFocusSummary pillars={pillars} />
+      )}
 
-      <section className="space-y-5 border-t border-neutral-200 pt-8">
+      <section className="space-y-5 rounded-3xl border border-neutral-100 bg-white/90 p-6 shadow-sm ring-1 ring-black/5">
         <div className="flex flex-col gap-4 border-b border-neutral-200 pb-4 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-xs uppercase tracking-wide text-neutral-500">AI Product Overview</p>
-            <h2 className="text-2xl font-semibold text-neutral-900">AI Product Overview (Design-ready Brief)</h2>
+            <h2 className="text-3xl font-semibold text-neutral-900">Design-ready Product Overview</h2>
             <p className="mt-2 text-sm text-neutral-600">
               This is the improved version of your idea. The Design stage uses this as the blueprint.
             </p>
             <p className="mt-3 text-xs font-medium text-neutral-500">{lastRefinedLabel}</p>
           </div>
-          <div className="flex flex-col gap-2 text-sm text-neutral-600 sm:flex-row sm:items-center sm:gap-4">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-neutral-800">Edit Sections</span>
+          <div className="flex flex-col gap-2 text-sm text-neutral-600 sm:flex-row sm:items-center sm:justify-end sm:gap-4">
+            <div className="flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-3 py-1.5">
+              <span className="text-sm font-medium text-neutral-800">✏️ Edit Sections</span>
               <Switch checked={isEditingOverview} onCheckedChange={setIsEditingOverview} />
             </div>
-            <span className="text-xs text-neutral-500">{autoSaveLabel}</span>
           </div>
         </div>
         <AIProductOverviewPanel
@@ -231,11 +197,16 @@ export default function ValidationRefinementPage() {
           isEditing={isEditingOverview}
           improving={improving}
           sectionDiagnostics={sectionDiagnostics}
+          autoSaveStatus={autoSaveStatus}
+          autoSaveLabel={autoSaveLabel}
+          lastSavedAt={lastSavedAt}
         />
       </section>
 
       {overview && (
-        <SendToDesignBanner projectId={projectId} validatedIdeaId={validatedIdeaId} />
+        <div className="sticky bottom-4 z-20">
+          <SendToDesignBanner projectId={projectId} validatedIdeaId={validatedIdeaId} />
+        </div>
       )}
     </div>
   );

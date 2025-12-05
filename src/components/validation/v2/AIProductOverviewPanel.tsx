@@ -6,15 +6,17 @@ import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Skeleton, TextSkeleton } from "@/components/ui/skeleton";
 import type {
   AIProductMonetisationOption,
   AIProductOverview,
   AIProductPersona,
   AIProductRisk,
 } from "@/server/validation/types";
-import { Loader2, Plus, Trash2 } from "lucide-react";
-import type { OverviewSectionKey, SectionDiagnostics } from "./useValidationRefinement";
+import { Plus, Trash2 } from "lucide-react";
+import type { OverviewSectionKey, SectionDiagnostics, AutoSaveStatus } from "./useValidationRefinement";
 import { OverviewSectionNav } from "./OverviewSectionNav";
+import { ValidationStatusBar } from "./ValidationStatusBar";
 
 interface AIProductOverviewPanelProps {
   overview: AIProductOverview | null;
@@ -22,6 +24,9 @@ interface AIProductOverviewPanelProps {
   isEditing: boolean;
   improving: boolean;
   sectionDiagnostics: SectionDiagnostics;
+  autoSaveStatus: AutoSaveStatus;
+  autoSaveLabel: string;
+  lastSavedAt: number | null;
 }
 
 const EMPTY_PLACEHOLDER = "(AI will generate this section after refinement)";
@@ -45,6 +50,9 @@ export function AIProductOverviewPanel({
   isEditing,
   improving,
   sectionDiagnostics,
+  autoSaveStatus,
+  autoSaveLabel,
+  lastSavedAt,
 }: AIProductOverviewPanelProps) {
   const [activeSection, setActiveSection] = useState<OverviewSectionKey>("pitch");
   const sectionRefs = useRef<Record<OverviewSectionKey, HTMLElement | null>>({
@@ -114,14 +122,34 @@ export function AIProductOverviewPanel({
 
   if (!overview) {
     return (
-      <Card className="border border-dashed border-neutral-300 bg-white p-8 text-center">
-        <p className="text-lg font-semibold text-neutral-900">
-          Run &quot;Refine My Idea with AI&quot; to generate your AI Product Overview
-        </p>
-        <p className="mt-2 text-neutral-600">
-          You&apos;ll get a polished pitch, personas, feature list, risks, monetisation ideas, and build notes—ready for
-          Design.
-        </p>
+      <Card className="rounded-3xl border border-dashed border-neutral-200 bg-white/90 p-8 text-center shadow-sm">
+        {improving ? (
+          <div className="space-y-5">
+            <ValidationStatusBar
+              status={autoSaveStatus}
+              label={autoSaveLabel}
+              timestamp={lastSavedAt}
+              className="mx-auto w-fit"
+            />
+            <OverviewSkeleton />
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <p className="text-lg font-semibold text-neutral-900">
+              Run &quot;Refine My Idea with AI&quot; to generate your AI Product Overview
+            </p>
+            <p className="text-sm text-neutral-600">
+              You&apos;ll get a polished pitch, personas, feature list, risks, monetisation ideas, and build notes—ready
+              for Design.
+            </p>
+            <ValidationStatusBar
+              status={autoSaveStatus}
+              label={autoSaveLabel}
+              timestamp={lastSavedAt}
+              className="mx-auto"
+            />
+          </div>
+        )}
       </Card>
     );
   }
@@ -244,17 +272,18 @@ export function AIProductOverviewPanel({
   };
 
   return (
-    <Card className="relative overflow-hidden border border-neutral-200 bg-neutral-50 p-4 shadow-md sm:p-6">
-      {improving && (
-        <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-white/70 backdrop-blur-[1px] animate-pulse">
-          <Loader2 className="h-6 w-6 animate-spin text-purple-600" />
-          <p className="text-sm font-medium text-neutral-600">Refining overview…</p>
-        </div>
-      )}
+    <Card className="rounded-3xl border border-neutral-100 bg-neutral-50/70 p-4 shadow-md ring-1 ring-black/5 sm:p-6 lg:p-8">
       <div className="flex flex-col gap-6 lg:flex-row">
         <OverviewSectionNav sections={navSections} onSelect={handleSectionSelect} />
         <div className="flex-1 space-y-6">
-          {isEditing ? (
+          <ValidationStatusBar
+            status={autoSaveStatus}
+            label={autoSaveLabel}
+            timestamp={lastSavedAt}
+          />
+          {improving ? (
+            <OverviewSkeleton />
+          ) : isEditing ? (
             <OverviewEditor
               overview={overview}
               registerRef={assignSectionRef}
@@ -293,7 +322,7 @@ interface OverviewDocumentProps {
 
 function OverviewDocument({ overview, diagnostics, registerRef }: OverviewDocumentProps) {
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <SectionBlock
         title="Elevator Pitch"
         sectionKey="pitch"
@@ -499,27 +528,29 @@ function SectionBlock({ sectionKey, title, registerRef, diagnostics, children }:
     <article
       ref={registerRef(sectionKey)}
       data-section-key={sectionKey}
-      className="rounded-2xl border border-neutral-200 bg-white/90 p-5 shadow-sm"
+      className="rounded-3xl border border-neutral-100 bg-white/95 p-6 shadow-sm ring-1 ring-black/5"
     >
-      <div className="flex flex-col gap-2">
-        <div className="space-y-1">
-          <p className="text-xs uppercase tracking-wide text-neutral-500">Section</p>
-          <h3 className="text-lg font-semibold text-neutral-900">{title}</h3>
-        </div>
-        {badges.length > 0 && (
-          <div className="flex flex-wrap gap-1 text-xs text-neutral-500">
-            <span className="mr-1 font-semibold text-neutral-600">Improved based on:</span>
-            {badges.map((pillar) => (
-              <span
-                key={pillar.pillarId}
-                className="rounded-full bg-purple-50 px-2 py-0.5 text-purple-700"
-              >
-                {pillar.pillarName}
-              </span>
-            ))}
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-[11px] uppercase tracking-wide text-neutral-500">Section</p>
+            <h3 className="text-xl font-semibold text-neutral-900">{title}</h3>
           </div>
-        )}
-        <div className="pt-1">{children}</div>
+          {badges.length > 0 && (
+            <div className="flex flex-wrap gap-2 text-xs text-neutral-600">
+              <span className="font-semibold text-neutral-500">Improved via</span>
+              {badges.map((pillar) => (
+                <span
+                  key={pillar.pillarId}
+                  className="rounded-full bg-purple-50/90 px-2 py-0.5 text-purple-700"
+                >
+                  {pillar.pillarName}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="text-[15px] leading-relaxed text-neutral-700">{children}</div>
       </div>
     </article>
   );
@@ -537,7 +568,7 @@ function EditorSection({ sectionKey, title, registerRef, children }: EditorSecti
     <section
       ref={registerRef(sectionKey)}
       data-section-key={sectionKey}
-      className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm"
+      className="rounded-3xl border border-neutral-100 bg-white p-5 shadow-sm"
     >
       <p className="text-xs uppercase tracking-wide text-neutral-500">{title}</p>
       <div className="mt-3 space-y-3">{children}</div>
@@ -840,7 +871,14 @@ function DocText({ body }: { body?: string }) {
   if (!content) {
     return <DocPlaceholder />;
   }
-  return <p className="whitespace-pre-line leading-relaxed text-neutral-700">{content}</p>;
+  const paragraphs = content.split(/\n{2,}/).map((entry) => entry.trim()).filter(Boolean);
+  return (
+    <div className="space-y-3 whitespace-pre-line text-[15px] leading-relaxed text-neutral-700">
+      {paragraphs.map((paragraph, index) => (
+        <p key={`paragraph-${index}`}>{paragraph}</p>
+      ))}
+    </div>
+  );
 }
 
 function DocList({ items }: { items: string[] }) {
@@ -849,10 +887,12 @@ function DocList({ items }: { items: string[] }) {
     return <DocPlaceholder />;
   }
   return (
-    <ul className="space-y-2 text-neutral-700">
+    <ul className="space-y-2 text-[15px] leading-relaxed text-neutral-700">
       {list.map((item) => (
-        <li key={item} className="relative pl-5">
-          <span className="absolute left-0 top-1 text-sm text-purple-500">•</span>
+        <li
+          key={item}
+          className="relative pl-5 before:absolute before:left-0 before:top-[10px] before:h-1.5 before:w-1.5 before:-translate-y-1/2 before:rounded-full before:bg-purple-400"
+        >
           {item}
         </li>
       ))}
@@ -868,11 +908,16 @@ function PersonasDoc({ personas }: { personas: AIProductPersona[] }) {
   return (
     <div className="grid gap-4 md:grid-cols-2">
       {personas.map((persona, index) => (
-        <div key={`${persona.name}-${index}`} className="rounded-2xl border border-neutral-200 bg-white/80 p-4 shadow-sm">
-          <p className="text-base font-semibold text-neutral-900">
+        <div
+          key={`${persona.name}-${index}`}
+          className="rounded-3xl border border-neutral-100 bg-white/95 p-5 shadow-sm ring-1 ring-black/5"
+        >
+          <p className="text-lg font-semibold text-neutral-900">
             {persona.name?.trim() || `Persona ${index + 1}`}
           </p>
-          {persona.role?.trim() && <p className="text-xs uppercase tracking-wide text-neutral-500">{persona.role.trim()}</p>}
+          {persona.role?.trim() && (
+            <p className="text-[11px] uppercase tracking-wide text-neutral-500">{persona.role.trim()}</p>
+          )}
           <p className="mt-2 text-sm text-neutral-600">
             {persona.summary?.trim() || EMPTY_PLACEHOLDER}
           </p>
@@ -896,10 +941,10 @@ function RisksDoc({ risks }: { risks: AIProductRisk[] }) {
       {risks.map((risk, index) => (
         <div
           key={`${risk.risk}-${index}`}
-          className="rounded-2xl border border-neutral-200 bg-white/80 p-4 shadow-sm"
+          className="rounded-3xl border border-neutral-100 bg-white/95 p-5 shadow-sm ring-1 ring-black/5"
         >
-          <p className="text-sm font-semibold text-neutral-900">{risk.risk?.trim() || `Risk ${index + 1}`}</p>
-          <p className="mt-2 text-xs uppercase tracking-wide text-neutral-500">Mitigation</p>
+          <p className="text-base font-semibold text-neutral-900">{risk.risk?.trim() || `Risk ${index + 1}`}</p>
+          <p className="mt-2 text-[11px] uppercase tracking-wide text-neutral-500">Mitigation</p>
           <p className="text-sm text-neutral-700">{risk.mitigation?.trim() || EMPTY_PLACEHOLDER}</p>
         </div>
       ))}
@@ -916,9 +961,9 @@ function MonetisationDoc({ items }: { items: AIProductMonetisationOption[] }) {
       {items.map((option, index) => (
         <div
           key={`${option.model}-${index}`}
-          className="rounded-2xl border border-neutral-200 bg-white/80 p-4 shadow-sm"
+          className="rounded-3xl border border-neutral-100 bg-white/95 p-5 shadow-sm ring-1 ring-black/5"
         >
-          <p className="text-sm font-semibold text-neutral-900">
+          <p className="text-base font-semibold text-neutral-900">
             {option.model?.trim() || `Option ${index + 1}`}
           </p>
           <p className="mt-2 text-sm text-neutral-700">{option.description?.trim() || EMPTY_PLACEHOLDER}</p>
@@ -935,12 +980,14 @@ function DocBullets({ label, items }: { label: string; items: string[] }) {
   const list = sanitizeList(items);
   return (
     <div>
-      <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">{label}</p>
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">{label}</p>
       {list.length ? (
-        <ul className="mt-1 space-y-1 text-sm text-neutral-600">
+        <ul className="mt-1 space-y-1.5 text-sm text-neutral-600">
           {list.map((item) => (
-            <li key={item} className="relative pl-4">
-              <span className="absolute left-0 top-0 text-neutral-400">•</span>
+            <li
+              key={item}
+              className="relative pl-4 before:absolute before:left-0 before:top-[9px] before:h-1.5 before:w-1.5 before:-translate-y-1/2 before:rounded-full before:bg-neutral-300"
+            >
               {item}
             </li>
           ))}
@@ -969,6 +1016,22 @@ function sanitizeList(items?: string[]): string[] {
     }
   });
   return result;
+}
+
+function OverviewSkeleton() {
+  return (
+    <div className="space-y-5">
+      {Array.from({ length: 4 }).map((_, index) => (
+        <div
+          key={`skeleton-${index}`}
+          className="rounded-3xl border border-neutral-100 bg-white/90 p-5 shadow-sm"
+        >
+          <Skeleton className="h-4 w-32" />
+          <TextSkeleton className="mt-4" lines={3} />
+        </div>
+      ))}
+    </div>
+  );
 }
 
 

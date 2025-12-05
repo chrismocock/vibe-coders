@@ -22,6 +22,8 @@ interface PillarResponsePayload {
   validatedIdeaId: string | null;
 }
 
+export type AutoSaveStatus = "idle" | "saving" | "saved" | "error";
+
 export type OverviewSectionKey =
   | "pitch"
   | "problem"
@@ -222,6 +224,7 @@ export function useValidationRefinement(projectId: string) {
       }
 
       const data = await response.json();
+      const updatedPillars = Array.isArray(data.pillars) ? data.pillars : pillars;
       if (Array.isArray(data.pillars)) {
         setPillars(data.pillars);
       }
@@ -230,7 +233,13 @@ export function useValidationRefinement(projectId: string) {
       setLastSavedAt(null);
       setLastRefinedAt(Date.now());
       await saveSnapshot(data.aiProductOverview);
-      toast.success("✨ Idea refined based on pillar insights.");
+      const focusPillars = updatedPillars
+        .filter((pillar) => pillar.score < LOW_SCORE_THRESHOLD)
+        .map((pillar) => pillar.pillarName);
+      const toastMessage = focusPillars.length
+        ? `Based on pillar analysis: ${focusPillars.join(", ")}.`
+        : "All pillars strong — AI polished the narrative.";
+      toast.success(`✨ Idea refined! ${toastMessage}`);
     } catch (err) {
       console.error("Improve idea failed:", err);
       toast.error(err instanceof Error ? err.message : "Failed to improve idea");
@@ -255,6 +264,26 @@ export function useValidationRefinement(projectId: string) {
 
   const sectionDiagnostics = useMemo(() => buildSectionDiagnostics(pillars), [pillars]);
 
+  const autoSaveStatus = useMemo<AutoSaveStatus>(() => {
+    if (saving) return "saving";
+    if (saveError) return "error";
+    if (lastSavedAt) return "saved";
+    return "idle";
+  }, [lastSavedAt, saveError, saving]);
+
+  const autoSaveLabel = useMemo(() => {
+    switch (autoSaveStatus) {
+      case "saving":
+        return "Saving…";
+      case "error":
+        return "Error saving – retrying…";
+      case "saved":
+        return "✓ Auto-saved";
+      default:
+        return "Not saved yet";
+    }
+  }, [autoSaveStatus]);
+
   return {
     loading,
     error,
@@ -270,6 +299,8 @@ export function useValidationRefinement(projectId: string) {
     improveIdea,
     updateOverview,
     sectionDiagnostics,
+    autoSaveStatus,
+    autoSaveLabel,
     refetch: fetchPillars,
     saveSnapshot,
   };
