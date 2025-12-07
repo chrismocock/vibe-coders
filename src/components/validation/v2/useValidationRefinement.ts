@@ -123,8 +123,12 @@ export function useValidationRefinement(projectId: string) {
         throw new Error(errData.error || "Failed to save validation overview");
       }
 
-      const data = await response.json();
-      setValidatedIdeaId(data.validatedIdea?.id ?? null);
+      const data = (await response.json()) as {
+        validatedIdea?: { id?: string } | null;
+      };
+      if (data.validatedIdea?.id) {
+        setValidatedIdeaId(data.validatedIdea.id);
+      }
       setLastSavedAt(Date.now());
       setSaveError(false);
       retryCount.current = 0;
