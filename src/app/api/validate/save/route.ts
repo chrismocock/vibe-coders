@@ -69,6 +69,31 @@ export async function POST(req: NextRequest) {
       context: body.idea?.context || baseIdea.context,
     };
 
+    // Check if a validated_idea already exists for this project
+    const { data: existingValidatedIdea } = await supabase
+      .from('validated_ideas')
+      .select('id, idea_id')
+      .eq('project_id', body.projectId)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    // If exists and idea_id has changed, delete the old record first to avoid unique constraint violation
+    if (existingValidatedIdea && existingValidatedIdea.idea_id !== ideateStage.id) {
+      const { error: deleteError } = await supabase
+        .from('validated_ideas')
+        .delete()
+        .eq('id', existingValidatedIdea.id)
+        .eq('user_id', userId);
+
+      if (deleteError) {
+        console.error('Failed to delete old validated idea:', deleteError);
+        return NextResponse.json(
+          { error: 'Failed to update validated idea' },
+          { status: 500 },
+        );
+      }
+    }
+
     const { data: savedIdea, error: upsertError } = await supabase
       .from('validated_ideas')
       .upsert(
@@ -86,7 +111,13 @@ export async function POST(req: NextRequest) {
 
     if (upsertError || !savedIdea) {
       console.error('Failed to save validated idea:', upsertError);
-      return NextResponse.json({ error: 'Failed to save validated idea' }, { status: 500 });
+      return NextResponse.json(
+        {
+          error: 'Failed to save validated idea',
+          details: upsertError?.message || 'Unknown error',
+        },
+        { status: 500 },
+      );
     }
 
     const stageInput = {
