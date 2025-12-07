@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { getSupabaseServer } from '@/lib/supabaseServer';
 import { generatePillars } from '@/server/validation/pillars';
+import { JsonPromptError } from '@/server/validation/openai';
 import { extractIdeaDetails } from '@/server/validation/idea';
 import {
   AIProductMonetisationOption,
@@ -114,6 +115,20 @@ function extractAiReview(rawOutput?: unknown): string | undefined {
   return undefined;
 }
 
+const PILLAR_ERROR_STATUS: Record<JsonPromptError['kind'], number> = {
+  config: 500,
+  timeout: 504,
+  bad_response: 502,
+  openai: 502,
+};
+
+const PILLAR_ERROR_MESSAGE: Record<JsonPromptError['kind'], string> = {
+  config: 'OpenAI API key is missing or invalid. Check project settings.',
+  timeout: 'The validation request timed out. Please try again shortly.',
+  bad_response: 'OpenAI returned an unexpected response. Please retry.',
+  openai: 'OpenAI request failed. Please try again.',
+};
+
 export async function POST(req: NextRequest) {
   try {
     const { userId } = await auth();
@@ -200,8 +215,41 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     console.error('Failed to generate validation pillars:', error);
+
+    const sanitizeDetail = (detail?: unknown): string | undefined => {
+      if (typeof detail === 'string' && detail.trim()) {
+        return detail.trim();
+      }
+      if (detail instanceof Error && detail.message.trim()) {
+        return detail.message.trim();
+      }
+      if (detail && typeof detail === 'object' && 'message' in detail) {
+        const message = (detail as Record<string, unknown>).message;
+        if (typeof message === 'string' && message.trim()) {
+          return message.trim();
+        }
+      }
+      return undefined;
+    };
+
+    if (error instanceof JsonPromptError) {
+      const kind = error.kind;
+      const status = PILLAR_ERROR_STATUS[kind] ?? 500;
+      const errorMessage = PILLAR_ERROR_MESSAGE[kind] ?? 'Failed to generate validation pillars';
+
+      const detail = sanitizeDetail(error.message) ?? sanitizeDetail((error as Error & { cause?: unknown }).cause);
+
+      return NextResponse.json({ error: errorMessage, meta: { kind, detail } }, { status });
+    }
+
     return NextResponse.json(
-      { error: 'Failed to generate validation pillars' },
+      {
+        error: 'Failed to generate validation pillars',
+        meta: {
+          kind: 'unknown',
+          detail: sanitizeDetail((error as Error & { cause?: unknown }).cause) ?? sanitizeDetail(error),
+        },
+      },
       { status: 500 },
     );
   }
