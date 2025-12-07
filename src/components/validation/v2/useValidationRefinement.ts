@@ -87,11 +87,20 @@ export function useValidationRefinement(projectId: string) {
 
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const skipNextAutoSave = useRef(false);
+  const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const retryCount = useRef(0);
+  const MAX_RETRIES = 3;
 
   const saveSnapshot = useCallback(async (override?: AIProductOverview | null) => {
     const overviewToSave = override ?? overview;
     if (!overviewToSave || !idea || pillars.length === 0) {
       return;
+    }
+
+    // Clear any pending retry timer
+    if (retryTimer.current) {
+      clearTimeout(retryTimer.current);
+      retryTimer.current = null;
     }
 
     setSaving(true);
@@ -117,14 +126,19 @@ export function useValidationRefinement(projectId: string) {
       const data = await response.json();
       setValidatedIdeaId(data.validatedIdea?.id ?? null);
       setLastSavedAt(Date.now());
+      setSaveError(false);
+      retryCount.current = 0;
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event("section-updated"));
       }
     } catch (err) {
       console.error("Validation auto-save failed:", err);
-      toast.error(err instanceof Error ? err.message : "Failed to save overview");
       setError(err instanceof Error ? err.message : "Failed to save overview");
       setSaveError(true);
+      // Only show toast on first failure, not on retries
+      if (retryCount.current === 0) {
+        toast.error(err instanceof Error ? err.message : "Failed to save overview");
+      }
     } finally {
       setSaving(false);
     }
@@ -196,8 +210,36 @@ export function useValidationRefinement(projectId: string) {
       if (autoSaveTimer.current) {
         clearTimeout(autoSaveTimer.current);
       }
+      if (retryTimer.current) {
+        clearTimeout(retryTimer.current);
+      }
     };
   }, [fetchPillars]);
+
+  // Auto-retry when save error occurs
+  useEffect(() => {
+    if (saveError && !saving && retryCount.current < MAX_RETRIES) {
+      if (retryTimer.current) {
+        clearTimeout(retryTimer.current);
+      }
+      const delay = 2000 * (retryCount.current + 1); // Exponential backoff: 2s, 4s, 6s
+      retryTimer.current = setTimeout(() => {
+        retryCount.current += 1;
+        retryTimer.current = null;
+        void saveSnapshot();
+      }, delay);
+    } else if (saveError && retryCount.current >= MAX_RETRIES) {
+      // Max retries reached, stop retrying
+      setSaveError(false);
+      retryCount.current = 0;
+      toast.error("Failed to save after multiple attempts. Please try again.");
+    }
+    return () => {
+      if (retryTimer.current) {
+        clearTimeout(retryTimer.current);
+      }
+    };
+  }, [saveError, saving, saveSnapshot]);
 
   const improveIdea = useCallback(async () => {
     if (!idea || pillars.length === 0) {
