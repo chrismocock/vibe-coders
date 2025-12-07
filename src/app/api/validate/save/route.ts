@@ -69,52 +69,92 @@ export async function POST(req: NextRequest) {
       context: body.idea?.context || baseIdea.context,
     };
 
-    // Check if a validated_idea already exists for this project
-    const { data: existingValidatedIdea } = await supabase
+    // Check if a validated_idea already exists for this project (project_id unique constraint)
+    const { data: existingByProject } = await supabase
       .from('validated_ideas')
       .select('id, idea_id')
       .eq('project_id', body.projectId)
       .eq('user_id', userId)
       .maybeSingle();
 
-    // If exists and idea_id has changed, delete the old record first to avoid unique constraint violation
-    if (existingValidatedIdea && existingValidatedIdea.idea_id !== ideateStage.id) {
+    // Check if a validated_idea exists with the same idea_id (idea_id unique constraint)
+    const { data: existingByIdea } = await supabase
+      .from('validated_ideas')
+      .select('id, project_id')
+      .eq('idea_id', ideateStage.id)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    // Handle conflicts: both project_id and idea_id have unique constraints
+    // Priority: project_id takes precedence (one validated idea per project)
+    if (existingByIdea && existingByIdea.id !== existingByProject?.id) {
+      // Delete the record that conflicts on idea_id (unless it's the same as project record)
       const { error: deleteError } = await supabase
         .from('validated_ideas')
         .delete()
-        .eq('id', existingValidatedIdea.id)
+        .eq('id', existingByIdea.id)
         .eq('user_id', userId);
 
       if (deleteError) {
-        console.error('Failed to delete old validated idea:', deleteError);
+        console.error('Failed to delete conflicting validated idea:', deleteError);
         return NextResponse.json(
-          { error: 'Failed to update validated idea' },
+          {
+            error: 'Failed to save validated idea',
+            details: deleteError.message || 'Conflict resolution failed',
+          },
           { status: 500 },
         );
       }
     }
 
-    const { data: savedIdea, error: upsertError } = await supabase
-      .from('validated_ideas')
-      .upsert(
-        {
+    // Now insert or update based on whether a record exists for this project
+    let savedIdea;
+    let upsertError;
+
+    if (existingByProject) {
+      // Update existing record (project_id match)
+      const { data, error } = await supabase
+        .from('validated_ideas')
+        .update({
+          idea_id: ideateStage.id,
+          pillar_scores: body.pillars,
+          ai_overview: body.aiProductOverview,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', existingByProject.id)
+        .eq('user_id', userId)
+        .select()
+        .single();
+      savedIdea = data;
+      upsertError = error;
+    } else {
+      // Insert new record
+      const { data, error } = await supabase
+        .from('validated_ideas')
+        .insert({
           user_id: userId,
           project_id: body.projectId,
           idea_id: ideateStage.id,
           pillar_scores: body.pillars,
           ai_overview: body.aiProductOverview,
-        },
-        { onConflict: 'project_id' },
-      )
-      .select()
-      .single();
+        })
+        .select()
+        .single();
+      savedIdea = data;
+      upsertError = error;
+    }
 
     if (upsertError || !savedIdea) {
-      console.error('Failed to save validated idea:', upsertError);
+      console.error('Failed to save validated idea:', {
+        error: upsertError,
+        code: upsertError?.code,
+        message: upsertError?.message,
+        details: upsertError?.details,
+      });
       return NextResponse.json(
         {
           error: 'Failed to save validated idea',
-          details: upsertError?.message || 'Unknown error',
+          details: upsertError?.message || upsertError?.code || 'Unknown error',
         },
         { status: 500 },
       );
