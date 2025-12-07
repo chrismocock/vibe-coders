@@ -3,7 +3,7 @@ import {
   ValidationPillarsPromptInput,
   ValidationPillarsResponseSchema,
 } from '@/lib/ai/prompts/validation/pillars';
-import { callJsonPrompt } from './openai';
+import { callJsonPrompt, JsonPromptError } from './openai';
 import { ValidationPillarId, ValidationPillarResult } from './types';
 
 export type PillarServiceInput = ValidationPillarsPromptInput;
@@ -137,6 +137,67 @@ function normalizePillarId(id?: string | null): ValidationPillarId | undefined {
   return pillarIdAliases[compact];
 }
 
+type PillarCandidate = {
+  pillarId?: string;
+  pillarName?: string;
+  score?: number;
+  analysis?: string;
+  strength?: string;
+  weakness?: string;
+  improvementSuggestion?: string;
+};
+
+const coerceString = (value: unknown): string | undefined => {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed.length ? trimmed : undefined;
+};
+
+const coerceScore = (value: unknown): number | undefined => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    if (!Number.isNaN(parsed)) {
+      return parsed;
+    }
+  }
+  return undefined;
+};
+
+function recoverPillarCandidates(raw: unknown): PillarCandidate[] {
+  if (!raw || typeof raw !== 'object') {
+    return [];
+  }
+
+  const rawPillars = (raw as { pillars?: unknown }).pillars;
+  if (!Array.isArray(rawPillars)) {
+    return [];
+  }
+
+  return rawPillars
+    .map((pillar) => {
+      if (!pillar || typeof pillar !== 'object') {
+        return null;
+      }
+
+      const record = pillar as Record<string, unknown>;
+      const candidate: PillarCandidate = {
+        pillarId: coerceString(record.pillarId),
+        pillarName: coerceString(record.pillarName),
+        score: coerceScore(record.score),
+        analysis: coerceString(record.analysis),
+        strength: coerceString(record.strength),
+        weakness: coerceString(record.weakness),
+        improvementSuggestion: coerceString(record.improvementSuggestion),
+      };
+
+      return candidate.pillarId || candidate.pillarName ? candidate : null;
+    })
+    .filter((candidate): candidate is PillarCandidate => candidate !== null);
+}
+
 function buildPillarAnalysisPrompts(input: PillarServiceInput) {
   const title = input.title?.trim() || 'Untitled Idea';
   const summary = input.summary?.trim() || 'No summary provided.';
@@ -167,14 +228,28 @@ export async function generatePillars(input: PillarServiceInput): Promise<Valida
     timeoutMs: 45000,
   });
 
-  const parsed = ValidationPillarsResponseSchema.parse(data);
+  const parsed = ValidationPillarsResponseSchema.safeParse(data);
+  const pillarCandidates: PillarCandidate[] = parsed.success
+    ? parsed.data.pillars
+    : recoverPillarCandidates(data);
+
+  if (!parsed.success) {
+    console.warn('Validation pillar schema mismatch:', parsed.error.flatten?.() ?? parsed.error);
+    if (pillarCandidates.length === 0) {
+      throw new JsonPromptError('Validation pillar response missing usable data', 'bad_response', {
+        cause: parsed.error,
+      });
+    }
+  }
+
   const pillarMap = new Map(
-    parsed.pillars
+    pillarCandidates
       .map((pillar) => {
-        const normalizedId = normalizePillarId(pillar.pillarId);
+        const normalizedId =
+          normalizePillarId(pillar.pillarId) ?? normalizePillarId(pillar.pillarName);
         return normalizedId ? [normalizedId, pillar] : null;
       })
-      .filter((entry): entry is [ValidationPillarId, typeof parsed.pillars[number]] => !!entry),
+      .filter((entry): entry is [ValidationPillarId, PillarCandidate] => !!entry),
   );
 
   return VALIDATION_PILLAR_DEFINITIONS.map((definition) => {
