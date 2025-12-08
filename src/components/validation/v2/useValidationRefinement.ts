@@ -267,11 +267,13 @@ export function useValidationRefinement(projectId: string) {
       if (!response.ok) {
         const errData = (await response.json().catch(() => ({}))) as {
           error?: string;
-          meta?: { kind?: string };
+          meta?: { kind?: string; summary?: string; issues?: string[] };
         };
         const baseMessage = errData.error || "Failed to improve idea";
         let detailedMessage = baseMessage;
-        if (errData.meta?.kind === "timeout") {
+        if (errData.meta?.summary) {
+          detailedMessage = `${baseMessage}: ${errData.meta.summary}`;
+        } else if (errData.meta?.kind === "timeout") {
           detailedMessage = `${baseMessage}. Please try again in a few seconds.`;
         } else if (errData.meta?.kind === "config") {
           detailedMessage = `${baseMessage}. Check OpenAI credentials in project settings.`;
