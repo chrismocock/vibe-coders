@@ -42,15 +42,6 @@ export default function ValidationRefinementPage() {
 
   const ideateHref = `/project/${projectId}/ideate`;
 
-  const ideaPitch = useMemo(() => {
-    if (!idea?.summary) return null;
-    const sentences = idea.summary
-      .split(/(?<=[.!?])\s+/)
-      .map((sentence) => sentence.trim())
-      .filter(Boolean);
-    return sentences.slice(0, 2).join(' ');
-  }, [idea?.summary]);
-
   const lastRefinedLabel = useMemo(() => {
     if (improving) return 'Refining now…';
     if (!lastRefinedAt) return 'Waiting for first refinement';
@@ -97,7 +88,7 @@ export default function ValidationRefinementPage() {
         <section className="grid gap-4 lg:grid-cols-[1.5fr,1fr]">
           <IdeaSummaryCard
             title={idea.title}
-            pitch={ideaPitch}
+            overview={idea.summary}
             href={ideateHref}
           />
           <Card className="rounded-2xl border border-neutral-200 bg-gradient-to-br from-white via-purple-50/30 to-white p-5 shadow-sm">
