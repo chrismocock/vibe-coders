@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Wand2, Loader2, Save, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface ProductBlueprintProps {
   projectId: string;
@@ -177,6 +178,9 @@ export default function ProductBlueprint({
     valueDeliveryDiagram: string;
     refinements: string;
   }) {
+    const defaultErrorMessage = "Failed to save product blueprint. Please try again.";
+    let errorNotified = false;
+
     try {
       setSaving(true);
 
@@ -189,17 +193,41 @@ export default function ProductBlueprint({
         }),
       });
 
-      if (response.ok) {
-        const result = await response.json();
-        setSaved(true);
-        setTimeout(() => setSaved(false), 2000);
-        // Update blueprint from save response instead of refetching
-        if (result.blueprint) {
-          onUpdate?.(result.blueprint);
+      if (!response.ok) {
+        let errorMessage = defaultErrorMessage;
+
+        try {
+          const errorData = await response.json();
+          errorMessage =
+            errorData?.error || errorData?.message || errorData?.detail || defaultErrorMessage;
+        } catch (parseError) {
+          console.error("Failed to parse save error response:", parseError);
         }
+
+        toast.error(errorMessage);
+        errorNotified = true;
+        throw new Error(errorMessage);
       }
+
+      const result = await response.json();
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+      // Update blueprint from save response instead of refetching
+      if (result.blueprint) {
+        onUpdate?.(result.blueprint);
+      }
+
+      return result;
     } catch (error) {
       console.error("Save error:", error);
+
+      if (!errorNotified) {
+        const message =
+          (error instanceof Error && error.message) || defaultErrorMessage;
+        toast.error(message);
+      }
+
+      throw error;
     } finally {
       setSaving(false);
     }
