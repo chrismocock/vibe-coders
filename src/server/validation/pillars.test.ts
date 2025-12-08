@@ -76,4 +76,33 @@ describe('generatePillars', () => {
       generatePillars({ title: 'Test Idea', summary: 'Fallback validation' }),
     ).rejects.toBeInstanceOf(JsonPromptError);
   });
+
+  it('normalises AI-provided Market Size & Demand Signals pillars', async () => {
+    callJsonPromptMock.mockResolvedValue({
+      data: {
+        pillars: [
+          {
+            pillarName: 'Market Size & Demand Signals',
+            score: '7',
+            analysis: 'Clear demand signals and healthy search interest.',
+            strength: 'Search interest shows early traction.',
+            weakness: 'Needs more segmented TAM view.',
+            improvementSuggestion: 'Quantify demand by cohort and region.',
+          },
+        ],
+      },
+      meta: { tokens: 0, duration: 1 },
+    });
+
+    const pillars = await generatePillars({ title: 'Test Idea', summary: 'Great summary' });
+
+    const marketSizePillar = pillars.find((pillar) => pillar.pillarId === 'marketSize');
+    expect(marketSizePillar?.score).toBe(7);
+    expect(marketSizePillar?.analysis).toBe('Clear demand signals and healthy search interest.');
+    expect(marketSizePillar?.strength).toBe('Search interest shows early traction.');
+    expect(marketSizePillar?.weakness).toBe('Needs more segmented TAM view.');
+    expect(marketSizePillar?.improvementSuggestion).toBe(
+      'Quantify demand by cohort and region.',
+    );
+  });
 });
