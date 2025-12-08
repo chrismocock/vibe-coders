@@ -105,4 +105,62 @@ describe('generatePillars', () => {
       'Quantify demand by cohort and region.',
     );
   });
+
+  it('normalises Feasibility & Build Complexity when provided as a pillarName', async () => {
+    callJsonPromptMock.mockResolvedValue({
+      data: {
+        pillars: [
+          {
+            pillarName: 'Feasibility & Build Complexity (Vibe Coding Tools)',
+            score: 9,
+            analysis: 'Straightforward to build with existing AI tooling.',
+            strength: 'Clear build path leveraging vibe coding.',
+            weakness: 'Integration testing effort required.',
+            improvementSuggestion: 'Prototype core flows using hosted LLMs first.',
+          },
+        ],
+      },
+      meta: { tokens: 0, duration: 1 },
+    });
+
+    const pillars = await generatePillars({ title: 'Test Idea', summary: 'Great summary' });
+
+    const feasibility = pillars.find((pillar) => pillar.pillarId === 'feasibility');
+    expect(feasibility?.score).toBe(9);
+    expect(feasibility?.analysis).toBe('Straightforward to build with existing AI tooling.');
+    expect(feasibility?.strength).toBe('Clear build path leveraging vibe coding.');
+    expect(feasibility?.weakness).toBe('Integration testing effort required.');
+    expect(feasibility?.improvementSuggestion).toBe(
+      'Prototype core flows using hosted LLMs first.',
+    );
+  });
+
+  it('normalises Feasibility & Build Complexity when provided as a pillarId', async () => {
+    callJsonPromptMock.mockResolvedValue({
+      data: {
+        pillars: [
+          {
+            pillarId: 'Feasibility & Build Complexity',
+            analysis: 'Moderate complexity with some bespoke integrations.',
+            strength: 'Core workflows align with available AI services.',
+            weakness: 'Ops overhead could increase with scale.',
+            improvementSuggestion: 'Define MVP boundaries to limit initial scope.',
+          },
+        ],
+      },
+      meta: { tokens: 0, duration: 1 },
+    });
+
+    const pillars = await generatePillars({ title: 'Test Idea', summary: 'Great summary' });
+
+    const feasibility = pillars.find((pillar) => pillar.pillarId === 'feasibility');
+    expect(feasibility?.analysis).toBe(
+      'Moderate complexity with some bespoke integrations.',
+    );
+    expect(feasibility?.strength).toBe('Core workflows align with available AI services.');
+    expect(feasibility?.weakness).toBe('Ops overhead could increase with scale.');
+    expect(feasibility?.improvementSuggestion).toBe(
+      'Define MVP boundaries to limit initial scope.',
+    );
+  });
 });
