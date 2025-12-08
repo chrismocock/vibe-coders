@@ -167,7 +167,10 @@ export async function POST(req: NextRequest) {
     };
 
     const stageOutput = {
+      // Keep legacy field for compatibility with existing consumers
       aiProductOverview: body.aiProductOverview,
+      // New field name expected by downstream loaders (e.g., Design workspace)
+      overview: body.aiProductOverview,
       validatedIdeaId: savedIdea.id,
     };
 

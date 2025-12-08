@@ -705,6 +705,11 @@ export default function StageWorkspace({ projectId, hideSidebar = false }: Stage
         return;
       }
 
+      if (outputData?.aiProductOverview) {
+        setValidateData({ overview: outputData.aiProductOverview });
+        return;
+      }
+
       const reportId = outputData?.reportId;
       if (reportId) {
         const reportResponse = await fetch(`/api/validate/${reportId}`);

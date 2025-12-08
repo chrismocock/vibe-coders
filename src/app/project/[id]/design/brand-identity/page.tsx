@@ -51,7 +51,13 @@ export default function BrandIdentityPage() {
               const outputData = typeof validateStage.output === "string"
                 ? JSON.parse(validateStage.output)
                 : validateStage.output;
-              
+
+              const overview = outputData.overview || outputData.aiProductOverview;
+              if (overview) {
+                setValidateData(overview);
+                return;
+              }
+
               const reportId = outputData.reportId;
               if (reportId) {
                 const reportResponse = await fetch(`/api/validate/${reportId}`);
