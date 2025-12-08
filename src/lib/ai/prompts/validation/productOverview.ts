@@ -6,8 +6,8 @@ export const AIProductPersonaSchema = z.object({
   role: z.string().min(3).max(80).optional(),
   summary: z.string().min(20).max(220),
   needs: z.array(z.string().min(4)).min(2).max(5),
-  motivations: z.array(z.string().min(4)).min(1).max(4).optional(),
-  painPoints: z.array(z.string().min(4)).min(1).max(4).optional(),
+  motivations: z.array(z.string().min(4)).max(4).optional(),
+  painPoints: z.array(z.string().min(4)).max(4).optional(),
 });
 
 export const AIProductRiskSchema = z.object({

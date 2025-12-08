@@ -43,8 +43,8 @@ REQUIRED SECTIONS
    - role: Optional role or descriptor (e.g., "Solo founder", "Marketing manager")
    - summary: A 20-220 character description of who this persona is and what they expect
    - needs: An array of 2-5 primary needs (each at least 4 characters)
-   - motivations: Optional array of 1-4 motivations (each at least 4 characters)
-   - painPoints: Optional array of 1-4 pain points or frustrations (each at least 4 characters)
+   - motivations: Optional array of up to 4 motivations (each at least 4 characters). Omit or leave empty if none.
+   - painPoints: Optional array of up to 4 pain points or frustrations (each at least 4 characters). Omit or leave empty if none.
 4. Solution Description
    - A clear explanation of what the product does and how it works.
 5. Core Features
@@ -80,8 +80,8 @@ Return ONLY valid JSON matching this exact structure:
         "role": "string (3-80 chars, optional)",
         "summary": "string (20-220 chars)",
         "needs": ["string (min 4 chars)", ...],
-        "motivations": ["string (min 4 chars, optional)", ...],
-        "painPoints": ["string (min 4 chars, optional)", ...]
+        "motivations": ["string (min 4 chars, optional)", ...], // Omit or leave empty if none
+        "painPoints": ["string (min 4 chars, optional)", ...] // Omit or leave empty if none
       }
     ],
     "solution": "string (40-400 chars)",
@@ -112,6 +112,42 @@ CRITICAL: All fields must match the schema exactly. Ensure:
 - Persona objects include required "name" and "summary" fields
 - All array items meet their individual length requirements
 Keep output practical and design-ready.`;
+
+function normalizeProductOverviewResponse(data: unknown) {
+  if (!data || typeof data !== 'object') return data;
+
+  const overview = (data as { aiProductOverview?: unknown }).aiProductOverview;
+  if (!overview || typeof overview !== 'object') return data;
+
+  const personas = (overview as { personas?: unknown }).personas;
+  if (!Array.isArray(personas)) {
+    return data;
+  }
+
+  const normalizedPersonas = personas.map((persona) => {
+    if (!persona || typeof persona !== 'object') return persona;
+
+    const normalizedPersona = { ...persona } as Record<string, unknown>;
+
+    if (Array.isArray(normalizedPersona.motivations) && normalizedPersona.motivations.length === 0) {
+      delete normalizedPersona.motivations;
+    }
+
+    if (Array.isArray(normalizedPersona.painPoints) && normalizedPersona.painPoints.length === 0) {
+      delete normalizedPersona.painPoints;
+    }
+
+    return normalizedPersona;
+  });
+
+  return {
+    ...data,
+    aiProductOverview: {
+      ...(overview as object),
+      personas: normalizedPersonas,
+    },
+  };
+}
 
 function buildProductOverviewPrompt(input: ProductOverviewPromptInput) {
   const title = input.title?.trim() || 'Untitled Idea';
@@ -168,7 +204,7 @@ export async function generateProductOverview(
       timeoutMs: 60000,
     });
 
-    const parsed = AIProductOverviewSchema.parse(data);
+    const parsed = AIProductOverviewSchema.parse(normalizeProductOverviewResponse(data));
     return parsed.aiProductOverview;
   } catch (error) {
     if (error instanceof ValidationAIError) {
