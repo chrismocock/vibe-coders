@@ -1217,8 +1217,18 @@ End with a summary of risks, leading indicators, and what to do if behind plan.`
         },
       ],
     });
-    
-    return NextResponse.json({ result: completion.choices[0]?.message?.content });
+
+    const content = completion.choices[0]?.message?.content?.trim();
+
+    if (!content) {
+      console.error(`OpenAI returned empty content for field ${fieldName}`);
+      return NextResponse.json(
+        { error: "No content returned from AI. Please try again." },
+        { status: 502 }
+      );
+    }
+
+    return NextResponse.json({ result: content });
   } catch (error) {
     console.error('OpenAI API error:', error);
     return NextResponse.json({ error: 'Failed to generate field content' }, { status: 500 });
