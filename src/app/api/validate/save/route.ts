@@ -192,6 +192,13 @@ export async function POST(req: NextRequest) {
 
       if (updateError) {
         console.error('Failed to update validate stage snapshot:', updateError);
+        return NextResponse.json(
+          {
+            error: 'Failed to save validation stage snapshot',
+            details: updateError.message || updateError.code || 'Unknown error',
+          },
+          { status: 500 },
+        );
       }
     } else {
       const { error: insertError } = await supabase.from('project_stages').insert({
@@ -205,6 +212,13 @@ export async function POST(req: NextRequest) {
 
       if (insertError) {
         console.error('Failed to insert validate stage snapshot:', insertError);
+        return NextResponse.json(
+          {
+            error: 'Failed to save validation stage snapshot',
+            details: insertError.message || insertError.code || 'Unknown error',
+          },
+          { status: 500 },
+        );
       }
     }
 
