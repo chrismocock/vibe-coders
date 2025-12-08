@@ -89,7 +89,13 @@ export async function POST(req: NextRequest) {
     } catch (error) {
       if (error instanceof ValidationAIError) {
         return NextResponse.json(
-          { error: error.message, meta: { kind: error.kind } },
+          {
+            error: error.message,
+            meta: {
+              kind: error.kind,
+              ...(error as Error & { meta?: Record<string, unknown> }).meta,
+            },
+          },
           { status: VALIDATION_ERROR_STATUS[error.kind] },
         );
       }

@@ -9,15 +9,20 @@ import { AIProductOverview } from './types';
 export type ValidationAIErrorKind = 'input' | 'config' | 'timeout' | 'provider' | 'schema';
 
 export class ValidationAIError extends Error {
+  public meta?: Record<string, unknown>;
+
   constructor(
     message: string,
     public kind: ValidationAIErrorKind,
-    options?: { cause?: unknown },
+    options?: { cause?: unknown; meta?: Record<string, unknown> },
   ) {
     super(message);
     this.name = 'ValidationAIError';
     if (options?.cause) {
       (this as Error & { cause?: unknown }).cause = options.cause;
+    }
+    if (options?.meta) {
+      this.meta = options.meta;
     }
   }
 }
@@ -230,10 +235,23 @@ export async function generateProductOverview(
     }
 
     if (error instanceof ZodError) {
+      const issues = error.issues.map((issue) => {
+        const path = issue.path.join('.') || 'root';
+        return `${path}: ${issue.message}`;
+      });
+      const summary = issues[0] || 'Unknown schema issue';
+      console.error('AI Product Overview schema validation failed:', issues);
+
       throw new ValidationAIError(
         'AI Product Overview response failed schema validation.',
         'schema',
-        { cause: error },
+        {
+          cause: error,
+          meta: {
+            summary,
+            issues,
+          },
+        },
       );
     }
 
