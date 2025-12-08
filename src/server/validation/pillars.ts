@@ -122,6 +122,8 @@ const pillarIdAliases: Record<string, ValidationPillarId> = {
   competition: 'competition',
   competitive: 'competition',
   marketsize: 'marketSize',
+  marketsizedemandsignals: 'marketSize',
+  marketsizeanddemandsignals: 'marketSize',
   tam: 'marketSize',
   tam_sam: 'marketSize',
   feasibility: 'feasibility',
