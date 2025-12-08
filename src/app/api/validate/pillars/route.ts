@@ -11,6 +11,7 @@ import {
   AIProductRisk,
   ValidationPillarResult,
 } from '@/server/validation/types';
+import { VALIDATION_PILLAR_DEFINITIONS, ValidationPillarDefinition } from '@/lib/ai/prompts/validation/pillars';
 function normalizeOverview(overview: unknown): AIProductOverview | null {
   if (!overview || typeof overview !== 'object') {
     return null;
@@ -129,6 +130,35 @@ const PILLAR_ERROR_MESSAGE: Record<JsonPromptError['kind'], string> = {
   openai: 'OpenAI request failed. Please try again.',
 };
 
+function hasCompletePillarCoverage(pillars?: unknown, definitions: ValidationPillarDefinition[] = VALIDATION_PILLAR_DEFINITIONS): pillars is ValidationPillarResult[] {
+  if (!Array.isArray(pillars) || definitions.length === 0) return false;
+
+  const expectedIds = new Set(definitions.map((definition) => definition.id));
+
+  if (pillars.length !== expectedIds.size) return false;
+
+  const hasText = (value: unknown) => typeof value === 'string' && value.trim().length > 0;
+
+  for (const pillar of pillars as ValidationPillarResult[]) {
+    if (!pillar || typeof pillar !== 'object') return false;
+
+    if (!expectedIds.has(pillar.pillarId)) return false;
+
+    if (
+      !hasText(pillar.analysis) ||
+      !hasText(pillar.strength) ||
+      !hasText(pillar.weakness) ||
+      !hasText(pillar.improvementSuggestion)
+    ) {
+      return false;
+    }
+
+    expectedIds.delete(pillar.pillarId);
+  }
+
+  return expectedIds.size === 0;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { userId } = await auth();
@@ -187,13 +217,27 @@ export async function POST(req: NextRequest) {
       .eq('project_id', body.projectId)
       .maybeSingle();
 
-    const pillars =
-      (savedValidatedIdea?.pillar_scores as Awaited<ReturnType<typeof generatePillars>> | null) ??
-      (await generatePillars({
-        title: ideaTitle,
-        summary: ideaSummary,
-        context: ideaContext,
-      }));
+    const savedPillars = savedValidatedIdea?.pillar_scores as
+      | Awaited<ReturnType<typeof generatePillars>>
+      | null
+      | undefined;
+
+    const hasCompletePillars = hasCompletePillarCoverage(savedPillars);
+
+    const pillars = hasCompletePillars
+      ? savedPillars
+      : await generatePillars({
+          title: ideaTitle,
+          summary: ideaSummary,
+          context: ideaContext,
+        });
+
+    if (!hasCompletePillars && savedValidatedIdea?.id) {
+      await supabase
+        .from('validated_ideas')
+        .update({ pillar_scores: pillars })
+        .eq('id', savedValidatedIdea.id);
+    }
 
     const normalizedPillars: ValidationPillarResult[] = pillars.map((pillar) => ({
       ...pillar,
