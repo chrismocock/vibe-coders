@@ -130,6 +130,7 @@ const pillarIdAliases: Record<string, ValidationPillarId> = {
   feasibilitybuild: 'feasibility',
   feasibilitybuildcomplexity: 'feasibility',
   feasibilitybuildcomplexityvibecodingtools: 'feasibility',
+  monetisationpotential: 'monetisation',
   monetisation: 'monetisation',
   monetization: 'monetisation',
   monetizationpotential: 'monetisation',

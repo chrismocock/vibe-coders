@@ -163,4 +163,58 @@ describe('generatePillars', () => {
       'Define MVP boundaries to limit initial scope.',
     );
   });
+
+  it('normalises Monetisation Potential when provided with British spelling as pillarName', async () => {
+    callJsonPromptMock.mockResolvedValue({
+      data: {
+        pillars: [
+          {
+            pillarName: 'Monetisation Potential',
+            analysis: 'Clear willingness to pay for the premium tier.',
+            strength: 'Existing users asking for invoicing features.',
+            weakness: 'Pricing page lacks clarity on value.',
+            improvementSuggestion: 'Run a price sensitivity survey with target personas.',
+          },
+        ],
+      },
+      meta: { tokens: 0, duration: 1 },
+    });
+
+    const pillars = await generatePillars({ title: 'Test Idea', summary: 'Great summary' });
+
+    const monetisation = pillars.find((pillar) => pillar.pillarId === 'monetisation');
+    expect(monetisation?.analysis).toBe('Clear willingness to pay for the premium tier.');
+    expect(monetisation?.strength).toBe('Existing users asking for invoicing features.');
+    expect(monetisation?.weakness).toBe('Pricing page lacks clarity on value.');
+    expect(monetisation?.improvementSuggestion).toBe(
+      'Run a price sensitivity survey with target personas.',
+    );
+  });
+
+  it('normalises Monetisation Potential when provided with British spelling as pillarId', async () => {
+    callJsonPromptMock.mockResolvedValue({
+      data: {
+        pillars: [
+          {
+            pillarId: 'monetisation_potential',
+            analysis: 'Strong conversion from trial to paid accounts.',
+            strength: 'High retention among small business customers.',
+            weakness: 'Upsell path for enterprise not validated.',
+            improvementSuggestion: 'Pilot enterprise pricing with two design partners.',
+          },
+        ],
+      },
+      meta: { tokens: 0, duration: 1 },
+    });
+
+    const pillars = await generatePillars({ title: 'Test Idea', summary: 'Great summary' });
+
+    const monetisation = pillars.find((pillar) => pillar.pillarId === 'monetisation');
+    expect(monetisation?.analysis).toBe('Strong conversion from trial to paid accounts.');
+    expect(monetisation?.strength).toBe('High retention among small business customers.');
+    expect(monetisation?.weakness).toBe('Upsell path for enterprise not validated.');
+    expect(monetisation?.improvementSuggestion).toBe(
+      'Pilot enterprise pricing with two design partners.',
+    );
+  });
 });
