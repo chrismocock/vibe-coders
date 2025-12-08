@@ -128,6 +128,8 @@ const pillarIdAliases: Record<string, ValidationPillarId> = {
   tam_sam: 'marketSize',
   feasibility: 'feasibility',
   feasibilitybuild: 'feasibility',
+  feasibilitybuildcomplexity: 'feasibility',
+  feasibilitybuildcomplexityvibecodingtools: 'feasibility',
   monetisation: 'monetisation',
   monetization: 'monetisation',
   monetizationpotential: 'monetisation',
