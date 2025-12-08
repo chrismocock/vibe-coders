@@ -94,6 +94,11 @@ export function useValidationRefinement(projectId: string) {
   const saveSnapshot = useCallback(async (override?: AIProductOverview | null) => {
     const overviewToSave = override ?? overview;
     if (!overviewToSave || !idea || pillars.length === 0) {
+      const missingMessage =
+        "Unable to save snapshot. Please wait for AI refinement to finish before saving.";
+      setError(missingMessage);
+      setSaveError(true);
+      toast.error(missingMessage);
       return;
     }
 
