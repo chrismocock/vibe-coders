@@ -236,7 +236,7 @@ export async function POST(req: NextRequest) {
 
     const { data: latestValidateStage } = await supabase
       .from('project_stages')
-      .select('input,output')
+      .select('id,input,output')
       .eq('project_id', body.projectId)
       .eq('user_id', userId)
       .eq('stage', 'validate')
@@ -265,6 +265,7 @@ export async function POST(req: NextRequest) {
       .from('validated_ideas')
       .select('id,pillar_scores,ai_overview')
       .eq('project_id', body.projectId)
+      .eq('user_id', userId)
       .maybeSingle();
 
     const hasCompleteStagedPillars = hasCompletePillarCoverage(pillarScores);
@@ -280,13 +281,6 @@ export async function POST(req: NextRequest) {
             context: ideaContext,
           });
 
-    if (!hasCompleteStagedPillars && !hasCompleteSavedPillars && savedValidatedIdea?.id) {
-      await supabase
-        .from('validated_ideas')
-        .update({ pillar_scores: pillars })
-        .eq('id', savedValidatedIdea.id);
-    }
-
     const normalizedPillars: ValidationPillarResult[] = pillars.map((pillar) => ({
       ...pillar,
       analysis: pillar.analysis ?? `No analysis provided for ${pillar.pillarName}.`,
@@ -294,6 +288,89 @@ export async function POST(req: NextRequest) {
 
     const aiProductOverview =
       normalizeOverview(stagedOverview) ?? normalizeOverview(savedValidatedIdea?.ai_overview ?? null);
+
+    const shouldPersistPillars = !hasCompleteStagedPillars && !hasCompleteSavedPillars;
+
+    let validatedIdeaId = stagedValidatedIdeaId ?? savedValidatedIdea?.id ?? null;
+
+    if (shouldPersistPillars) {
+      const overviewPayload = aiProductOverview ?? {};
+      const ideaSnapshot = {
+        title: ideaTitle,
+        summary: ideaSummary,
+        context: ideaContext,
+      };
+
+      if (ideateStage?.id) {
+        const { data: persistedValidatedIdea, error: persistError } = savedValidatedIdea
+          ? await supabase
+              .from('validated_ideas')
+              .update({
+                idea_id: ideateStage.id,
+                pillar_scores: normalizedPillars,
+                ai_overview: overviewPayload,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', savedValidatedIdea.id)
+              .eq('user_id', userId)
+              .select('id')
+              .single()
+          : await supabase
+              .from('validated_ideas')
+              .insert({
+                user_id: userId,
+                project_id: body.projectId,
+                idea_id: ideateStage.id,
+                pillar_scores: normalizedPillars,
+                ai_overview: overviewPayload,
+              })
+              .select('id')
+              .single();
+
+        if (persistError) {
+          console.error('Failed to persist generated pillars to validated_ideas:', persistError);
+        } else if (persistedValidatedIdea?.id) {
+          validatedIdeaId = persistedValidatedIdea.id;
+        }
+      }
+
+      const stageInput = { validatedIdeaId, idea: ideaSnapshot, pillarScores: normalizedPillars };
+      const stageOutput = {
+        aiProductOverview: overviewPayload,
+        overview: overviewPayload,
+        validatedIdeaId,
+      };
+
+      if (latestValidateStage?.id) {
+        const { error: updateStageError } = await supabase
+          .from('project_stages')
+          .update({
+            input: JSON.stringify(stageInput),
+            output: JSON.stringify(stageOutput),
+            status: 'completed',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', latestValidateStage.id)
+          .eq('user_id', userId);
+
+        if (updateStageError) {
+          console.error('Failed to update validate stage snapshot after pillar generation:', updateStageError);
+        }
+      } else {
+        const { error: insertStageError } = await supabase.from('project_stages').insert({
+          project_id: body.projectId,
+          user_id: userId,
+          stage: 'validate',
+          input: JSON.stringify(stageInput),
+          output: JSON.stringify(stageOutput),
+          status: 'completed',
+        });
+
+        if (insertStageError) {
+          console.error('Failed to insert validate stage snapshot after pillar generation:', insertStageError);
+        }
+      }
+    }
 
     return NextResponse.json({
       idea: {
@@ -304,7 +381,7 @@ export async function POST(req: NextRequest) {
       },
       pillars: normalizedPillars,
       aiProductOverview,
-      validatedIdeaId: stagedValidatedIdeaId ?? savedValidatedIdea?.id ?? null,
+      validatedIdeaId,
     });
   } catch (error) {
     console.error('Failed to generate validation pillars:', error);
