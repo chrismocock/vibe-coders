@@ -12,6 +12,11 @@ import {
   ValidationPillarResult,
 } from '@/server/validation/types';
 import { VALIDATION_PILLAR_DEFINITIONS, ValidationPillarDefinition } from '@/lib/ai/prompts/validation/pillars';
+
+type StageSnapshot = {
+  input?: unknown;
+  output?: unknown;
+};
 function normalizeOverview(overview: unknown): AIProductOverview | null {
   if (!overview || typeof overview !== 'object') {
     return null;
@@ -130,6 +135,38 @@ const PILLAR_ERROR_MESSAGE: Record<JsonPromptError['kind'], string> = {
   openai: 'OpenAI request failed. Please try again.',
 };
 
+function parseStageSnapshot(snapshot?: StageSnapshot | null) {
+  if (!snapshot) return {};
+
+  const parseJson = (value?: unknown) => {
+    if (typeof value === 'string') {
+      try {
+        return JSON.parse(value);
+      } catch {
+        return undefined;
+      }
+    }
+    if (value && typeof value === 'object') {
+      return value as Record<string, unknown>;
+    }
+    return undefined;
+  };
+
+  const input = parseJson(snapshot.input) ?? {};
+  const output = parseJson(snapshot.output) ?? {};
+
+  const idea = (input as { idea?: unknown }).idea as
+    | { title?: string; summary?: string; context?: string }
+    | undefined;
+  const pillarScores = (input as { pillarScores?: unknown }).pillarScores as ValidationPillarResult[] | undefined;
+  const overview =
+    (output as { overview?: unknown }).overview ?? (output as { aiProductOverview?: unknown }).aiProductOverview;
+  const validatedIdeaId =
+    (output as { validatedIdeaId?: unknown }).validatedIdeaId ?? (input as { validatedIdeaId?: unknown }).validatedIdeaId;
+
+  return { idea, pillarScores, overview, validatedIdeaId };
+}
+
 function hasCompletePillarCoverage(pillars?: unknown, definitions: ValidationPillarDefinition[] = VALIDATION_PILLAR_DEFINITIONS): pillars is ValidationPillarResult[] {
   if (!Array.isArray(pillars) || definitions.length === 0) return false;
 
@@ -197,12 +234,25 @@ export async function POST(req: NextRequest) {
       .limit(1)
       .maybeSingle();
 
+    const { data: latestValidateStage } = await supabase
+      .from('project_stages')
+      .select('input,output')
+      .eq('project_id', body.projectId)
+      .eq('user_id', userId)
+      .eq('stage', 'validate')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const { idea: stagedIdea, pillarScores, overview: stagedOverview, validatedIdeaId: stagedValidatedIdeaId } =
+      parseStageSnapshot(latestValidateStage);
+
     const derivedIdea = extractIdeaDetails(ideateStage?.input);
     const aiReviewSummary = extractAiReview(ideateStage?.output);
 
-    const ideaTitle = body.idea?.title?.trim() || derivedIdea.title;
-    const ideaSummary = body.idea?.summary?.trim() || aiReviewSummary || derivedIdea.summary;
-    const ideaContext = body.idea?.context ?? derivedIdea.context;
+    const ideaTitle = body.idea?.title?.trim() || stagedIdea?.title || derivedIdea.title;
+    const ideaSummary = body.idea?.summary?.trim() || aiReviewSummary || stagedIdea?.summary || derivedIdea.summary;
+    const ideaContext = body.idea?.context ?? stagedIdea?.context ?? derivedIdea.context;
 
     if (!ideaSummary || ideaSummary.trim().length === 0) {
       return NextResponse.json(
@@ -217,22 +267,20 @@ export async function POST(req: NextRequest) {
       .eq('project_id', body.projectId)
       .maybeSingle();
 
-    const savedPillars = savedValidatedIdea?.pillar_scores as
-      | Awaited<ReturnType<typeof generatePillars>>
-      | null
-      | undefined;
+    const hasCompleteStagedPillars = hasCompletePillarCoverage(pillarScores);
+    const hasCompleteSavedPillars = hasCompletePillarCoverage(savedValidatedIdea?.pillar_scores);
 
-    const hasCompletePillars = hasCompletePillarCoverage(savedPillars);
+    const pillars = hasCompleteStagedPillars
+      ? (pillarScores as ValidationPillarResult[])
+      : hasCompleteSavedPillars
+        ? (savedValidatedIdea?.pillar_scores as ValidationPillarResult[])
+        : await generatePillars({
+            title: ideaTitle,
+            summary: ideaSummary,
+            context: ideaContext,
+          });
 
-    const pillars = hasCompletePillars
-      ? savedPillars
-      : await generatePillars({
-          title: ideaTitle,
-          summary: ideaSummary,
-          context: ideaContext,
-        });
-
-    if (!hasCompletePillars && savedValidatedIdea?.id) {
+    if (!hasCompleteStagedPillars && !hasCompleteSavedPillars && savedValidatedIdea?.id) {
       await supabase
         .from('validated_ideas')
         .update({ pillar_scores: pillars })
@@ -244,7 +292,8 @@ export async function POST(req: NextRequest) {
       analysis: pillar.analysis ?? `No analysis provided for ${pillar.pillarName}.`,
     }));
 
-    const aiProductOverview = normalizeOverview(savedValidatedIdea?.ai_overview ?? null);
+    const aiProductOverview =
+      normalizeOverview(stagedOverview) ?? normalizeOverview(savedValidatedIdea?.ai_overview ?? null);
 
     return NextResponse.json({
       idea: {
@@ -255,7 +304,7 @@ export async function POST(req: NextRequest) {
       },
       pillars: normalizedPillars,
       aiProductOverview,
-      validatedIdeaId: savedValidatedIdea?.id ?? null,
+      validatedIdeaId: stagedValidatedIdeaId ?? savedValidatedIdea?.id ?? null,
     });
   } catch (error) {
     console.error('Failed to generate validation pillars:', error);
