@@ -25,6 +25,7 @@ export default function ValidationRefinementPage() {
     overview,
     improving,
     lastSavedAt,
+    debugLogs,
     improveIdea,
     updateOverview,
     validatedIdeaId,
@@ -83,6 +84,44 @@ export default function ValidationRefinementPage() {
           </div>
         )}
       </header>
+
+      {!!debugLogs.length && (
+        <section className="rounded-3xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-amber-600">Troubleshooting</p>
+              <h3 className="text-lg font-semibold text-neutral-900">Recent validation errors</h3>
+              <p className="text-sm text-neutral-700">
+                These messages include save failures and AI issues to help you debug why refinement data is not persisting.
+              </p>
+            </div>
+            <span className="text-xs font-medium text-neutral-600">Latest {Math.min(debugLogs.length, 5)} events</span>
+          </div>
+          <div className="mt-4 space-y-3">
+            {debugLogs
+              .slice(-5)
+              .reverse()
+              .map((entry, index) => (
+                <div
+                  key={`${entry.timestamp}-${index}`}
+                  className="rounded-2xl border border-amber-200 bg-white/80 p-3 shadow-sm"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-neutral-900">{entry.message}</p>
+                    <span className="text-xs text-neutral-500">
+                      {new Date(entry.timestamp).toLocaleString()}
+                    </span>
+                  </div>
+                  {entry.details && (
+                    <pre className="mt-2 max-h-32 overflow-auto rounded-lg bg-neutral-900/90 p-3 text-xs text-neutral-100">
+                      {JSON.stringify(entry.details, null, 2)}
+                    </pre>
+                  )}
+                </div>
+              ))}
+          </div>
+        </section>
+      )}
 
       {idea && (
         <section className="grid gap-4 lg:grid-cols-[1.5fr,1fr]">

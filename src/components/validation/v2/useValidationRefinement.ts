@@ -85,6 +85,8 @@ function logValidationDebug(message: string, details?: Record<string, unknown>) 
       window.__validationRefinementLogs.shift();
     }
   }
+
+  return entry;
 }
 
 function buildSectionDiagnostics(pillars: ValidationPillarResult[]): SectionDiagnostics {
@@ -118,12 +120,25 @@ export function useValidationRefinement(projectId: string) {
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
   const [validatedIdeaId, setValidatedIdeaId] = useState<string | null>(null);
   const [lastRefinedAt, setLastRefinedAt] = useState<number | null>(null);
+  const [debugLogs, setDebugLogs] = useState<ValidationLogEntry[]>([]);
 
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const skipNextAutoSave = useRef(false);
   const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const retryCount = useRef(0);
   const MAX_RETRIES = 3;
+
+  const recordLog = useCallback((message: string, details?: Record<string, unknown>) => {
+    const entry = logValidationDebug(message, details);
+    setDebugLogs((prev) => {
+      const next = [...prev, entry];
+      if (next.length > LOG_LIMIT) {
+        next.shift();
+      }
+      return next;
+    });
+    return entry;
+  }, []);
 
   const saveSnapshot = useCallback(async (override?: AIProductOverview | null) => {
     const overviewToSave = override ?? overview;
@@ -133,7 +148,7 @@ export function useValidationRefinement(projectId: string) {
       setError(missingMessage);
       setSaveError(true);
       toast.error(missingMessage);
-      logValidationDebug("Auto-save aborted due to missing data", {
+      recordLog("Auto-save aborted due to missing data", {
         hasOverview: Boolean(overviewToSave),
         hasIdea: Boolean(idea),
         pillarCount: pillars.length,
@@ -164,7 +179,7 @@ export function useValidationRefinement(projectId: string) {
 
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
-        logValidationDebug("Auto-save failed with non-OK response", {
+        recordLog("Auto-save failed with non-OK response", {
           status: response.status,
           statusText: response.statusText,
           payload: errData,
@@ -187,7 +202,7 @@ export function useValidationRefinement(projectId: string) {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save overview");
       setSaveError(true);
-      logValidationDebug("Validation auto-save failed", {
+      recordLog("Validation auto-save failed", {
         error: err instanceof Error ? err.message : String(err),
         hasOverview: Boolean(overviewToSave),
         hasIdea: Boolean(idea),
@@ -201,11 +216,11 @@ export function useValidationRefinement(projectId: string) {
       skipNextAutoSave.current = false;
       setSaving(false);
     }
-  }, [idea, overview, pillars, projectId]);
+  }, [idea, overview, pillars, projectId, recordLog]);
 
   const queueAutoSave = useCallback(() => {
     if (!overview || !idea || pillars.length === 0) {
-      logValidationDebug("Skipped auto-save queue due to missing data", {
+      recordLog("Skipped auto-save queue due to missing data", {
         hasOverview: Boolean(overview),
         hasIdea: Boolean(idea),
         pillarCount: pillars.length,
@@ -215,7 +230,7 @@ export function useValidationRefinement(projectId: string) {
 
     if (skipNextAutoSave.current) {
       skipNextAutoSave.current = false;
-      logValidationDebug("Skipped auto-save due to skipNextAutoSave flag", {
+      recordLog("Skipped auto-save due to skipNextAutoSave flag", {
         lastRefinedAt,
       });
       return;
@@ -229,7 +244,7 @@ export function useValidationRefinement(projectId: string) {
       autoSaveTimer.current = null;
       void saveSnapshot();
     }, 1200);
-  }, [idea, overview, pillars, saveSnapshot]);
+  }, [idea, overview, pillars, recordLog, saveSnapshot]);
 
   const hydrateState = useCallback((payload: PillarResponsePayload) => {
     setIdea(payload.idea);
@@ -367,7 +382,7 @@ export function useValidationRefinement(projectId: string) {
       toast.success(`✨ Idea refined! ${toastMessage}`);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to improve idea";
-      logValidationDebug("Improve idea failed", {
+      recordLog("Improve idea failed", {
         error: err instanceof Error ? err.message : String(err),
         hasIdea: Boolean(idea),
         pillarCount: pillars.length,
@@ -384,7 +399,7 @@ export function useValidationRefinement(projectId: string) {
     } finally {
       setImproving(false);
     }
-  }, [idea, pillars, projectId, saveSnapshot]);
+  }, [idea, pillars, projectId, recordLog, saveSnapshot]);
 
   const updateOverview = useCallback(
     (updater: (prev: AIProductOverview) => AIProductOverview) => {
@@ -433,6 +448,7 @@ export function useValidationRefinement(projectId: string) {
     lastSavedAt,
     lastRefinedAt,
     validatedIdeaId,
+    debugLogs,
     improveIdea,
     updateOverview,
     sectionDiagnostics,
@@ -442,5 +458,3 @@ export function useValidationRefinement(projectId: string) {
     saveSnapshot,
   };
 }
-
-
