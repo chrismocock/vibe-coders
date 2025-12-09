@@ -8,6 +8,18 @@ import {
   ValidationPillarResult,
 } from "@/server/validation/types";
 
+interface ValidationLogEntry {
+  message: string;
+  timestamp: string;
+  details?: Record<string, unknown>;
+}
+
+declare global {
+  interface Window {
+    __validationRefinementLogs?: ValidationLogEntry[];
+  }
+}
+
 interface IdeaState {
   ideaStageId: string | null;
   title: string;
@@ -52,6 +64,28 @@ const SECTION_PILLAR_MAP: Record<OverviewSectionKey, ValidationPillarId[]> = {
 };
 
 const LOW_SCORE_THRESHOLD = 7;
+
+const LOG_LIMIT = 50;
+
+function logValidationDebug(message: string, details?: Record<string, unknown>) {
+  const entry: ValidationLogEntry = {
+    message,
+    timestamp: new Date().toISOString(),
+    details,
+  };
+
+  // Emit to console for quick inspection
+  // eslint-disable-next-line no-console
+  console.error("[ValidationRefinement]", message, details ?? "");
+
+  if (typeof window !== "undefined") {
+    window.__validationRefinementLogs = window.__validationRefinementLogs ?? [];
+    window.__validationRefinementLogs.push(entry);
+    if (window.__validationRefinementLogs.length > LOG_LIMIT) {
+      window.__validationRefinementLogs.shift();
+    }
+  }
+}
 
 function buildSectionDiagnostics(pillars: ValidationPillarResult[]): SectionDiagnostics {
   const diagnostics: SectionDiagnostics = {};
@@ -99,6 +133,11 @@ export function useValidationRefinement(projectId: string) {
       setError(missingMessage);
       setSaveError(true);
       toast.error(missingMessage);
+      logValidationDebug("Auto-save aborted due to missing data", {
+        hasOverview: Boolean(overviewToSave),
+        hasIdea: Boolean(idea),
+        pillarCount: pillars.length,
+      });
       return;
     }
 
@@ -125,6 +164,11 @@ export function useValidationRefinement(projectId: string) {
 
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
+        logValidationDebug("Auto-save failed with non-OK response", {
+          status: response.status,
+          statusText: response.statusText,
+          payload: errData,
+        });
         throw new Error(errData.error || "Failed to save validation overview");
       }
 
@@ -141,9 +185,14 @@ export function useValidationRefinement(projectId: string) {
         window.dispatchEvent(new Event("section-updated"));
       }
     } catch (err) {
-      console.error("Validation auto-save failed:", err);
       setError(err instanceof Error ? err.message : "Failed to save overview");
       setSaveError(true);
+      logValidationDebug("Validation auto-save failed", {
+        error: err instanceof Error ? err.message : String(err),
+        hasOverview: Boolean(overviewToSave),
+        hasIdea: Boolean(idea),
+        pillarCount: pillars.length,
+      });
       // Only show toast on first failure, not on retries
       if (retryCount.current === 0) {
         toast.error(err instanceof Error ? err.message : "Failed to save overview");
@@ -156,11 +205,19 @@ export function useValidationRefinement(projectId: string) {
 
   const queueAutoSave = useCallback(() => {
     if (!overview || !idea || pillars.length === 0) {
+      logValidationDebug("Skipped auto-save queue due to missing data", {
+        hasOverview: Boolean(overview),
+        hasIdea: Boolean(idea),
+        pillarCount: pillars.length,
+      });
       return;
     }
 
     if (skipNextAutoSave.current) {
       skipNextAutoSave.current = false;
+      logValidationDebug("Skipped auto-save due to skipNextAutoSave flag", {
+        lastRefinedAt,
+      });
       return;
     }
 
@@ -310,7 +367,11 @@ export function useValidationRefinement(projectId: string) {
       toast.success(`✨ Idea refined! ${toastMessage}`);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to improve idea";
-      console.error("Improve idea failed:", err);
+      logValidationDebug("Improve idea failed", {
+        error: err instanceof Error ? err.message : String(err),
+        hasIdea: Boolean(idea),
+        pillarCount: pillars.length,
+      });
       toast.error(message, {
         action: {
           label: "Retry",
