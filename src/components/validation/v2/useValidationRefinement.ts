@@ -149,6 +149,7 @@ export function useValidationRefinement(projectId: string) {
         toast.error(err instanceof Error ? err.message : "Failed to save overview");
       }
     } finally {
+      skipNextAutoSave.current = false;
       setSaving(false);
     }
   }, [idea, overview, pillars, projectId]);
