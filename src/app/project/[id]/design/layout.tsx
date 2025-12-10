@@ -13,6 +13,7 @@ import {
   Palette,
   Target,
   FileText,
+  Wand2,
 } from "lucide-react";
 
 const navItems = [
@@ -25,6 +26,7 @@ const navItems = [
   { label: "Wireframes", href: "wireframes", icon: FileImage },
   { label: "MVP Definition", href: "mvp-definition", icon: Target },
   { label: "Design Summary", href: "design-summary", icon: FileText },
+  { label: "Guided Wizard", href: "wizard", icon: Wand2 },
 ];
 
 export default function DesignLayout({
