@@ -156,7 +156,7 @@ export default function DesignOverviewHub({
   const totalSections = DESIGN_SECTIONS.length;
   const progress = Math.round((completedCount / totalSections) * 100);
 
-  const ideaSummary = ideaContext?.trim();
+  const ideaSummary = typeof ideaContext === "string" ? ideaContext.trim() : "";
 
   const brandIdentity = blueprint?.brand_identity;
   const wireframes = blueprint?.wireframes;
