@@ -158,6 +158,20 @@ export default function DesignOverviewHub({
 
   const ideaSummary = ideaContext?.trim();
 
+  const brandIdentity = blueprint?.brand_identity;
+  const wireframes = blueprint?.wireframes;
+  const mvpDefinition = blueprint?.mvp_definition;
+  const keyScreens = Array.isArray(wireframes?.keyScreens) ? wireframes.keyScreens : [];
+  const primaryWireframe = keyScreens[0];
+  const secondaryWireframe = keyScreens[1];
+
+  const hasKeyDesignConcept = Boolean(brandIdentity && wireframes && mvpDefinition);
+
+  const truncateText = (text?: string, length = 140) => {
+    if (!text || typeof text !== "string") return "";
+    return text.length > length ? `${text.slice(0, length)}…` : text;
+  };
+
   const handleBrandIdentityClick = () => {
     if (onSectionClick) {
       onSectionClick("brand_identity");
@@ -239,6 +253,105 @@ export default function DesignOverviewHub({
           </Button>
         </CardContent>
       </Card>
+
+      {/* Build-ready Concept Preview */}
+      {hasKeyDesignConcept && (
+        <Card className="border border-blue-200 bg-blue-50">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-xl font-semibold text-blue-900">
+                  Concept ready for Build
+                </CardTitle>
+                <p className="text-sm text-blue-800 mt-1">
+                  Highlights from brand, wireframes, and MVP definition are ready to send to Build
+                </p>
+              </div>
+              <Button
+                size="lg"
+                className="bg-blue-600 text-white hover:bg-blue-700"
+                onClick={() => router.push(`/project/${projectId}/build`)}
+              >
+                Use this concept
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="grid gap-4 md:grid-cols-3">
+            <div className="rounded-lg border border-blue-100 bg-white/60 p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-blue-900">
+                <Palette className="h-4 w-4" /> Brand highlights
+              </div>
+              <ul className="mt-2 space-y-1 text-sm text-blue-900/80">
+                {brandIdentity?.colorPalette && (
+                  <li>
+                    <span className="font-medium text-blue-900">Palette: </span>
+                    {truncateText(brandIdentity.colorPalette)}
+                  </li>
+                )}
+                {brandIdentity?.typography && (
+                  <li>
+                    <span className="font-medium text-blue-900">Type: </span>
+                    {truncateText(brandIdentity.typography)}
+                  </li>
+                )}
+                {(brandIdentity?.toneOfVoice || brandIdentity?.brandAdjectives) && (
+                  <li>
+                    <span className="font-medium text-blue-900">Tone: </span>
+                    {truncateText(brandIdentity.toneOfVoice || brandIdentity.brandAdjectives)}
+                  </li>
+                )}
+              </ul>
+            </div>
+
+            <div className="rounded-lg border border-blue-100 bg-white/60 p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-blue-900">
+                <Layout className="h-4 w-4" /> Wireframe focus
+              </div>
+              <div className="mt-2 space-y-2 text-sm text-blue-900/80">
+                {wireframes?.wireframeSummary && (
+                  <p>
+                    <span className="font-medium text-blue-900">Summary: </span>
+                    {truncateText(wireframes.wireframeSummary)}
+                  </p>
+                )}
+                {primaryWireframe && (
+                  <p>
+                    <span className="font-medium text-blue-900">Top screen: </span>
+                    {truncateText(primaryWireframe.name || primaryWireframe.wireframeSummary)}
+                  </p>
+                )}
+                {secondaryWireframe && (
+                  <p>
+                    <span className="font-medium text-blue-900">Next up: </span>
+                    {truncateText(secondaryWireframe.name || secondaryWireframe.wireframeSummary)}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-blue-100 bg-white/60 p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-blue-900">
+                <Target className="h-4 w-4" /> MVP scope
+              </div>
+              <div className="mt-2 space-y-2 text-sm text-blue-900/80">
+                {mvpDefinition?.mvpFeatureList && (
+                  <p>
+                    <span className="font-medium text-blue-900">Features: </span>
+                    {truncateText(mvpDefinition.mvpFeatureList)}
+                  </p>
+                )}
+                {mvpDefinition?.releaseRoadmap && (
+                  <p>
+                    <span className="font-medium text-blue-900">Roadmap: </span>
+                    {truncateText(mvpDefinition.releaseRoadmap)}
+                  </p>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Validated Idea Context - Hero */}
       <Card className="border border-neutral-200 bg-gradient-to-r from-purple-50 via-white to-blue-50">
