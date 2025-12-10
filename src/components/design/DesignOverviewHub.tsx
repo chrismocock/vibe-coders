@@ -195,7 +195,7 @@ export default function DesignOverviewHub({
       {/* Header with Progress Ring */}
       <Card className="border border-purple-200 bg-purple-50">
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <CardTitle className="text-2xl font-semibold text-purple-900">
                 Design Overview Hub
@@ -204,11 +204,21 @@ export default function DesignOverviewHub({
                 Complete all 8 sections to finalize your design blueprint
               </p>
             </div>
-            <div className="text-right">
-              <div className="text-3xl font-bold text-purple-900">
-                {completedCount} / {totalSections}
+            <div className="flex items-center gap-4 lg:items-start">
+              <Button
+                size="lg"
+                variant="secondary"
+                className="bg-white text-purple-700 hover:text-purple-800 hover:bg-purple-100 border-purple-200 shadow-sm"
+                onClick={() => router.push(`/project/${projectId}/design/wizard`)}
+              >
+                <Wand2 className="mr-2 h-4 w-4" /> Guided Wizard
+              </Button>
+              <div className="text-right">
+                <div className="text-3xl font-bold text-purple-900">
+                  {completedCount} / {totalSections}
+                </div>
+                <div className="text-sm text-purple-600">complete</div>
               </div>
-              <div className="text-sm text-purple-600">complete</div>
             </div>
           </div>
         </CardHeader>
