@@ -17,12 +17,12 @@ import {
 
 const navItems = [
   { label: "Overview", href: "", icon: LayoutDashboard },
+  { label: "Brand Identity", href: "brand-identity", icon: Palette },
   { label: "Product Blueprint", href: "product-blueprint", icon: Package },
   { label: "User Personas", href: "user-personas", icon: Users },
   { label: "User Journey", href: "user-journey", icon: Map },
   { label: "Information Architecture", href: "information-architecture", icon: Layout },
   { label: "Wireframes", href: "wireframes", icon: FileImage },
-  { label: "Brand Identity", href: "brand-identity", icon: Palette },
   { label: "MVP Definition", href: "mvp-definition", icon: Target },
   { label: "Design Summary", href: "design-summary", icon: FileText },
 ];
