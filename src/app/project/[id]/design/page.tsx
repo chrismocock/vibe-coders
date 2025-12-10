@@ -50,7 +50,8 @@ export default function DesignOverviewPage() {
               const overview = outputData.overview || outputData.aiProductOverview;
               if (overview) {
                 setValidateData(overview);
-                setIdeaContext(overview);
+                const overviewText = typeof overview === "string" ? overview : JSON.stringify(overview);
+                setIdeaContext(overviewText);
                 return;
               }
 
