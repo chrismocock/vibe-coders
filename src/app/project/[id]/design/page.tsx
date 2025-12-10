@@ -50,6 +50,7 @@ export default function DesignOverviewPage() {
               const overview = outputData.overview || outputData.aiProductOverview;
               if (overview) {
                 setValidateData(overview);
+                setIdeaContext(overview);
                 return;
               }
 
@@ -59,6 +60,7 @@ export default function DesignOverviewPage() {
                 if (reportResponse.ok) {
                   const reportData = await reportResponse.json();
                   setValidateData(reportData.report);
+                  setIdeaContext(reportData.report);
                 }
               }
             } catch (e) {
