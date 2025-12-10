@@ -156,6 +156,17 @@ export default function DesignOverviewHub({
   const totalSections = DESIGN_SECTIONS.length;
   const progress = Math.round((completedCount / totalSections) * 100);
 
+  const ideaSummary = ideaContext?.trim();
+
+  const handleBrandIdentityClick = () => {
+    if (onSectionClick) {
+      onSectionClick("brand_identity");
+      return;
+    }
+
+    router.push(`/project/${projectId}/design/brand-identity`);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-10">
@@ -229,21 +240,41 @@ export default function DesignOverviewHub({
         </CardContent>
       </Card>
 
-      {/* Validated Idea Context */}
-      {ideaContext && (
-        <Card className="border border-neutral-200">
-          <CardHeader>
-            <CardTitle className="text-sm font-semibold text-neutral-900">
-              Validated Idea Context
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-sm text-neutral-700 bg-neutral-50 rounded border p-3">
-              {ideaContext}
+      {/* Validated Idea Context - Hero */}
+      <Card className="border border-neutral-200 bg-gradient-to-r from-purple-50 via-white to-blue-50">
+        <CardContent className="py-6 lg:py-8">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+            <div className="max-w-3xl space-y-3">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-purple-700">
+                <div className="h-1.5 w-8 rounded-full bg-purple-600" />
+                <span>Validated Idea Context</span>
+              </div>
+              <div>
+                <h2 className="text-2xl font-semibold text-neutral-900 sm:text-3xl">
+                  Complete AI Overview
+                </h2>
+                <p className="mt-2 text-sm leading-relaxed text-neutral-700 line-clamp-3">
+                  {ideaSummary ||
+                    "No validated idea context available yet. Provide or generate context to tailor your design blueprint."}
+                </p>
+              </div>
             </div>
-          </CardContent>
-        </Card>
-      )}
+            <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-4">
+              <div className="rounded-full bg-white/80 px-4 py-2 text-xs font-medium text-neutral-600 shadow-sm ring-1 ring-purple-100">
+                AI-driven insights at a glance
+              </div>
+              <Button
+                size="lg"
+                className="bg-purple-600 text-white hover:bg-purple-700"
+                onClick={handleBrandIdentityClick}
+              >
+                Go to Brand & Visual Identity
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Section Snapshot Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
