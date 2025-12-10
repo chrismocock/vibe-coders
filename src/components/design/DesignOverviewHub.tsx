@@ -46,6 +46,12 @@ interface DesignOverviewHubProps {
 
 const DESIGN_SECTIONS = [
   {
+    id: "brand_identity",
+    label: "Brand & Visual Identity",
+    icon: Palette,
+    description: "Colors, typography, and brand style",
+  },
+  {
     id: "product_blueprint",
     label: "Product Blueprint",
     icon: Package,
@@ -74,12 +80,6 @@ const DESIGN_SECTIONS = [
     label: "Wireframes & Layouts",
     icon: FileImage,
     description: "Screen layouts and wireframes",
-  },
-  {
-    id: "brand_identity",
-    label: "Brand & Visual Identity",
-    icon: Palette,
-    description: "Colors, typography, and brand style",
   },
   {
     id: "mvp_definition",
