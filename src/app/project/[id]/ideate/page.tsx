@@ -1600,7 +1600,7 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
         : getCurrentAiProductOverview();
     const normalizedOverview = overviewCandidate?.trim() || "";
     if (!normalizedOverview) {
-      setSuggestionError("AI Product Overview is missing. Re-run validation to regenerate it.");
+      setSuggestionError("AI Product Overview is missing. Re-run initial assessment to regenerate it.");
       setRefinementSuggestions(null);
       return;
     }
@@ -1690,12 +1690,12 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
     options?: RevalidateOptions,
   ): Promise<RevalidateResult | null> => {
     if (!ideaText.trim()) {
-      toast.error("Please describe your idea before validating.");
+      toast.error("Please describe your idea before running initial assessment.");
       return null;
     }
     const draftInput = buildDraftInputSnapshot(ideaText);
     if (!draftInput) {
-      toast.error("Unable to prepare idea data for validation.");
+      toast.error("Unable to prepare idea data for initial assessment.");
       return null;
     }
 
@@ -1713,7 +1713,7 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
 
         if (!feedbackResponse.ok) {
           const errorData = await feedbackResponse.json().catch(() => null);
-          throw new Error(errorData?.error || "Failed to refresh validation scores");
+          throw new Error(errorData?.error || "Failed to refresh initial assessment");
         }
 
         const feedbackData = await feedbackResponse.json();
@@ -1735,7 +1735,7 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
       return { feedbackData, aiProductOverview: normalizedReview };
     } catch (error) {
       console.error("Draft validation error:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to run validation");
+      toast.error(error instanceof Error ? error.message : "Failed to run initial assessment");
       return null;
     } finally {
       setIsRevalidating(false);
@@ -1777,7 +1777,7 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
 
     if (!feedbackResponse.ok) {
       const errorData = await feedbackResponse.json().catch(() => null);
-      throw new Error(errorData?.error || "Failed to refresh validation scores");
+      throw new Error(errorData?.error || "Failed to refresh initial assessment");
     }
 
     const feedbackData = await feedbackResponse.json();
@@ -1825,7 +1825,7 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
         updatedIdeaText = data.idea.trim();
         setEditForm((prev) => ({ ...prev, ideaText: updatedIdeaText }));
       }
-      toast.success("Idea refreshed — running validation...");
+      toast.success("Idea refreshed — running initial assessment...");
       const revalidationResult = await revalidateDraftIdea(updatedIdeaText);
       if (revalidationResult) {
         const { feedbackData, aiProductOverview: latestOverview } = revalidationResult;
@@ -1852,7 +1852,7 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
 
     const currentOverview = getCurrentAiProductOverview();
     if (!currentOverview) {
-      toast.error("AI Product Overview is missing. Re-run validation before applying suggestions.");
+      toast.error("AI Product Overview is missing. Re-run initial assessment before applying suggestions.");
       return;
     }
 
@@ -1901,7 +1901,7 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
             : { aiReview: updatedOverview, initialFeedback: (prev.output as any)?.initialFeedback ?? null };
         return { ...prev, output: nextOutput };
       });
-      toast.success(`Applied ${suggestion.pillar} improvement — revalidating...`);
+      toast.success(`Applied ${suggestion.pillar} improvement — running initial assessment...`);
       const revalidationResult = await revalidateDraftIdea(updatedIdeaText, {
         aiProductOverviewOverride: updatedOverview,
       });
@@ -2146,7 +2146,7 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
                 AI Product Overview
               </CardTitle>
               <CardDescription className="text-sm text-neutral-600">
-                This is how the AI currently describes your product. Apply the suggestions below or edit the source narrative to refresh this overview on the next validation run.
+                This is how the AI currently describes your product. Apply the suggestions below or edit the source narrative to refresh this overview on the next assessment run.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -2156,7 +2156,7 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
                 </div>
               ) : (
                 <div className="rounded-lg border border-dashed border-neutral-300 bg-neutral-50 p-4 text-sm text-neutral-600">
-                  No AI review available yet. Complete the ideate flow or re-run validation to generate the product overview.
+                  No AI review available yet. Complete the ideate flow or re-run initial assessment to generate the product overview.
                 </div>
               )}
             </CardContent>
@@ -2168,7 +2168,7 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
                   Source Narrative & Context
                 </CardTitle>
                 <CardDescription className="text-sm text-neutral-600">
-                  Edit the underlying story that powers the AI review. Changes here will flow through when you apply suggestions or re-run validation.
+                  Edit the underlying story that powers the AI review. Changes here will flow through when you apply suggestions or re-run initial assessment.
                 </CardDescription>
               </div>
               <Button
@@ -2266,7 +2266,7 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
                 <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 space-y-4">
                   <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                     <div>
-                      <p className="text-sm font-semibold text-neutral-900">Validation snapshot</p>
+                      <p className="text-sm font-semibold text-neutral-900">Initial Assessment snapshot</p>
                       <p className="text-xs text-neutral-500">
                         Track how each pillar responds to your edits. Aim for at least 85% per pillar to unlock
                         high confidence — weak pillars will receive targeted suggestions.
@@ -2287,10 +2287,10 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
                       {isRevalidating ? (
                         <>
                           <Loader2 className="h-3 w-3 animate-spin mr-2" />
-                          Validating
+                          Assessing
                         </>
                       ) : (
-                        "Re-run validation"
+                        "Re-run initial assessment"
                       )}
                     </Button>
                   </div>
@@ -2320,7 +2320,7 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
                   {isRevalidating ? (
                     <div className="flex items-center gap-2 rounded-lg border border-dashed border-neutral-200 bg-white p-4 text-sm text-neutral-600">
                       <Loader2 className="h-4 w-4 animate-spin text-purple-600" />
-                      Re-validating idea with the latest edits...
+                      Re-assessing idea with the latest edits...
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -2381,7 +2381,7 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
                     <p className="text-sm font-semibold text-purple-900">AI Suggestions</p>
                     <p className="text-xs text-purple-700">
                       These fixes come straight from your Initial Feedback report. Apply one to rewrite
-                      the narrative for that pillar and re-run validation instantly.
+                      the narrative for that pillar and re-run initial assessment instantly.
                     </p>
                   </div>
                   <Button
