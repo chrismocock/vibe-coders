@@ -15,6 +15,7 @@ import ReactMarkdown from "react-markdown";
 import { ChevronDown, ChevronUp, Loader2, Wand2, Users, Target, TrendingUp, Wrench, DollarSign, Info, AlertCircle } from "lucide-react";
 import { InitialFeedback, InitialFeedbackData, dimensionImpacts, dimensionIcons, getImpactBadge, getImpactStatement } from "@/components/ideate/InitialFeedback";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import type { ProductOverview } from "@/server/ideate/refinementEngine";
 
 type Mode = "explore-idea" | "solve-problem" | "surprise-me" | null;
 
@@ -96,6 +97,14 @@ export default function IdeateWizardPage() {
     validation?: any;
   }
 
+  interface ImprovementLogEntry {
+    pillar: string;
+    scoreDelta: number;
+    differences: { section: string; before: string; after: string }[];
+    improvedOverview: ProductOverview;
+    createdAt: string;
+  }
+
   const [savedData, setSavedData] = useState<{
     input: any;
     output: any;
@@ -136,6 +145,11 @@ export default function IdeateWizardPage() {
   const [validationDeltas, setValidationDeltas] = useState<Partial<Record<string, ScoreDelta>>>({});
   const [showInitialFeedbackReport, setShowInitialFeedbackReport] = useState(true);
   const [expandedDimensions, setExpandedDimensions] = useState<Set<string>>(new Set());
+  const [refinedOverview, setRefinedOverview] = useState<ProductOverview | null>(null);
+  const [improvementLog, setImprovementLog] = useState<ImprovementLogEntry[]>([]);
+  const [refineLoadingPillar, setRefineLoadingPillar] = useState<string | null>(null);
+  const [autoImproving, setAutoImproving] = useState(false);
+  const [overviewHistory, setOverviewHistory] = useState<ProductOverview[]>([]);
 
   // Minimize Initial Feedback in edit mode, maximize in view mode
   useEffect(() => {
@@ -183,6 +197,19 @@ export default function IdeateWizardPage() {
                 output: parsedOutput,
                 status: ideateStage.status,
               });
+              if (parsedOutput?.refinedOverview) {
+                setRefinedOverview(parsedOutput.refinedOverview as ProductOverview);
+              }
+              if (Array.isArray(parsedOutput?.improvementIterations)) {
+                const normalizedIterations = (parsedOutput.improvementIterations as any[]).map((item, index) => ({
+                  pillar: item?.pillarImpacted || item?.pillar || `iteration-${index}`,
+                  scoreDelta: typeof item?.expectedScoreIncrease === "number" ? item.expectedScoreIncrease : 0,
+                  differences: Array.isArray(item?.differences) ? item.differences : [],
+                  improvedOverview: (item?.improvedOverview || item?.finalOverview || parsedOutput.refinedOverview || null) as ProductOverview,
+                  createdAt: item?.createdAt || new Date().toISOString(),
+                })) as ImprovementLogEntry[];
+                setImprovementLog(normalizedIterations);
+              }
             } catch (e) {
               console.error('Error parsing saved input:', e);
             }
@@ -1586,6 +1613,101 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
     return deltas;
   };
 
+  const handleApplyImprovement = (entry: ImprovementLogEntry) => {
+    setRefinedOverview((prev) => {
+      if (prev) {
+        setOverviewHistory((history) => [...history, prev]);
+      }
+      return entry.improvedOverview;
+    });
+    toast.success(`Applied improvement for ${entry.pillar}`);
+  };
+
+  const undoLastImprovement = () => {
+    setOverviewHistory((history) => {
+      if (!history.length) return history;
+      const clone = [...history];
+      const previous = clone.pop();
+      if (previous) {
+        setRefinedOverview(previous);
+        toast.message("Reverted last improvement");
+      }
+      return clone;
+    });
+  };
+
+  const handleRefinePillar = async (pillarKey: string) => {
+    if (!projectId) return;
+    setRefineLoadingPillar(pillarKey);
+    try {
+      const response = await fetch("/api/ideate/refine", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId, targetPillar: pillarKey }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => null);
+        throw new Error(error?.error || "Failed to improve pillar");
+      }
+
+      const data = await response.json();
+      setRefinedOverview(data.improvedOverview as ProductOverview);
+      const newEntry: ImprovementLogEntry = {
+        pillar: data.pillarImpacted || pillarKey,
+        scoreDelta: data.expectedScoreIncrease ?? 0,
+        differences: Array.isArray(data.differences) ? data.differences : [],
+        improvedOverview: data.improvedOverview as ProductOverview,
+        createdAt: new Date().toISOString(),
+      };
+      setImprovementLog((prev) => [newEntry, ...prev]);
+      toast.success(`Improved ${data.pillarImpacted || pillarKey} (+${data.expectedScoreIncrease ?? 0})`);
+    } catch (error) {
+      console.error(error);
+      toast.error(error instanceof Error ? error.message : "Failed to refine pillar");
+    } finally {
+      setRefineLoadingPillar(null);
+    }
+  };
+
+  const handleAutoImprove = async (targetScore = 95) => {
+    if (!projectId) return;
+    setAutoImproving(true);
+    try {
+      const response = await fetch("/api/ideate/auto-refine", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId, targetScore }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => null);
+        throw new Error(error?.error || "Failed to auto-improve idea");
+      }
+
+      const data = await response.json();
+      if (data?.finalOverview) {
+        setRefinedOverview(data.finalOverview as ProductOverview);
+      }
+      if (Array.isArray(data?.iterations)) {
+        const entries = (data.iterations as any[]).map((item: any, index: number) => ({
+          pillar: item?.pillarImpacted || `iteration-${index}`,
+          scoreDelta: typeof item?.expectedScoreIncrease === "number" ? item.expectedScoreIncrease : 0,
+          differences: Array.isArray(item?.differences) ? item.differences : [],
+          improvedOverview: (item?.improvedOverview || data?.finalOverview) as ProductOverview,
+          createdAt: new Date().toISOString(),
+        })) as ImprovementLogEntry[];
+        setImprovementLog((prev) => [...entries, ...prev]);
+      }
+      toast.success(data?.reachedTarget ? "Idea auto-improved to target" : "Auto-improve completed");
+    } catch (error) {
+      console.error(error);
+      toast.error(error instanceof Error ? error.message : "Failed to auto-improve idea");
+    } finally {
+      setAutoImproving(false);
+    }
+  };
+
   const loadPillarSuggestions = async (
     ideaText: string,
     feedback: InitialFeedbackData | null,
@@ -2541,6 +2663,88 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
                                   <p className="text-xs text-neutral-600 leading-relaxed">{value.rationale}</p>
                                 </div>
                               )}
+
+                              {/* AI Suggestions for this pillar */}
+                              {Array.isArray(refinementSuggestions) && refinementSuggestions.length > 0 && (() => {
+                                const pillarSuggestions = refinementSuggestions.filter(
+                                  (suggestion) => suggestion.pillarKey === key
+                                );
+                                if (pillarSuggestions.length === 0) return null;
+                                
+                                return pillarSuggestions.map((suggestion) => (
+                                  <div key={suggestion.id} className="border-t border-purple-200 pt-3 mt-3">
+                                    <div className="rounded-lg border border-purple-100 bg-purple-50/50 p-3 space-y-3">
+                                      <div className="flex flex-wrap items-center gap-2 justify-between">
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-xs font-semibold text-purple-900">
+                                            AI Suggestion
+                                          </span>
+                                          <span className="inline-flex items-center rounded-full border border-purple-200 bg-purple-50 px-2 py-0.5 text-[10px] font-semibold text-purple-800">
+                                            +{suggestion.estimatedImpact}% projected lift
+                                          </span>
+                                        </div>
+                                      </div>
+                                      <div className="rounded-md bg-purple-50/80 border border-purple-100 p-2.5 space-y-1">
+                                        <p className="text-[11px] font-semibold uppercase tracking-wide text-purple-700">
+                                          Weakness
+                                        </p>
+                                        <p className="text-xs text-purple-900">{suggestion.issue}</p>
+                                        {typeof suggestion.score === "number" && (
+                                          <div className="mt-2 space-y-1">
+                                            <div className="flex items-center justify-between text-[10px] font-medium text-purple-800">
+                                              <span>Current {suggestion.score}%</span>
+                                              <span>Target 85%</span>
+                                            </div>
+                                            <Progress
+                                              value={Math.min(100, (suggestion.score / 85) * 100)}
+                                              className="h-1.5 bg-purple-100 [&_[data-slot=progress-indicator]]:bg-purple-500"
+                                            />
+                                            <p className="text-[10px] text-purple-700">
+                                              Needs +{Math.max(0, 85 - suggestion.score)} pts to hit target
+                                            </p>
+                                          </div>
+                                        )}
+                                      </div>
+                                      <div>
+                                        <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
+                                          AI recommendation
+                                        </p>
+                                        <p className="text-xs text-neutral-900 mt-1">{suggestion.suggestion}</p>
+                                      </div>
+                                      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                                        <p className="text-[11px] text-neutral-500">
+                                          {typeof suggestion.score === "number" && (
+                                            <>
+                                              After apply ≈{" "}
+                                              {Math.min(85, suggestion.score + suggestion.estimatedImpact)}%
+                                            </>
+                                          )}
+                                        </p>
+                                        <Button
+                                          variant="secondary"
+                                          size="sm"
+                                          className="bg-white text-purple-700 border border-purple-200 hover:bg-purple-100 h-7 text-xs"
+                                          onClick={() => handleApplySuggestion(suggestion)}
+                                          disabled={
+                                            applyingSuggestionId === suggestion.id ||
+                                            isSavingEditedIdea ||
+                                            isRevalidating
+                                          }
+                                        >
+                                          {applyingSuggestionId === suggestion.id ? (
+                                            <>
+                                              <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                                              Applying
+                                            </>
+                                          ) : (
+                                            "Apply & revalidate"
+                                          )}
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ));
+                              })()}
                             </div>
                           );
                         })}
@@ -2555,8 +2759,7 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
                   <div>
                     <p className="text-sm font-semibold text-purple-900">AI Suggestions</p>
                     <p className="text-xs text-purple-700">
-                      These fixes come straight from your Initial Feedback report. Apply one to rewrite
-                      the narrative for that pillar and re-run initial assessment instantly.
+                      AI suggestions are now displayed directly within each pillar card above. Apply suggestions to improve weak pillars and re-run initial assessment.
                     </p>
                   </div>
                   <Button
@@ -2596,101 +2799,7 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
                   <div className="rounded-lg border border-purple-100 bg-white/60 p-4 text-sm text-purple-800">
                     All pillars are above the target threshold. Great work!
                   </div>
-                ) : Array.isArray(refinementSuggestions) ? (
-                  <div className="space-y-3">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-purple-600">
-                      Based on Initial Feedback below, fix these pillars one-by-one to reach 85%.
-                    </p>
-                    {refinementSuggestions.map((suggestion) => (
-                      <div
-                        key={suggestion.id}
-                        className="rounded-lg border border-purple-100 bg-white p-4 space-y-3 shadow-sm"
-                      >
-                        <div className="flex flex-wrap items-center gap-3 justify-between">
-                          <div className="flex-1 min-w-[200px]">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-semibold text-neutral-900">
-                                {suggestion.pillar}
-                              </span>
-                              {typeof suggestion.score === "number" && (
-                                <span className="text-xs text-neutral-500">
-                                  Current score: {suggestion.score}%
-                                </span>
-                              )}
-                            </div>
-                            {suggestion.rationale && (
-                              <p className="text-xs text-neutral-500 mt-1">
-                                {suggestion.rationale}
-                              </p>
-                            )}
-                          </div>
-                          <span className="inline-flex items-center rounded-full border border-purple-200 bg-purple-50 px-3 py-0.5 text-xs font-semibold text-purple-800">
-                            +{suggestion.estimatedImpact}% projected lift
-                          </span>
-                        </div>
-                        <div className="rounded-md bg-purple-50/80 border border-purple-100 p-3 space-y-1">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-purple-700">
-                            Weakness
-                          </p>
-                          <p className="text-sm text-purple-900">{suggestion.issue}</p>
-                          {typeof suggestion.score === "number" && (
-                            <div className="mt-3 space-y-1">
-                              <div className="flex items-center justify-between text-[11px] font-medium text-purple-800">
-                                <span>Current {suggestion.score}%</span>
-                                <span>Target 85%</span>
-                              </div>
-                              <Progress
-                                value={Math.min(100, (suggestion.score / 85) * 100)}
-                                className="h-1.5 bg-purple-100 [&_[data-slot=progress-indicator]]:bg-purple-500"
-                              />
-                              <p className="text-[11px] text-purple-700">
-                                Needs +{Math.max(0, 85 - suggestion.score)} pts to hit target
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                        <div>
-                          <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
-                            AI recommendation
-                          </p>
-                          <p className="text-sm text-neutral-900 mt-1">{suggestion.suggestion}</p>
-                        </div>
-                        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                          <p className="text-xs text-neutral-500">
-                            Applies to: <span className="font-semibold">{suggestion.pillar}</span>
-                            {typeof suggestion.score === "number" && (
-                              <>
-                                {" "}
-                                · After apply ≈{" "}
-                                {Math.min(85, suggestion.score + suggestion.estimatedImpact)}%
-                              </>
-                            )}
-                          </p>
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            className="bg-white text-purple-700 border border-purple-200 hover:bg-purple-100"
-                            onClick={() => handleApplySuggestion(suggestion)}
-                            disabled={
-                              applyingSuggestionId === suggestion.id ||
-                              isSavingEditedIdea ||
-                              isRevalidating
-                            }
-                          >
-                            {applyingSuggestionId === suggestion.id ? (
-                              <>
-                                <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                                Applying
-                              </>
-                            ) : (
-                              "Apply & revalidate"
-                            )}
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : draftValidation ? (
+                ) : !draftValidation ? (
                   <div className="rounded-lg border border-purple-100 bg-white/60 p-4 text-sm text-purple-800">
                     Run validation to see targeted suggestions.
                   </div>
@@ -3000,6 +3109,127 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
               from your last completed Ideate run.
             </div>
             <InitialFeedback feedback={savedInitialFeedback} />
+            <Card className="border border-neutral-200 bg-white shadow-sm">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg font-semibold text-neutral-900">AI Improvements</CardTitle>
+                    <CardDescription>Directly refine weak pillars and track diffs.</CardDescription>
+                  </div>
+                  <Button onClick={() => handleAutoImprove(95)} disabled={autoImproving} variant="default">
+                    {autoImproving ? (
+                      <span className="flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Auto-improving…
+                      </span>
+                    ) : (
+                      "Auto-Improve Idea to 95%"
+                    )}
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {Object.entries(savedInitialFeedback.scores).map(([key, value]) => {
+                    const numericScore = typeof value?.score === "number" ? value.score : 0;
+                    return (
+                      <div key={key} className="flex flex-col gap-2 rounded-lg border border-neutral-200 p-3">
+                        <div className="flex items-center justify-between">
+                          <div className="text-sm font-semibold text-neutral-900">{PILLAR_KEY_TO_LABEL[key] || key}</div>
+                          <span className="text-xs text-neutral-500">{numericScore}/100</span>
+                        </div>
+                        <p className="text-xs text-neutral-600 line-clamp-2">{value?.rationale}</p>
+                        {numericScore < 90 && (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            disabled={refineLoadingPillar === key || autoImproving}
+                            onClick={() => handleRefinePillar(key)}
+                          >
+                            {refineLoadingPillar === key ? (
+                              <span className="flex items-center gap-2">
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Improving…
+                              </span>
+                            ) : (
+                              "Improve This Pillar"
+                            )}
+                          </Button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-sm font-semibold text-neutral-900">Latest Improvements</h4>
+                      <p className="text-xs text-neutral-600">Apply or undo refinements instantly.</p>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={undoLastImprovement} disabled={!overviewHistory.length}>
+                      Undo last improvement
+                    </Button>
+                  </div>
+                  {improvementLog.length === 0 && (
+                    <p className="text-sm text-neutral-600">No improvements yet. Start with an individual pillar or auto-improve.</p>
+                  )}
+                  <div className="space-y-3">
+                    {improvementLog.map((entry, index) => (
+                      <div key={`${entry.pillar}-${index}`} className="rounded-lg border border-neutral-200 p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold text-neutral-900">{entry.pillar}</span>
+                            <span className="rounded-full bg-green-50 px-2 py-0.5 text-xs text-green-700">
+                              +{entry.scoreDelta || 0} score
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button size="sm" variant="secondary" onClick={() => handleApplyImprovement(entry)}>
+                              Apply improvement
+                            </Button>
+                          </div>
+                        </div>
+                        {entry.differences?.length > 0 && (
+                          <div className="mt-2 space-y-2">
+                            {entry.differences.map((diff, diffIndex) => (
+                              <details key={diffIndex} className="rounded border border-neutral-100 bg-neutral-50 p-2 text-sm">
+                                <summary className="cursor-pointer text-neutral-800">{diff.section}</summary>
+                                <div className="mt-2 grid gap-2 md:grid-cols-2">
+                                  <div className="rounded bg-white p-2 text-xs text-neutral-700">
+                                    <div className="font-semibold text-neutral-900">Before</div>
+                                    <p className="whitespace-pre-wrap">{diff.before}</p>
+                                  </div>
+                                  <div className="rounded bg-white p-2 text-xs text-neutral-700">
+                                    <div className="font-semibold text-neutral-900">After</div>
+                                    <p className="whitespace-pre-wrap">{diff.after}</p>
+                                  </div>
+                                </div>
+                              </details>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {refinedOverview && (
+                  <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-semibold text-neutral-900">Refined Overview</h4>
+                      <span className="text-xs text-neutral-500">Live preview</span>
+                    </div>
+                    <div className="mt-2 space-y-1 text-sm text-neutral-800">
+                      <div><span className="font-semibold">Pitch:</span> {refinedOverview.refinedPitch}</div>
+                      <div><span className="font-semibold">Problem:</span> {refinedOverview.problemSummary}</div>
+                      <div><span className="font-semibold">Solution:</span> {refinedOverview.solution}</div>
+                      <div><span className="font-semibold">Competition:</span> {refinedOverview.competition}</div>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
         )}
       </div>
