@@ -666,7 +666,8 @@ Do NOT include explanations or prose.`;
     }
 
     if (!cleanedSuggestions || cleanedSuggestions.length === 0) {
-      throw lastError || new Error(`Failed to generate valid suggestions after ${MAX_GENERATION_ATTEMPTS} attempts. Last error: ${lastError?.message || 'Unknown error'}`);
+      const errorMessage = lastError?.message || 'Unknown error';
+      throw lastError || new Error(`Failed to generate valid suggestions after ${MAX_GENERATION_ATTEMPTS} attempts. Last error: ${errorMessage}`);
     }
 
     return NextResponse.json({ suggestions: cleanedSuggestions });
