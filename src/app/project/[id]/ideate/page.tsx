@@ -12,8 +12,9 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
-import { ChevronDown, ChevronUp, Loader2, Wand2 } from "lucide-react";
-import { InitialFeedback, InitialFeedbackData } from "@/components/ideate/InitialFeedback";
+import { ChevronDown, ChevronUp, Loader2, Wand2, Users, Target, TrendingUp, Wrench, DollarSign, Info, AlertCircle } from "lucide-react";
+import { InitialFeedback, InitialFeedbackData, dimensionImpacts, dimensionIcons, getImpactBadge, getImpactStatement } from "@/components/ideate/InitialFeedback";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 type Mode = "explore-idea" | "solve-problem" | "surprise-me" | null;
 
@@ -134,6 +135,7 @@ export default function IdeateWizardPage() {
   }
   const [validationDeltas, setValidationDeltas] = useState<Partial<Record<string, ScoreDelta>>>({});
   const [showInitialFeedbackReport, setShowInitialFeedbackReport] = useState(true);
+  const [expandedDimensions, setExpandedDimensions] = useState<Set<string>>(new Set());
 
   // Minimize Initial Feedback in edit mode, maximize in view mode
   useEffect(() => {
@@ -2323,54 +2325,227 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
                       Re-assessing idea with the latest edits...
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                      {Object.entries(draftValidation.scores).map(([key, value]) => {
-                        const label = PILLAR_KEY_TO_LABEL[key] || key;
-                        const score = typeof value?.score === "number" ? value.score : 0;
-                        const deltaInfo = validationDeltas[key];
-                        const deltaValue =
-                          typeof deltaInfo?.change === "number" && deltaInfo.change !== 0
-                            ? deltaInfo.change
-                            : null;
-                        return (
-                          <div
-                            key={key}
-                            className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm space-y-2"
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <div>
-                                <p className="text-sm font-semibold text-neutral-900">{label}</p>
-                                {value?.rationale && (
-                                  <p className="text-xs text-neutral-500 line-clamp-2 mt-1">
-                                    {value.rationale}
-                                  </p>
-                                )}
+                    <TooltipProvider>
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        {Object.entries(draftValidation.scores).map(([key, value]) => {
+                          const label = PILLAR_KEY_TO_LABEL[key] || key;
+                          const score = typeof value?.score === "number" ? value.score : 0;
+                          const deltaInfo = validationDeltas[key];
+                          const deltaValue =
+                            typeof deltaInfo?.change === "number" && deltaInfo.change !== 0
+                              ? deltaInfo.change
+                              : null;
+                          const DimensionIcon = dimensionIcons[key] || Info;
+                          const impact = dimensionImpacts[key];
+                          const impactBadge = getImpactBadge(score);
+                          const impactStatement = getImpactStatement(key, score);
+                          const isExpanded = expandedDimensions.has(key);
+
+                          const toggleDimension = (dimension: string) => {
+                            const newExpanded = new Set(expandedDimensions);
+                            if (newExpanded.has(dimension)) {
+                              newExpanded.delete(dimension);
+                            } else {
+                              newExpanded.add(dimension);
+                            }
+                            setExpandedDimensions(newExpanded);
+                          };
+
+                          return (
+                            <div
+                              key={key}
+                              className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm space-y-3"
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex items-start gap-2 flex-1 min-w-0">
+                                  <DimensionIcon className="h-5 w-5 text-neutral-500 mt-0.5 flex-shrink-0" />
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                                      <p className="text-sm font-semibold text-neutral-900">{label}</p>
+                                      <span className={cn("text-xs px-2 py-0.5 rounded font-medium border", impactBadge.color)}>
+                                        {impactBadge.label}
+                                      </span>
+                                    </div>
+                                    {impact && (
+                                      <p className="text-xs text-neutral-600 leading-relaxed line-clamp-2">
+                                        {impact.whatItMeasures}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2 flex-shrink-0">
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <button
+                                        type="button"
+                                        className="inline-flex items-center justify-center rounded-full focus:outline-none focus:ring-2 focus:ring-neutral-400 focus:ring-offset-2"
+                                        aria-label={`Learn more about ${label}`}
+                                      >
+                                        <Info className="h-3.5 w-3.5 text-neutral-400 hover:text-neutral-600 transition-colors" />
+                                      </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent
+                                      side="top"
+                                      className="max-w-md bg-neutral-900 text-neutral-50 border-neutral-700 p-4"
+                                    >
+                                      <div className="space-y-3">
+                                        <div>
+                                          <p className="text-xs font-semibold mb-1.5 text-neutral-300 uppercase tracking-wide">
+                                            What This Measures
+                                          </p>
+                                          <p className="text-sm leading-relaxed">
+                                            {impact?.whatItMeasures || value?.rationale || 'No description available.'}
+                                          </p>
+                                        </div>
+                                        {impact && (
+                                          <div className="border-t border-neutral-700 pt-3">
+                                            <p className="text-xs font-semibold mb-2 text-neutral-300 uppercase tracking-wide">
+                                              Scoring Factors
+                                            </p>
+                                            <ul className="space-y-1.5">
+                                              {impact.scoringFactors.map((factor, idx) => (
+                                                <li key={idx} className="text-xs text-neutral-300 flex items-start gap-2">
+                                                  <span className="text-neutral-500 mt-1">•</span>
+                                                  <span>{factor}</span>
+                                                </li>
+                                              ))}
+                                            </ul>
+                                          </div>
+                                        )}
+                                        {impactStatement && (
+                                          <div className="border-t border-neutral-700 pt-3">
+                                            <p className="text-xs font-semibold mb-1.5 text-neutral-300 uppercase tracking-wide">
+                                              Impact on Your Idea
+                                            </p>
+                                            <p className="text-xs text-neutral-300 leading-relaxed">
+                                              {impactStatement}
+                                            </p>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                  <span
+                                    className={cn(
+                                      "rounded-full border px-2 py-0.5 text-xs font-semibold",
+                                      getScoreBadgeClasses(score),
+                                    )}
+                                  >
+                                    {score}%
+                                  </span>
+                                </div>
                               </div>
-                              <span
-                                className={cn(
-                                  "rounded-full border px-2 py-0.5 text-xs font-semibold",
-                                  getScoreBadgeClasses(score),
-                                )}
-                              >
-                                {score}%
-                              </span>
+                              <Progress value={score} className={cn("h-2", getProgressColor(score))} />
+                              
+                              {/* Impact Statement - "So What?" */}
+                              {impactStatement && (
+                                <div className={cn(
+                                  "rounded-md p-3 border-l-4",
+                                  score >= 70
+                                    ? "bg-green-50 border-green-400"
+                                    : score >= 40
+                                    ? "bg-yellow-50 border-yellow-400"
+                                    : "bg-red-50 border-red-400"
+                                )}>
+                                  <div className="flex items-start gap-2">
+                                    <AlertCircle className={cn(
+                                      "h-4 w-4 mt-0.5 flex-shrink-0",
+                                      score >= 70
+                                        ? "text-green-600"
+                                        : score >= 40
+                                        ? "text-yellow-600"
+                                        : "text-red-600"
+                                    )} />
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-xs font-semibold mb-1 text-neutral-900">
+                                        So What? What This Means for Your Idea:
+                                      </p>
+                                      <p className="text-xs text-neutral-700 leading-relaxed">
+                                        {impactStatement}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Expandable "Learn More" Section */}
+                              {impact && (
+                                <div className="border-t border-neutral-200 pt-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleDimension(key)}
+                                    className="flex items-center gap-2 text-xs font-medium text-neutral-600 hover:text-neutral-900 transition-colors w-full"
+                                  >
+                                    {isExpanded ? (
+                                      <ChevronUp className="h-3.5 w-3.5" />
+                                    ) : (
+                                      <ChevronDown className="h-3.5 w-3.5" />
+                                    )}
+                                    <span>Learn more about this dimension</span>
+                                  </button>
+                                  {isExpanded && (
+                                    <div className="mt-3 space-y-3 pl-6">
+                                      <div>
+                                        <p className="text-xs font-semibold text-neutral-700 mb-1.5">
+                                          What This Measures
+                                        </p>
+                                        <p className="text-xs text-neutral-600 leading-relaxed">
+                                          {impact.whatItMeasures}
+                                        </p>
+                                      </div>
+                                      <div>
+                                        <p className="text-xs font-semibold text-neutral-700 mb-1.5">
+                                          Scoring Factors
+                                        </p>
+                                        <ul className="space-y-1">
+                                          {impact.scoringFactors.map((factor, idx) => (
+                                            <li key={idx} className="text-xs text-neutral-600 flex items-start gap-2">
+                                              <span className="text-neutral-400 mt-1">•</span>
+                                              <span>{factor}</span>
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      </div>
+                                      <div>
+                                        <p className="text-xs font-semibold text-neutral-700 mb-1.5">
+                                          Current Score Impact
+                                        </p>
+                                        <p className="text-xs text-neutral-600 leading-relaxed">
+                                          {impactStatement}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Delta indicator */}
+                              {deltaValue !== null && (
+                                <div className="border-t border-neutral-200 pt-2">
+                                  <p
+                                    className={cn(
+                                      "text-xs font-medium",
+                                      deltaValue > 0 ? "text-green-600" : "text-red-600",
+                                    )}
+                                  >
+                                    {deltaValue > 0 ? "+" : ""}
+                                    {deltaValue} pts vs last run
+                                  </p>
+                                </div>
+                              )}
+
+                              {/* Rationale */}
+                              {value?.rationale && (
+                                <div className="border-t border-neutral-200 pt-2">
+                                  <p className="text-xs font-semibold text-neutral-700 mb-1">Analysis</p>
+                                  <p className="text-xs text-neutral-600 leading-relaxed">{value.rationale}</p>
+                                </div>
+                              )}
                             </div>
-                            <Progress value={score} className={cn("h-2", getProgressColor(score))} />
-                            {deltaValue !== null && (
-                              <p
-                                className={cn(
-                                  "text-xs font-medium",
-                                  deltaValue > 0 ? "text-green-600" : "text-red-600",
-                                )}
-                              >
-                                {deltaValue > 0 ? "+" : ""}
-                                {deltaValue} pts vs last run
-                              </p>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
+                          );
+                        })}
+                      </div>
+                    </TooltipProvider>
                   )}
                 </div>
               )}

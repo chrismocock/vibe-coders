@@ -39,7 +39,7 @@ const dimensionDescriptions: Record<string, string> = {
   pricingPotential: 'How likely are customers to pay for this? Higher scores indicate better monetization potential.',
 };
 
-const dimensionIcons: Record<string, typeof Users> = {
+export const dimensionIcons: Record<string, typeof Users> = {
   audienceFit: Users,
   competition: Target,
   marketDemand: TrendingUp,
@@ -47,7 +47,7 @@ const dimensionIcons: Record<string, typeof Users> = {
   pricingPotential: DollarSign,
 };
 
-interface DimensionImpact {
+export interface DimensionImpact {
   whatItMeasures: string;
   scoringFactors: string[];
   impactStatements: {
@@ -57,7 +57,7 @@ interface DimensionImpact {
   };
 }
 
-const dimensionImpacts: Record<string, DimensionImpact> = {
+export const dimensionImpacts: Record<string, DimensionImpact> = {
   audienceFit: {
     whatItMeasures: 'How clearly you\'ve defined your target customers and how accessible they are to reach. This measures your Ideal Customer Profile (ICP) clarity, the urgency of their pain, and their willingness to pay.',
     scoringFactors: [
@@ -207,6 +207,21 @@ const recommendationConfig = {
   },
 };
 
+export const getImpactBadge = (score: number) => {
+  if (score >= 70) return { label: 'Strong Foundation', color: 'bg-green-100 text-green-700 border-green-200' };
+  if (score >= 40) return { label: 'Needs Attention', color: 'bg-yellow-100 text-yellow-700 border-yellow-200' };
+  return { label: 'Critical Gap', color: 'bg-red-100 text-red-700 border-red-200' };
+};
+
+export const getImpactStatement = (dimension: string, score: number): string => {
+  const impact = dimensionImpacts[dimension];
+  if (!impact) return '';
+  
+  if (score >= 70) return impact.impactStatements.high;
+  if (score >= 40) return impact.impactStatements.medium;
+  return impact.impactStatements.low;
+};
+
 export function InitialFeedback({ feedback }: InitialFeedbackProps) {
   const recConfig = recommendationConfig[feedback.recommendation];
   const RecIcon = recConfig.icon;
@@ -222,21 +237,6 @@ export function InitialFeedback({ feedback }: InitialFeedbackProps) {
     if (score >= 70) return 'Strong';
     if (score >= 40) return 'Moderate';
     return 'Weak';
-  };
-
-  const getImpactBadge = (score: number) => {
-    if (score >= 70) return { label: 'Strong Foundation', color: 'bg-green-100 text-green-700 border-green-200' };
-    if (score >= 40) return { label: 'Needs Attention', color: 'bg-yellow-100 text-yellow-700 border-yellow-200' };
-    return { label: 'Critical Gap', color: 'bg-red-100 text-red-700 border-red-200' };
-  };
-
-  const getImpactStatement = (dimension: string, score: number): string => {
-    const impact = dimensionImpacts[dimension];
-    if (!impact) return '';
-    
-    if (score >= 70) return impact.impactStatements.high;
-    if (score >= 40) return impact.impactStatements.medium;
-    return impact.impactStatements.low;
   };
 
   const toggleDimension = (dimension: string) => {
