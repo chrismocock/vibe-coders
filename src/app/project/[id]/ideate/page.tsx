@@ -3131,14 +3131,15 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
               <CardContent className="space-y-6">
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {Object.entries(savedInitialFeedback.scores).map(([key, value]) => {
-                    const numericScore = typeof value?.score === "number" ? value.score : 0;
+                    const scoreData = value as { score: number; rationale: string };
+                    const numericScore = typeof scoreData?.score === "number" ? scoreData.score : 0;
                     return (
                       <div key={key} className="flex flex-col gap-2 rounded-lg border border-neutral-200 p-3">
                         <div className="flex items-center justify-between">
                           <div className="text-sm font-semibold text-neutral-900">{PILLAR_KEY_TO_LABEL[key] || key}</div>
                           <span className="text-xs text-neutral-500">{numericScore}/100</span>
                         </div>
-                        <p className="text-xs text-neutral-600 line-clamp-2">{value?.rationale}</p>
+                        <p className="text-xs text-neutral-600 line-clamp-2">{scoreData?.rationale}</p>
                         {numericScore < 90 && (
                           <Button
                             variant="secondary"
