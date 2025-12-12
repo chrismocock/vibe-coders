@@ -14,7 +14,7 @@ import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 import { ChevronDown, ChevronUp, Loader2, Wand2, Users, Target, TrendingUp, Wrench, DollarSign, Info, AlertCircle } from "lucide-react";
 import { InitialFeedback, InitialFeedbackData, dimensionImpacts, dimensionIcons, getImpactBadge, getImpactStatement } from "@/components/ideate/InitialFeedback";
-import { IDEATE_PILLARS, IDEATE_PILLAR_WEIGHTS } from "@/lib/ideate/pillars";
+import { IDEATE_PILLARS, IDEATE_PILLAR_WEIGHTS, ImprovementDirection } from "@/lib/ideate/pillars";
 import { ImprovementHistory, ImprovementHistoryEntry, SectionDiff } from "@/components/ideate/ImprovementHistory";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { ProductOverview } from "@/server/ideate/refinementEngine";
@@ -566,6 +566,13 @@ export default function IdeateWizardPage() {
 
   const [refinementSuggestions, setRefinementSuggestions] = useState<RefinementSuggestion[] | null>(null);
   const [showNarrativeEditor, setShowNarrativeEditor] = useState(false);
+  interface PillarDirectionState {
+    directions: ImprovementDirection[];
+    generatedAt: string;
+  }
+  const [pillarDirections, setPillarDirections] = useState<Record<string, PillarDirectionState>>({});
+  const [pillarDirectionErrors, setPillarDirectionErrors] = useState<Record<string, string | null>>({});
+  const [directionLoadingPillar, setDirectionLoadingPillar] = useState<string | null>(null);
 
   const loadImprovementHistory = useCallback(async () => {
     if (!projectId) return;
@@ -609,6 +616,20 @@ export default function IdeateWizardPage() {
                 output: parsedOutput,
                 status: ideateStage.status,
               });
+              if (
+                parsedOutput?.pendingImprovementDirections &&
+                Array.isArray(parsedOutput.pendingImprovementDirections?.directions) &&
+                parsedOutput.pendingImprovementDirections.targetPillar
+              ) {
+                const pending = parsedOutput.pendingImprovementDirections;
+                setPillarDirections({
+                  [pending.targetPillar]: {
+                    directions: pending.directions,
+                    generatedAt: pending.generatedAt || new Date().toISOString(),
+                  },
+                });
+                setPillarDirectionErrors({});
+              }
               if (parsedOutput?.refinedOverview) {
                 setRefinedOverview(parsedOutput.refinedOverview as ProductOverview);
               }
@@ -2104,33 +2125,39 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
     });
   };
 
-  const handleRefinePillar = async (pillarKey: string) => {
+  const handleRefinePillar = async (pillarKey: string, selectedDirectionId?: string) => {
     if (!projectId) return;
-    setRefineLoadingPillar(pillarKey);
+    const applyingDirection = typeof selectedDirectionId === "string" && selectedDirectionId.length > 0;
+    if (applyingDirection) {
+      setRefineLoadingPillar(pillarKey);
+    } else {
+      setDirectionLoadingPillar(pillarKey);
+    }
     try {
       const response = await fetch("/api/ideate/refine", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId, targetPillar: pillarKey }),
+        body: JSON.stringify({
+          projectId,
+          targetPillar: pillarKey,
+          ...(applyingDirection ? { selectedDirectionId } : {}),
+        }),
       });
 
       if (!response.ok) {
         let errorMessage: string = "Failed to refine idea";
         try {
           const text = await response.text();
-          if (text && typeof text === 'string' && text.trim()) {
+          if (text && typeof text === "string" && text.trim()) {
             try {
               const parsed = JSON.parse(text);
-              // Only access the 'error' property if it's a direct string - avoid any nested object access
-              if (parsed && typeof parsed === 'object' && 'error' in parsed) {
-                const errorValue = parsed.error;
-                // Only use it if it's a plain string - don't access any nested properties
-                if (typeof errorValue === 'string' && errorValue.trim()) {
+              if (parsed && typeof parsed === "object" && "error" in parsed) {
+                const errorValue = (parsed as { error?: string }).error;
+                if (typeof errorValue === "string" && errorValue.trim()) {
                   errorMessage = errorValue.trim();
                 }
               }
             } catch {
-              // If JSON parsing fails, use the text as error message if it's reasonable
               const trimmed = text.trim();
               if (trimmed.length > 0 && trimmed.length < 200) {
                 errorMessage = trimmed;
@@ -2138,14 +2165,48 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
             }
           }
         } catch {
-          // If reading response fails, use default message
+          // Ignore parse errors and use fallback
         }
-        // Create error with just the message string - no property access
         throw new Error(errorMessage);
       }
 
       const data = await response.json();
-      const improvedOverview = data.improvedOverview as ProductOverview;
+
+      if (!applyingDirection && data?.status === "directions") {
+        const directions = Array.isArray(data.improvementDirections) ? data.improvementDirections : [];
+        if (!directions.length) {
+          throw new Error("AI did not return any improvement directions. Please try again.");
+        }
+        const pendingPayload = {
+          targetPillar: data.targetPillar || pillarKey,
+          generatedAt: data.generatedAt || new Date().toISOString(),
+          directions,
+        };
+        setPillarDirections({
+          [pillarKey]: {
+            directions: pendingPayload.directions,
+            generatedAt: pendingPayload.generatedAt,
+          },
+        });
+        setPillarDirectionErrors({});
+        setSavedData((prev) => {
+          if (!prev) return prev;
+          const nextOutput =
+            typeof prev.output === "object" && prev.output !== null ? { ...prev.output } : {};
+          nextOutput.pendingImprovementDirections = pendingPayload;
+          return { ...prev, output: nextOutput };
+        });
+        toast.success(
+          `Found ${directions.length} improvement direction${directions.length === 1 ? "" : "s"}. Choose one to continue.`,
+        );
+        return;
+      }
+
+      const improvedOverview = data.improvedOverview as ProductOverview | undefined;
+      if (!improvedOverview) {
+        throw new Error("AI response did not include an improved overview. Please try again.");
+      }
+
       const updatedDifferences = Array.isArray(data.differences) ? data.differences : [];
       const updatedFeedback = data.updatedFeedback as InitialFeedbackData | undefined;
       const previousFeedback =
@@ -2157,33 +2218,33 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
       if (updatedFeedback) {
         const deltas = computeScoreDeltas(previousFeedback, updatedFeedback);
         setFeedbackDeltas(deltas);
-        
-        // Check if overall confidence decreased
+
         const overallDelta = deltas.overallConfidence?.change;
-        if (typeof overallDelta === 'number' && overallDelta < 0) {
+        if (typeof overallDelta === "number" && overallDelta < 0) {
           toast.warning(
             `Overall confidence decreased by ${Math.abs(overallDelta)} points. The target pillar improved, but other aspects were re-evaluated.`,
-            { duration: 6000 }
+            { duration: 6000 },
           );
-        } else if (typeof overallDelta === 'number' && overallDelta > 0) {
+        } else if (typeof overallDelta === "number" && overallDelta > 0) {
           toast.success(`Overall confidence increased by ${overallDelta} points!`);
         }
-        
-        // Check if target pillar improved but other pillars decreased
+
         const targetPillarDelta = deltas[data.pillarImpacted || pillarKey]?.change;
-        if (typeof targetPillarDelta === 'number' && targetPillarDelta > 0) {
-          const decreasedPillars = Object.entries(deltas)
-            .filter(([key, delta]) => 
-              key !== 'overallConfidence' && 
-              key !== data.pillarImpacted && 
-              typeof delta?.change === 'number' && 
-              delta.change < 0
-            );
+        if (typeof targetPillarDelta === "number" && targetPillarDelta > 0) {
+          const decreasedPillars = Object.entries(deltas).filter(
+            ([key, delta]) =>
+              key !== "overallConfidence" &&
+              key !== data.pillarImpacted &&
+              typeof delta?.change === "number" &&
+              delta.change < 0,
+          );
           if (decreasedPillars.length > 0) {
-            const pillarNames = decreasedPillars.map(([key]) => PILLAR_KEY_TO_LABEL[key] || key).join(', ');
+            const pillarNames = decreasedPillars.map(([key]) => PILLAR_KEY_TO_LABEL[key] || key).join(", ");
             toast.info(
-              `Target pillar improved by ${targetPillarDelta} points, but ${pillarNames} ${decreasedPillars.length === 1 ? 'decreased' : 'decreased'}.`,
-              { duration: 5000 }
+              `Target pillar improved by ${targetPillarDelta} points, but ${pillarNames} ${
+                decreasedPillars.length === 1 ? "decreased" : "decreased"
+              }.`,
+              { duration: 5000 },
             );
           }
         }
@@ -2214,6 +2275,7 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
           ...(Array.isArray(nextOutput.improvementIterations) ? nextOutput.improvementIterations : []),
           iterationPayload,
         ];
+        nextOutput.pendingImprovementDirections = null;
         return { ...prev, output: nextOutput };
       });
 
@@ -2234,42 +2296,50 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
         typeof iterationPayload.scoreDelta === "number" && iterationPayload.scoreDelta !== 0
           ? ` (${iterationPayload.scoreDelta > 0 ? "+" : ""}${iterationPayload.scoreDelta})`
           : "";
-      
-      // Show more detailed feedback about the improvement
-      const overallDelta = typeof updatedFeedback?.overallConfidence === "number" && previousFeedback
-        ? updatedFeedback.overallConfidence - (previousFeedback.overallConfidence ?? 0)
-        : null;
-      
+
+      const overallDelta =
+        typeof updatedFeedback?.overallConfidence === "number" && previousFeedback
+          ? updatedFeedback.overallConfidence - (previousFeedback.overallConfidence ?? 0)
+          : null;
+
       if (typeof overallDelta === "number" && overallDelta < 0) {
-        // Overall decreased - show warning but still success for target pillar
         toast.success(
           `Target pillar ${data.pillarImpacted || pillarKey} improved${deltaLabel}, but overall confidence decreased by ${Math.abs(overallDelta)} points.`,
-          { duration: 6000 }
+          { duration: 6000 },
         );
       } else {
         toast.success(`Improved ${data.pillarImpacted || pillarKey}${deltaLabel}`);
       }
+
+      setPillarDirections({});
+      setPillarDirectionErrors({});
     } catch (error) {
       console.error("Refine pillar error:", error);
       let errorMsg = "Failed to refine idea";
       try {
         if (error instanceof Error) {
           errorMsg = error.message || errorMsg;
-        } else if (typeof error === 'string') {
+        } else if (typeof error === "string") {
           errorMsg = error;
-        } else if (error && typeof error === 'object') {
-          // Safely extract message from error object
+        } else if (error && typeof error === "object") {
           const msg = (error as { message?: string })?.message;
-          if (typeof msg === 'string' && msg.trim()) {
+          if (typeof msg === "string" && msg.trim()) {
             errorMsg = msg.trim();
           }
         }
       } catch {
-        // If anything goes wrong extracting the error message, use default
+        // Ignore secondary errors
       }
       toast.error(errorMsg);
+      if (!applyingDirection) {
+        setPillarDirectionErrors((prev) => ({ ...prev, [pillarKey]: errorMsg }));
+      }
     } finally {
-      setRefineLoadingPillar(null);
+      if (applyingDirection) {
+        setRefineLoadingPillar(null);
+      } else {
+        setDirectionLoadingPillar(null);
+      }
     }
   };
 
@@ -3803,21 +3873,82 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
                         </div>
                         <p className="text-xs text-neutral-600 line-clamp-2">{scoreData?.rationale}</p>
                         {numericScore < 90 && (
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            disabled={refineLoadingPillar === key || autoImproving}
-                            onClick={() => handleRefinePillar(key)}
-                          >
-                            {refineLoadingPillar === key ? (
-                              <span className="flex items-center gap-2">
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                                Improving…
-                              </span>
+                          <div className="space-y-2">
+                            {pillarDirections[key]?.directions?.length ? (
+                              <>
+                                <div className="space-y-2">
+                                  {pillarDirections[key]?.directions.map((direction) => (
+                                    <div
+                                      key={direction.id}
+                                      className="rounded-md border border-neutral-200 bg-neutral-50 p-3"
+                                    >
+                                      <div className="flex flex-col gap-1">
+                                        <div className="text-sm font-semibold text-neutral-900">{direction.title}</div>
+                                        <p className="text-xs text-neutral-600 leading-relaxed">
+                                          {direction.description}
+                                        </p>
+                                      </div>
+                                      <Button
+                                        className="mt-3 w-full"
+                                        variant="secondary"
+                                        size="sm"
+                                        disabled={refineLoadingPillar === key || autoImproving}
+                                        onClick={() => handleRefinePillar(key, direction.id)}
+                                      >
+                                        {refineLoadingPillar === key ? (
+                                          <span className="flex items-center gap-2">
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                            Applying direction…
+                                          </span>
+                                        ) : (
+                                          "Apply this direction"
+                                        )}
+                                      </Button>
+                                    </div>
+                                  ))}
+                                </div>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="w-full"
+                                  disabled={refineLoadingPillar === key || autoImproving}
+                                  onClick={() => handleRefinePillar(key, "auto")}
+                                >
+                                  {refineLoadingPillar === key ? (
+                                    <span className="flex items-center gap-2">
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                      Letting AI choose…
+                                    </span>
+                                  ) : (
+                                    "Let AI choose for me"
+                                  )}
+                                </Button>
+                              </>
                             ) : (
-                              "Improve This Pillar"
+                              <>
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  disabled={
+                                    directionLoadingPillar === key || refineLoadingPillar === key || autoImproving
+                                  }
+                                  onClick={() => handleRefinePillar(key)}
+                                >
+                                  {directionLoadingPillar === key ? (
+                                    <span className="flex items-center gap-2">
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                      Gathering directions…
+                                    </span>
+                                  ) : (
+                                    "Show improvement directions"
+                                  )}
+                                </Button>
+                                {pillarDirectionErrors[key] && (
+                                  <p className="text-xs text-red-600">{pillarDirectionErrors[key]}</p>
+                                )}
+                              </>
                             )}
-                          </Button>
+                          </div>
                         )}
                       </div>
                     );

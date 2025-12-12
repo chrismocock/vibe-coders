@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { getSupabaseServer } from "@/lib/supabaseServer";
-import { improveIdea, PillarName, ProductOverview } from "@/server/ideate/refinementEngine";
-import { normalizeInitialFeedbackData } from "@/lib/ideate/pillars";
+import {
+  improveIdea,
+  PillarName,
+  ProductOverview,
+  generateImprovementDirections,
+} from "@/server/ideate/refinementEngine";
+import { normalizeInitialFeedbackData, ImprovementDirection } from "@/lib/ideate/pillars";
 import { runIdeateInitialFeedback, IdeateInitialFeedbackInput } from "@/server/ideate/initialFeedback";
 import { ZodError } from "zod";
 
@@ -23,7 +28,51 @@ interface IdeateStageOutput {
   initialFeedback?: unknown;
   pillarScores?: Record<string, { score?: number; rationale?: string }>;
   improvementIterations?: unknown[];
+  pendingImprovementDirections?: PendingImprovementDirections | null;
   [key: string]: unknown;
+}
+
+interface PendingImprovementDirections {
+  targetPillar: PillarName;
+  generatedAt: string;
+  directions: ImprovementDirection[];
+}
+
+const CONFIDENCE_PRIORITY: Record<ImprovementDirection['confidence'], number> = {
+  low: 1,
+  medium: 2,
+  high: 3,
+};
+
+function parsePendingDirections(raw: unknown): PendingImprovementDirections | null {
+  if (!raw || typeof raw !== "object") return null;
+  const candidate = raw as PendingImprovementDirections;
+  if (
+    !candidate ||
+    !Array.isArray(candidate.directions) ||
+    typeof (candidate as { targetPillar?: string }).targetPillar !== "string"
+  ) {
+    return null;
+  }
+
+  return {
+    targetPillar: candidate.targetPillar as PillarName,
+    generatedAt:
+      typeof candidate.generatedAt === "string" && candidate.generatedAt
+        ? candidate.generatedAt
+        : new Date().toISOString(),
+    directions: candidate.directions as ImprovementDirection[],
+  };
+}
+
+function autoSelectDirection(directions: ImprovementDirection[]): ImprovementDirection | null {
+  if (!Array.isArray(directions) || !directions.length) return null;
+  const sorted = [...directions].sort((a, b) => {
+    const confidenceDiff = CONFIDENCE_PRIORITY[b.confidence] - CONFIDENCE_PRIORITY[a.confidence];
+    if (confidenceDiff !== 0) return confidenceDiff;
+    return a.title.localeCompare(b.title);
+  });
+  return sorted[0] ?? null;
 }
 
 function parseJson<T>(value: unknown, fallback: T): T {
@@ -111,10 +160,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { projectId, targetPillar } = await req.json();
+    const { projectId, targetPillar, selectedDirectionId } = await req.json();
     if (!projectId) {
       return NextResponse.json({ error: "projectId is required" }, { status: 400 });
     }
+    const normalizedDirectionId =
+      typeof selectedDirectionId === "string" && selectedDirectionId.trim().length
+        ? selectedDirectionId.trim()
+        : null;
 
     const supabase = getSupabaseServer();
     const { data: stage, error } = await supabase
@@ -132,6 +185,7 @@ export async function POST(req: Request) {
     const inputJson = parseJson<IdeateStageInput>(stage.input, {});
     const outputJson = parseJson<IdeateStageOutput>(stage.output, {});
     const reviewText = typeof outputJson?.aiReview === "string" ? outputJson.aiReview : "";
+    const pendingDirections = parsePendingDirections(outputJson?.pendingImprovementDirections);
     const baseOverview =
       (outputJson?.refinedOverview as ProductOverview | undefined) ||
       buildFallbackOverview(inputJson, reviewText);
@@ -154,11 +208,97 @@ export async function POST(req: Request) {
     const target =
       (targetPillar as PillarName | undefined) ||
       detectWeakestPillar(currentFeedback.scores);
+    const weaknessSummary =
+      (currentFeedback.scores?.[target] && currentFeedback.scores[target].rationale) ||
+      "No rationale provided.";
+    const pendingForTarget =
+      pendingDirections && pendingDirections.targetPillar === target ? pendingDirections : null;
+
+    if (!normalizedDirectionId) {
+      let directionsPayload = pendingForTarget;
+      if (!directionsPayload) {
+        const generatedDirections = await generateImprovementDirections({
+          overview: baseOverview,
+          pillar: target,
+          weaknessSummary,
+        });
+        directionsPayload = {
+          targetPillar: target,
+          generatedAt: new Date().toISOString(),
+          directions: generatedDirections,
+        };
+
+        const pendingOutput: IdeateStageOutput = {
+          ...outputJson,
+          pendingImprovementDirections: directionsPayload,
+        };
+        const { error: pendingSaveError } = await supabase
+          .from("project_stages")
+          .update({
+            output: JSON.stringify(pendingOutput),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", stage.id);
+
+        if (pendingSaveError) {
+          console.error("Failed to store pending improvement directions:", pendingSaveError);
+          throw new Error("Failed to store improvement directions. Please try again.");
+        }
+      }
+
+      return NextResponse.json({
+        status: "directions",
+        targetPillar: target,
+        requiresDirectionSelection: true,
+        improvementDirections: directionsPayload.directions,
+      });
+    }
+
+    let directionsPayload = pendingForTarget;
+    if (!directionsPayload) {
+      const generatedDirections = await generateImprovementDirections({
+        overview: baseOverview,
+        pillar: target,
+        weaknessSummary,
+      });
+      directionsPayload = {
+        targetPillar: target,
+        generatedAt: new Date().toISOString(),
+        directions: generatedDirections,
+      };
+    }
+
+    let resolvedDirectionId = normalizedDirectionId;
+    let selectedDirection: ImprovementDirection | null = null;
+
+    if (resolvedDirectionId === "auto") {
+      selectedDirection = autoSelectDirection(directionsPayload.directions);
+      if (!selectedDirection) {
+        return NextResponse.json(
+          { error: "No improvement directions available for auto-selection." },
+          { status: 400 },
+        );
+      }
+      resolvedDirectionId = selectedDirection.id;
+    } else {
+      selectedDirection =
+        directionsPayload.directions.find((direction) => direction.id === resolvedDirectionId) ?? null;
+    }
+
+    if (!selectedDirection) {
+      return NextResponse.json(
+        { error: "Selected direction was not found. Refresh directions and try again." },
+        { status: 400 },
+      );
+    }
+
     const result = await improveIdea({
       overview: baseOverview,
       currentFeedback,
       feedbackInput,
       targetPillar: target,
+      directions: directionsPayload.directions,
+      selectedDirectionId: resolvedDirectionId,
     });
 
     const iterationEntry = {
@@ -168,6 +308,10 @@ export async function POST(req: Request) {
       beforeSection: result.beforeSection,
       afterSection: result.afterSection,
       createdAt: new Date().toISOString(),
+      selectedDirectionId: resolvedDirectionId,
+      selectedDirectionTitle: selectedDirection.title,
+      selectedDirectionConfidence: selectedDirection.confidence,
+      selectedDirectionDescription: selectedDirection.description,
     };
     const existingIterations: unknown[] = Array.isArray(outputJson?.improvementIterations)
       ? outputJson.improvementIterations
@@ -180,6 +324,7 @@ export async function POST(req: Request) {
       pillarScores: result.feedback.scores,
       latestDifferences: result.differences,
       improvementIterations: [...existingIterations, iterationEntry],
+      pendingImprovementDirections: null,
     };
 
     const { error: updateError } = await supabase
@@ -217,6 +362,10 @@ export async function POST(req: Request) {
       afterSection: result.afterSection,
       updatedPillars: result.updatedPillars,
       updatedFeedback: result.feedback,
+      improvementDirections: directionsPayload.directions,
+      selectedDirectionId: resolvedDirectionId,
+      selectedDirection,
+      targetPillar: target,
     });
   } catch (error) {
     console.error("Ideate refine error:", error);
@@ -243,4 +392,3 @@ export async function POST(req: Request) {
     );
   }
 }
-

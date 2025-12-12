@@ -123,3 +123,13 @@ export function normalizeInitialFeedbackData(raw: unknown): IdeateInitialFeedbac
 
   return normalized;
 }
+
+export type ImprovementDirectionConfidence = 'low' | 'medium' | 'high';
+
+export interface ImprovementDirection {
+  id: string;
+  title: string;
+  description: string;
+  pillar: IdeatePillarId;
+  confidence: ImprovementDirectionConfidence;
+}

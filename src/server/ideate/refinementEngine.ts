@@ -5,6 +5,7 @@ import {
   IdeateInitialFeedbackData,
   IdeatePillarId,
   IdeatePillarSnapshot,
+  ImprovementDirection,
   buildPillarSnapshots,
 } from '@/lib/ideate/pillars';
 import { runIdeateInitialFeedback, IdeateInitialFeedbackInput } from './initialFeedback';
@@ -32,6 +33,9 @@ export interface IdeaImprovementResult {
   afterSection: string;
   updatedPillars: PillarResult[];
   feedback: IdeateInitialFeedbackData;
+  directions: ImprovementDirection[];
+  selectedDirectionId?: string;
+  selectedDirection?: ImprovementDirection | null;
 }
 
 export interface AutoImproveResult {
@@ -47,6 +51,8 @@ export interface ImproveIdeaOptions {
   currentFeedback: IdeateInitialFeedbackData;
   feedbackInput: IdeateInitialFeedbackInput;
   targetPillar?: PillarName;
+  directions?: ImprovementDirection[];
+  selectedDirectionId?: string;
 }
 
 export interface AutoImproveOptions {
@@ -55,6 +61,12 @@ export interface AutoImproveOptions {
   feedbackInput: IdeateInitialFeedbackInput;
   targetScore?: number;
   maxIterations?: number;
+}
+
+export interface GenerateImprovementDirectionsOptions {
+  overview: ProductOverview;
+  pillar: PillarName;
+  weaknessSummary: string;
 }
 
 const improvementSchema = z.object({
@@ -256,6 +268,58 @@ Return ONLY JSON in this format:
   return { systemPrompt, userPrompt };
 }
 
+function buildDirectionPrompt(
+  overview: ProductOverview,
+  pillar: PillarName,
+  weaknessSummary: string,
+  sections: OverviewSectionKey[],
+) {
+  const pillarLabel = IDEATE_PILLAR_LABELS[pillar] ?? pillar;
+  const sectionPreviews = sections
+    .map((key) => {
+      const label = SECTION_TITLES[key] ?? key;
+      const content = formatOverviewSection(overview, key) || '(empty)';
+      return `### ${label}\n${content}`;
+    })
+    .join('\n\n');
+
+  const systemPrompt = `You are an Ideate-stage strategist. Before rewriting anything, propose multiple conceptual improvement directions for one weak pillar.
+- Directions must describe WHAT strategic shift or emphasis should change, not detailed implementation steps.
+- Keep ideas grounded in the provided overview context.
+- Do not rewrite copy or provide code.
+- Aim for 2-3 directions only.
+- Respond with valid JSON.`;
+
+  const userPrompt = `Product Overview JSON:
+${JSON.stringify(overview, null, 2)}
+
+Target Pillar: ${pillarLabel} (${pillar})
+Weakness Summary: ${weaknessSummary || 'Not provided'}
+
+Reference Sections:
+${sectionPreviews}
+
+Return ONLY JSON matching:
+{
+  "directions": [
+    {
+      "id": "short-slug",
+      "title": "Short human title",
+      "description": "1-2 sentence conceptual shift focusing on WHAT to change",
+      "pillar": "${pillar}",
+      "confidence": "low | medium | high"
+    }
+  ]
+}
+
+Rules:
+- Each description must explain the conceptual change and outcome.
+- Do NOT mention implementation details or tactical execution.
+- IDs must be kebab-case, unique within this list, and reference the pillar.`;
+
+  return { systemPrompt, userPrompt };
+}
+
 export async function improveIdea(options: ImproveIdeaOptions): Promise<IdeaImprovementResult> {
   const basePillars = buildPillarSnapshots(options.currentFeedback.scores);
   const fallback = detectWeakestPillar(basePillars);
@@ -277,6 +341,14 @@ export async function improveIdea(options: ImproveIdeaOptions): Promise<IdeaImpr
     } as PillarResult);
 
   const sections = getSectionsForPillar(targetPillarName);
+  const directions =
+    options.directions && options.directions.length
+      ? options.directions
+      : await generateImprovementDirections({
+          overview: options.overview,
+          pillar: targetPillarName,
+          weaknessSummary: targetSnapshot.rationale,
+        });
   const prompts = buildImprovementPrompt(options.overview, targetSnapshot, sections);
 
   const { data } = await callJsonPrompt<unknown>({
@@ -333,6 +405,11 @@ export async function improveIdea(options: ImproveIdeaOptions): Promise<IdeaImpr
     afterSection: primaryDiff.after,
     updatedPillars,
     feedback: updatedFeedback,
+    directions,
+    selectedDirectionId: options.selectedDirectionId,
+    selectedDirection: options.selectedDirectionId
+      ? directions.find((direction) => direction.id === options.selectedDirectionId) ?? null
+      : null,
   };
 }
 
@@ -374,4 +451,58 @@ export async function autoImproveIdea(options: AutoImproveOptions): Promise<Auto
     iterations,
     reachedTarget,
   };
+}
+
+export async function generateImprovementDirections(
+  options: GenerateImprovementDirectionsOptions,
+): Promise<ImprovementDirection[]> {
+  const sections = getSectionsForPillar(options.pillar);
+  const prompts = buildDirectionPrompt(
+    options.overview,
+    options.pillar,
+    options.weaknessSummary,
+    sections,
+  );
+
+  const directionSchema = z.object({
+    directions: z
+      .array(
+        z.object({
+          id: z.string().min(1),
+          title: z.string().min(3),
+          description: z.string().min(10),
+          pillar: z.literal(options.pillar),
+          confidence: z.enum(['low', 'medium', 'high']),
+        }),
+      )
+      .min(2)
+      .max(3),
+  });
+
+  const { data } = await callJsonPrompt<unknown>({
+    systemPrompt: prompts.systemPrompt,
+    userPrompt: prompts.userPrompt,
+    temperature: 0.4,
+    timeoutMs: 60000,
+  });
+
+  if (!data || typeof data !== 'object') {
+    throw new Error('AI improvement directions returned invalid response');
+  }
+
+  const parsed = directionSchema.safeParse(data);
+  if (!parsed.success) {
+    console.error('Schema validation failed (directions):', parsed.error);
+    throw new Error('AI improvement directions response failed validation');
+  }
+
+  return parsed.data.directions.map(
+    (direction): ImprovementDirection => ({
+      id: direction.id,
+      title: direction.title,
+      description: direction.description,
+      pillar: direction.pillar,
+      confidence: direction.confidence,
+    }),
+  );
 }

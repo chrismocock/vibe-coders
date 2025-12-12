@@ -38,7 +38,6 @@ import {
 import { cn } from "@/lib/utils";
 import {
   STAGE_ORDER,
-  VALIDATE_SUB_STAGES,
   DESIGN_SUB_STAGES,
   BUILD_SUB_STAGES,
   LAUNCH_SUB_STAGES,
@@ -105,26 +104,6 @@ interface StageSidebarProps {
   isMobileOpen?: boolean;
   setIsMobileOpen?: (open: boolean) => void;
 }
-
-const validationSubSections = VALIDATE_SUB_STAGES.map((s) => ({
-  ...s,
-  icon:
-    s.id === "problem"
-      ? AlertCircle
-      : s.id === "market"
-      ? TrendingUp
-      : s.id === "competition"
-      ? Users
-      : s.id === "audience"
-      ? UserCheck
-      : s.id === "feasibility"
-      ? Wrench
-      : s.id === "pricing"
-      ? DollarSign
-      : s.id === "go-to-market"
-      ? Rocket
-      : LayoutDashboard,
-}));
 
 const designSubSections = DESIGN_SUB_STAGES.map((s) => ({
   ...s,
@@ -219,24 +198,6 @@ export default function StageSidebar({
   const isMobileOpen = externalIsMobileOpen !== undefined ? externalIsMobileOpen : internalIsMobileOpen;
   const setIsMobileOpen = externalSetIsMobileOpen || setInternalIsMobileOpen;
   
-  // Determine active validation sub-section
-  const getActiveValidationSubSection = () => {
-    if (activeStage !== 'validate' || !pathname || !projectId) return '';
-    const validatePath = `/project/${projectId}/validate`;
-    
-    // Check if we're exactly on /validate (overview)
-    if (pathname === validatePath || pathname === `${validatePath}/`) {
-      return '';
-    }
-    
-    // Check if we're on a sub-section
-    const validateIndex = pathname.indexOf(`${validatePath}/`);
-    if (validateIndex === -1) return '';
-    
-    const afterValidate = pathname.substring(validateIndex + `${validatePath}/`.length);
-    return afterValidate.split('/')[0] || '';
-  };
-
   // Determine active design sub-section
   const getActiveDesignSubSection = () => {
     if (activeStage !== 'design' || !pathname || !projectId) return '';
@@ -309,12 +270,10 @@ export default function StageSidebar({
     return afterMonetise.split('/')[0] || '';
   };
 
-  const activeValidationSubSection = getActiveValidationSubSection();
   const activeDesignSubSection = getActiveDesignSubSection();
   const activeBuildSubSection = getActiveBuildSubSection();
   const activeLaunchSubSection = getActiveLaunchSubSection();
   const activeMonetiseSubSection = getActiveMonetiseSubSection();
-  const isValidateExpanded = activeStage === 'validate';
   const isDesignExpanded = activeStage === 'design';
   const isBuildExpanded = activeStage === 'build';
   const isLaunchExpanded = activeStage === 'launch';
@@ -448,7 +407,6 @@ export default function StageSidebar({
                     const Icon = stage.icon;
                     const isActive = activeStage === stageId;
                     const status = stageData[stageId]?.status;
-                    const isValidate = stageId === 'validate';
                     const isDesign = stageId === 'design';
                     const isBuild = stageId === 'build';
                     const isLaunch = stageId === 'launch';
@@ -486,42 +444,6 @@ export default function StageSidebar({
                             <span className="flex-1 text-left">{stage.name}</span>
                             {getStatusIndicator(stageId)}
                           </button>
-
-                          {/* Validation sub-sections */}
-                          {isValidate && isValidateExpanded && projectId && (
-                            <ul className="ml-4 mt-1 space-y-1 border-l border-neutral-200 pl-2">
-                              {validationSubSections
-                                .filter((subSection) =>
-                                  isSubStageEnabled("validate", subSection.id || ""),
-                                )
-                                .map((subSection) => {
-                                const SubIcon = subSection.icon;
-                                const isSubActive = activeValidationSubSection === subSection.id;
-                                const href = `/project/${projectId}/validate${
-                                  subSection.id ? `/${subSection.id}` : ''
-                                }`;
-
-                                return (
-                                  <li key={subSection.id}>
-                                    <Link
-                                      href={href}
-                                      onClick={() => setIsMobileOpen(false)}
-                                      className={cn(
-                                        "flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all",
-                                        "hover:bg-neutral-50",
-                                        isSubActive
-                                          ? "bg-purple-50 text-purple-700 font-medium"
-                                          : "text-neutral-600"
-                                      )}
-                                    >
-                                      <SubIcon className="h-4 w-4" />
-                                      <span>{subSection.label}</span>
-                                    </Link>
-                                  </li>
-                                );
-                                })}
-                            </ul>
-                          )}
 
                           {/* Design sub-sections */}
                           {isDesign && isDesignExpanded && projectId && (
