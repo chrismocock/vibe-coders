@@ -21,6 +21,9 @@ export interface InitialFeedbackData {
 
 interface InitialFeedbackProps {
   feedback: InitialFeedbackData;
+  previousScores?: Partial<InitialFeedbackData['scores']>;
+  previousOverallConfidence?: number | null;
+  scoreDeltas?: Partial<Record<string, ScoreDeltaInfo>>;
 }
 
 const scoreLabels: Record<string, string> = {
@@ -46,6 +49,12 @@ export const dimensionIcons: Record<string, typeof Users> = {
   feasibility: Wrench,
   pricingPotential: DollarSign,
 };
+
+interface ScoreDeltaInfo {
+  from: number | null;
+  to: number;
+  change: number | null;
+}
 
 export interface DimensionImpact {
   whatItMeasures: string;
@@ -222,7 +231,12 @@ export const getImpactStatement = (dimension: string, score: number): string => 
   return impact.impactStatements.low;
 };
 
-export function InitialFeedback({ feedback }: InitialFeedbackProps) {
+export function InitialFeedback({
+  feedback,
+  previousScores,
+  previousOverallConfidence,
+  scoreDeltas,
+}: InitialFeedbackProps) {
   const recConfig = recommendationConfig[feedback.recommendation];
   const RecIcon = recConfig.icon;
   const [expandedDimensions, setExpandedDimensions] = useState<Set<string>>(new Set());
@@ -263,6 +277,42 @@ export function InitialFeedback({ feedback }: InitialFeedbackProps) {
     return null;
   };
 
+  const resolveDelta = (key: string, previousValue?: number | null): number | null => {
+    const deltaInfo = scoreDeltas?.[key];
+    if (deltaInfo && typeof deltaInfo.change === 'number' && deltaInfo.change !== 0) {
+      return deltaInfo.change;
+    }
+    if (typeof previousValue === 'number') {
+      const nextValue =
+        key === 'overallConfidence'
+          ? feedback.overallConfidence
+          : feedback.scores[key as keyof typeof feedback.scores]?.score;
+      if (typeof nextValue === 'number') {
+        const delta = nextValue - previousValue;
+        return delta !== 0 ? delta : null;
+      }
+    }
+    return null;
+  };
+
+  const renderDeltaChip = (delta: number | null) => {
+    if (typeof delta !== 'number' || delta === 0) return null;
+    const value = Math.round(delta);
+    return (
+      <span
+        className={cn(
+          'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold border',
+          value > 0 ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200',
+        )}
+      >
+        {value > 0 ? '+' : ''}
+        {value} pts
+      </span>
+    );
+  };
+
+  const overallDelta = resolveDelta('overallConfidence', previousOverallConfidence ?? null);
+
   return (
     <TooltipProvider>
       <div className="space-y-6">
@@ -300,7 +350,10 @@ export function InitialFeedback({ feedback }: InitialFeedbackProps) {
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium text-neutral-700">Confidence Score</span>
-              <span className="text-2xl font-bold text-neutral-900">{feedback.overallConfidence}%</span>
+              <div className="flex items-center gap-2">
+                <span className="text-2xl font-bold text-neutral-900">{feedback.overallConfidence}%</span>
+                {renderDeltaChip(overallDelta)}
+              </div>
             </div>
             <Progress value={feedback.overallConfidence} className="h-3" />
           </div>
@@ -312,7 +365,7 @@ export function InitialFeedback({ feedback }: InitialFeedbackProps) {
           <CardHeader>
             <CardTitle className="text-lg font-semibold text-neutral-900">Initial Assessment</CardTitle>
             <CardDescription className="text-neutral-600">
-              Your idea evaluated across five key validation dimensions. Each dimension is scored from 0-100, with higher scores indicating stronger validation. Click "Learn more" or hover over the info icons to see what each dimension measures, how it's scored, and what it means for your idea.
+              Your idea evaluated across five key validation dimensions. Each dimension is scored from 0-100, with higher scores indicating stronger validation. Click &ldquo;Learn more&rdquo; or hover over the info icons to see what each dimension measures, how it is scored, and what it means for your idea.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
@@ -323,6 +376,12 @@ export function InitialFeedback({ feedback }: InitialFeedbackProps) {
               const impactBadge = getImpactBadge(scoreData.score);
               const impactStatement = getImpactStatement(key, scoreData.score);
               const isExpanded = expandedDimensions.has(key);
+              const previousScoreValue =
+                previousScores && (previousScores as Record<string, { score?: number }>)[key]?.score;
+              const pillarDelta = resolveDelta(
+                key,
+                typeof previousScoreValue === 'number' ? previousScoreValue : undefined,
+              );
 
               return (
               <div key={key} className="space-y-3 border border-neutral-200 rounded-lg p-4 bg-neutral-50/50">
@@ -427,16 +486,21 @@ export function InitialFeedback({ feedback }: InitialFeedbackProps) {
                         </div>
                       </TooltipContent>
                     </Tooltip>
-                    <span className={cn(
-                      'text-xs px-2 py-0.5 rounded font-medium',
-                      scoreData.score >= 70
-                        ? 'bg-green-100 text-green-700 border border-green-200'
-                        : scoreData.score >= 40
-                        ? 'bg-yellow-100 text-yellow-700 border border-yellow-200'
-                        : 'bg-red-100 text-red-700 border border-red-200'
-                    )}>
-                      {getScoreLabel(scoreData.score)} {scoreData.score}%
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={cn(
+                          'text-xs px-2 py-0.5 rounded font-medium',
+                          scoreData.score >= 70
+                            ? 'bg-green-100 text-green-700 border border-green-200'
+                            : scoreData.score >= 40
+                            ? 'bg-yellow-100 text-yellow-700 border border-yellow-200'
+                            : 'bg-red-100 text-red-700 border border-red-200',
+                        )}
+                      >
+                        {getScoreLabel(scoreData.score)} {scoreData.score}%
+                      </span>
+                      {renderDeltaChip(pillarDelta)}
+                    </div>
                   </div>
                 </div>
                 <Progress value={scoreData.score} className={cn('h-2.5', getScoreColor(scoreData.score))} />

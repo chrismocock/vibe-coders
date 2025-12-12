@@ -1,11 +1,29 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { getSupabaseServer } from "@/lib/supabaseServer";
-import {
-  autoImproveIdea,
-  PillarResult,
-  ProductOverview,
-} from "@/server/ideate/refinementEngine";
+import { autoImproveIdea, ProductOverview } from "@/server/ideate/refinementEngine";
+import { normalizeInitialFeedbackData } from "@/lib/ideate/pillars";
+import { runIdeateInitialFeedback, IdeateInitialFeedbackInput } from "@/server/ideate/initialFeedback";
+
+interface IdeateStageInput {
+  mode?: string | null;
+  userInput?: string | null;
+  selectedIdea?: unknown;
+  targetMarket?: string | null;
+  targetCountry?: string | null;
+  budget?: string | null;
+  timescales?: string | null;
+  [key: string]: unknown;
+}
+
+interface IdeateStageOutput {
+  aiReview?: string | null;
+  refinedOverview?: ProductOverview;
+  initialFeedback?: unknown;
+  pillarScores?: Record<string, { score?: number; rationale?: string }>;
+  improvementIterations?: unknown[];
+  [key: string]: unknown;
+}
 
 function parseJson<T>(value: unknown, fallback: T): T {
   if (typeof value !== "string") return (value as T) ?? fallback;
@@ -16,11 +34,12 @@ function parseJson<T>(value: unknown, fallback: T): T {
   }
 }
 
-function buildFallbackOverview(input: Record<string, any>, reviewText?: string): ProductOverview {
+function buildFallbackOverview(input: IdeateStageInput, reviewText?: string): ProductOverview {
+  const selectedIdea = (input?.selectedIdea as { description?: string; title?: string } | null) || null;
   const ideaText =
-    input?.userInput ||
-    input?.selectedIdea?.description ||
-    input?.selectedIdea?.title ||
+    (typeof input?.userInput === "string" && input.userInput) ||
+    selectedIdea?.description ||
+    selectedIdea?.title ||
     reviewText ||
     "No description provided.";
 
@@ -58,27 +77,17 @@ function buildFallbackOverview(input: Record<string, any>, reviewText?: string):
   };
 }
 
-function mapPillars(scores?: Record<string, { score?: number; rationale?: string }>): PillarResult[] {
-  const defaults: PillarResult[] = [
-    { pillar: "audienceFit", score: 50 },
-    { pillar: "competition", score: 50 },
-    { pillar: "marketDemand", score: 50 },
-    { pillar: "feasibility", score: 50 },
-    { pillar: "pricingPotential", score: 50 },
-  ];
-
-  if (!scores) return defaults;
-
-  return defaults.map((base) => {
-    const found = scores[base.pillar];
-    if (!found) return base;
-    const normalizedScore = typeof found.score === "number" ? Math.max(0, Math.min(100, Math.round(found.score))) : base.score;
-    return {
-      pillar: base.pillar,
-      score: normalizedScore,
-      rationale: found.rationale,
-    };
-  });
+function buildFeedbackInput(input: IdeateStageInput): IdeateInitialFeedbackInput {
+  const mode = typeof input?.mode === "string" ? input.mode : null;
+  return {
+    mode,
+    userInput: mode === "surprise-me" ? null : (typeof input?.userInput === "string" ? input.userInput : null),
+    selectedIdea: mode === "surprise-me" ? (input?.selectedIdea ?? null) : null,
+    targetMarket: typeof input?.targetMarket === "string" ? input.targetMarket : null,
+    targetCountry: typeof input?.targetCountry === "string" ? input.targetCountry : null,
+    budget: typeof input?.budget === "string" ? input.budget : null,
+    timescales: typeof input?.timescales === "string" ? input.timescales : null,
+  };
 }
 
 export async function POST(req: Request) {
@@ -106,22 +115,52 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Ideate stage not found" }, { status: 404 });
     }
 
-    const inputJson = parseJson<Record<string, any>>(stage.input, {});
-    const outputJson = parseJson<Record<string, any>>(stage.output, {});
+    const inputJson = parseJson<IdeateStageInput>(stage.input, {});
+    const outputJson = parseJson<IdeateStageOutput>(stage.output, {});
     const reviewText = typeof outputJson?.aiReview === "string" ? outputJson.aiReview : "";
     const baseOverview =
       (outputJson?.refinedOverview as ProductOverview | undefined) ||
       buildFallbackOverview(inputJson, reviewText);
-    const basePillars = mapPillars(outputJson?.initialFeedback?.scores || outputJson?.pillarScores);
+    const feedbackInput = buildFeedbackInput(inputJson);
+    let currentFeedback = outputJson?.initialFeedback
+      ? normalizeInitialFeedbackData(outputJson.initialFeedback)
+      : null;
+    if (!currentFeedback) {
+      const fallbackReview = reviewText?.trim()?.length
+        ? reviewText
+        : JSON.stringify(baseOverview, null, 2);
+      currentFeedback = await runIdeateInitialFeedback(feedbackInput, fallbackReview);
+    }
+    if (!currentFeedback) {
+      throw new Error("Unable to generate current ideate feedback");
+    }
 
-    const result = await autoImproveIdea(baseOverview, basePillars, targetScore);
+    const result = await autoImproveIdea({
+      overview: baseOverview,
+      currentFeedback,
+      feedbackInput,
+      targetScore,
+    });
+
+    const iterationEntries = result.iterations.map((iteration) => ({
+      pillarImpacted: iteration.pillarImpacted,
+      scoreDelta: iteration.scoreDelta,
+      differences: iteration.differences,
+      beforeSection: iteration.beforeSection,
+      afterSection: iteration.afterSection,
+      createdAt: new Date().toISOString(),
+    }));
+    const existingIterations = Array.isArray(outputJson?.improvementIterations)
+      ? outputJson.improvementIterations
+      : [];
 
     const updatedOutput = {
       ...outputJson,
       refinedOverview: result.finalOverview,
-      pillarScores: result.pillars,
+      initialFeedback: result.finalFeedback,
+      pillarScores: result.finalFeedback.scores,
       latestDifferences: result.iterations.at(-1)?.differences ?? [],
-      improvementIterations: result.iterations,
+      improvementIterations: [...existingIterations, ...iterationEntries],
     };
 
     await supabase
@@ -133,13 +172,18 @@ export async function POST(req: Request) {
       .eq("id", stage.id);
 
     if (result.iterations.length) {
-      const rows = result.iterations.map((iteration) => ({
-        project_id: projectId,
-        pillar_improved: iteration.pillarImpacted,
-        before_text: JSON.stringify(baseOverview),
-        after_text: JSON.stringify(iteration.improvedOverview),
-        score_delta: iteration.expectedScoreIncrease,
-      }));
+      const rows = [];
+      let snapshot: ProductOverview = baseOverview;
+      for (const iteration of result.iterations) {
+        rows.push({
+          project_id: projectId,
+          pillar_improved: iteration.pillarImpacted,
+          before_text: JSON.stringify(snapshot),
+          after_text: JSON.stringify(iteration.improvedOverview),
+          score_delta: iteration.scoreDelta,
+        });
+        snapshot = iteration.improvedOverview;
+      }
       await supabase.from("idea_improvements").insert(rows);
     }
 

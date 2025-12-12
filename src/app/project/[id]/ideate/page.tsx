@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,10 +14,304 @@ import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 import { ChevronDown, ChevronUp, Loader2, Wand2, Users, Target, TrendingUp, Wrench, DollarSign, Info, AlertCircle } from "lucide-react";
 import { InitialFeedback, InitialFeedbackData, dimensionImpacts, dimensionIcons, getImpactBadge, getImpactStatement } from "@/components/ideate/InitialFeedback";
+import { IDEATE_PILLARS, IDEATE_PILLAR_WEIGHTS } from "@/lib/ideate/pillars";
+import { ImprovementHistory, ImprovementHistoryEntry, SectionDiff } from "@/components/ideate/ImprovementHistory";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { ProductOverview } from "@/server/ideate/refinementEngine";
 
 type Mode = "explore-idea" | "solve-problem" | "surprise-me" | null;
+
+// Helper component for formatted markdown text in Refined Overview
+function FormattedOverviewText({ content }: { content: string }) {
+  return (
+    <ReactMarkdown
+      components={{
+        h2: ({ children }) => (
+          <h2 className="text-base font-semibold text-neutral-900 mt-3 mb-2 first:mt-0">
+            {children}
+          </h2>
+        ),
+        h3: ({ children }) => (
+          <h3 className="text-sm font-semibold text-neutral-800 mt-2 mb-1.5">
+            {children}
+          </h3>
+        ),
+        p: ({ children }) => (
+          <p className="mb-3 last:mb-0 leading-relaxed">
+            {children}
+          </p>
+        ),
+        strong: ({ children }) => (
+          <strong className="font-semibold text-neutral-900">
+            {children}
+          </strong>
+        ),
+        em: ({ children }) => (
+          <em className="italic text-neutral-600">
+            {children}
+          </em>
+        ),
+        ul: ({ children }) => (
+          <ul className="list-disc list-inside mb-3 space-y-1 ml-4">
+            {children}
+          </ul>
+        ),
+        ol: ({ children }) => (
+          <ol className="list-decimal list-inside mb-3 space-y-1 ml-4">
+            {children}
+          </ol>
+        ),
+        li: ({ children }) => (
+          <li className="leading-relaxed">
+            {children}
+          </li>
+        ),
+      }}
+    >
+      {content}
+    </ReactMarkdown>
+  );
+}
+
+// Map section titles to overview keys
+const SECTION_TITLE_TO_KEY: Record<string, keyof ProductOverview> = {
+  'Refined Elevator Pitch': 'refinedPitch',
+  'Problem Summary': 'problemSummary',
+  'Solution Description': 'solution',
+  'Competition Summary': 'competition',
+  'Personas': 'personas',
+  'Core Features': 'coreFeatures',
+  'Unique Value Proposition': 'uniqueValue',
+  'Monetisation Model': 'monetisation',
+  'Market Size': 'marketSize',
+  'Build Notes': 'buildNotes',
+  'Risks & Mitigations': 'risks',
+};
+
+// Serialize ProductOverview to markdown string format
+function serializeOverview(overview: ProductOverview): string {
+  const sections: string[] = [
+    `Refined Pitch:\n${overview.refinedPitch}`,
+    `Problem Summary:\n${overview.problemSummary}`,
+    `Solution:\n${overview.solution}`,
+    `Competition:\n${overview.competition}`,
+    `Unique Value:\n${overview.uniqueValue}`,
+    `Market Size:\n${overview.marketSize}`,
+    `Build Notes:\n${overview.buildNotes}`,
+    `Monetisation:\n${Array.isArray(overview.monetisation) ? overview.monetisation.map((m: any) => `${m.model || 'Model'}: ${m.description || ''}`).join('\n') : String(overview.monetisation || '')}`,
+    `Personas:\n${Array.isArray(overview.personas) ? overview.personas.map((p: any) => `${p.name || 'Persona'}: ${p.summary || ''}`).join('\n') : String(overview.personas || '')}`,
+    `Core Features:\n${Array.isArray(overview.coreFeatures) ? overview.coreFeatures.join('\n') : String(overview.coreFeatures || '')}`,
+    `Risks:\n${Array.isArray(overview.risks) ? overview.risks.map((r: any) => `${r.risk || 'Risk'}: ${r.mitigation || ''}`).join('\n') : String(overview.risks || '')}`,
+  ];
+  return sections.join('\n\n').trim();
+}
+
+// Score Change Explanation Component
+function ScoreChangeExplanation({ feedbackDeltas }: { feedbackDeltas: Partial<Record<string, ScoreDelta>> }) {
+  const hasScoreChanges = Object.keys(feedbackDeltas).some(
+    (key) => key !== 'overallConfidence' && feedbackDeltas[key]?.change !== null && feedbackDeltas[key]?.change !== 0
+  );
+  const overallDelta = feedbackDeltas.overallConfidence?.change;
+  const hasOverallChange = typeof overallDelta === 'number' && overallDelta !== 0;
+  
+  const [isExpanded, setIsExpanded] = useState(false);
+  
+  if (!hasScoreChanges && !hasOverallChange) return null;
+  
+  // Get pillar changes
+  const pillarChanges = IDEATE_PILLARS.map((pillar) => {
+    const delta = feedbackDeltas[pillar.id];
+    return {
+      pillar: pillar.label,
+      weight: pillar.weight,
+      change: delta?.change ?? null,
+      from: delta?.from ?? null,
+      to: delta?.to ?? null,
+    };
+  }).filter((p) => p.change !== null && p.change !== 0);
+  
+  return (
+    <Card className={cn(
+      "border shadow-sm transition-colors",
+      hasOverallChange && overallDelta && overallDelta < 0
+        ? "border-amber-200 bg-amber-50/30"
+        : "border-blue-200 bg-blue-50/30"
+    )}>
+      <CardHeader>
+        <div className="flex items-start justify-between">
+          <div className="flex items-start gap-3">
+            <div className={cn(
+              "rounded-full p-2",
+              hasOverallChange && overallDelta && overallDelta < 0
+                ? "bg-amber-100"
+                : "bg-blue-100"
+            )}>
+              <Info className={cn(
+                "h-5 w-5",
+                hasOverallChange && overallDelta && overallDelta < 0
+                  ? "text-amber-700"
+                  : "text-blue-700"
+              )} />
+            </div>
+            <div className="flex-1">
+              <CardTitle className="text-lg font-semibold text-neutral-900">
+                Understanding Score Changes
+              </CardTitle>
+              <CardDescription className="text-sm text-neutral-600 mt-1">
+                {hasOverallChange && overallDelta && overallDelta < 0
+                  ? `Overall confidence decreased by ${Math.abs(overallDelta)} points. Here's why:`
+                  : "Learn how AI enhancements affect your scores"}
+              </CardDescription>
+            </div>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="shrink-0"
+          >
+            {isExpanded ? (
+              <>
+                <ChevronUp className="h-4 w-4 mr-1" />
+                Hide details
+              </>
+            ) : (
+              <>
+                <ChevronDown className="h-4 w-4 mr-1" />
+                Show details
+              </>
+            )}
+          </Button>
+        </div>
+      </CardHeader>
+      {isExpanded && (
+        <CardContent className="space-y-6 pt-0">
+          {/* How Overall Confidence is Calculated */}
+          <div className="space-y-3">
+            <h4 className="text-sm font-semibold text-neutral-900">How Overall Confidence is Calculated</h4>
+            <div className="rounded-lg bg-neutral-50 border border-neutral-200 p-4 space-y-2">
+              <p className="text-sm text-neutral-700">
+                Overall confidence is a <strong>weighted average</strong> of all five validation pillars:
+              </p>
+              <div className="bg-white rounded border border-neutral-200 p-3 font-mono text-xs text-neutral-800">
+                Overall Confidence = (Audience Fit × 20%) + (Competition × 20%) + (Market Demand × 25%) + (Feasibility × 15%) + (Pricing Potential × 20%)
+              </div>
+              <p className="text-xs text-neutral-600 mt-2">
+                Each pillar is weighted based on its importance in validating your idea.
+              </p>
+            </div>
+          </div>
+          
+          {/* Pillar Weights */}
+          <div className="space-y-3">
+            <h4 className="text-sm font-semibold text-neutral-900">Pillar Weights</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+              {IDEATE_PILLARS.map((pillar) => (
+                <div key={pillar.id} className="flex items-center justify-between rounded-lg bg-white border border-neutral-200 p-2.5">
+                  <span className="text-sm text-neutral-700">{pillar.label}</span>
+                  <span className="text-sm font-semibold text-neutral-900">{Math.round(pillar.weight * 100)}%</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {/* Current Score Changes */}
+          {pillarChanges.length > 0 && (
+            <div className="space-y-3">
+              <h4 className="text-sm font-semibold text-neutral-900">Current Score Changes</h4>
+              <div className="space-y-2">
+                {pillarChanges.map((change) => (
+                  <div key={change.pillar} className="flex items-center justify-between rounded-lg bg-white border border-neutral-200 p-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-neutral-700">{change.pillar}</span>
+                      <span className="text-xs text-neutral-500">
+                        (Weight: {Math.round(change.weight * 100)}%)
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {typeof change.from === 'number' && typeof change.to === 'number' && (
+                        <span className="text-xs text-neutral-500">
+                          {change.from} → {change.to}
+                        </span>
+                      )}
+                      <span className={cn(
+                        "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold border",
+                        change.change && change.change > 0
+                          ? "bg-green-50 text-green-700 border-green-200"
+                          : "bg-red-50 text-red-700 border-red-200"
+                      )}>
+                        {change.change && change.change > 0 ? '+' : ''}
+                        {change.change} pts
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          
+          {/* Why Scores Change */}
+          <div className="space-y-3">
+            <h4 className="text-sm font-semibold text-neutral-900">Why Scores Change</h4>
+            <div className="space-y-3 text-sm text-neutral-700">
+              <div className="flex gap-3">
+                <div className="shrink-0 w-1.5 h-1.5 rounded-full bg-blue-500 mt-2"></div>
+                <div>
+                  <p className="font-medium text-neutral-900 mb-1">Complete Re-evaluation</p>
+                  <p>When you apply an AI enhancement, the entire idea overview is re-evaluated by the AI feedback system. All five pillars are assessed against the new content, not just the target pillar.</p>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <div className="shrink-0 w-1.5 h-1.5 rounded-full bg-blue-500 mt-2"></div>
+                <div>
+                  <p className="font-medium text-neutral-900 mb-1">Content Interdependence</p>
+                  <p>Changing one section (e.g., Solution) can affect how other sections are evaluated. For example, improving competition positioning might reveal gaps in market demand assessment.</p>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <div className="shrink-0 w-1.5 h-1.5 rounded-full bg-blue-500 mt-2"></div>
+                <div>
+                  <p className="font-medium text-neutral-900 mb-1">Weighted Impact</p>
+                  <p>Each pillar's impact on overall confidence depends on its weight. Market Demand (25%) has more influence than Feasibility (15%), so changes to Market Demand affect the overall score more.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Why Overall Can Decrease */}
+          {hasOverallChange && overallDelta && overallDelta < 0 && (
+            <div className="space-y-3">
+              <h4 className="text-sm font-semibold text-neutral-900">Why Overall Confidence Decreased</h4>
+              <div className="rounded-lg bg-amber-50 border border-amber-200 p-4 space-y-2">
+                <p className="text-sm text-neutral-700">
+                  Even though your <strong>target pillar improved</strong>, the overall confidence decreased because:
+                </p>
+                <ul className="list-disc list-inside space-y-1 text-sm text-neutral-700 ml-2">
+                  <li>Other pillars were re-evaluated and may have scored lower</li>
+                  <li>The weighted average calculation means decreases in higher-weighted pillars (like Market Demand at 25%) have more impact</li>
+                  <li>AI enhancements focus on improving one specific pillar, not optimizing all pillars simultaneously</li>
+                </ul>
+                <div className="mt-3 pt-3 border-t border-amber-200">
+                  <p className="text-xs text-neutral-600">
+                    <strong>Example:</strong> If Competition improves by +5 points (20% weight = +1 point to overall) but Market Demand decreases by -8 points (25% weight = -2 points to overall), the net result is -1 point to overall confidence, even though the target pillar improved.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {/* Recommendation */}
+          <div className="rounded-lg bg-blue-50 border border-blue-200 p-4">
+            <p className="text-sm font-medium text-blue-900 mb-1">💡 Tip</p>
+            <p className="text-sm text-blue-800">
+              To improve overall confidence, consider applying enhancements to multiple pillars, especially those with higher weights (Market Demand, Competition, Audience Fit).
+            </p>
+          </div>
+        </CardContent>
+      )}
+    </Card>
+  );
+}
 
 interface GeneratedIdea {
   id: string;
@@ -59,6 +353,109 @@ const PILLAR_LABEL_TO_KEY: Record<string, string> = Object.entries(
   return acc;
 }, {} as Record<string, string>);
 
+const OVERVIEW_SECTIONS: { key: keyof ProductOverview; label: string }[] = [
+  { key: "refinedPitch", label: "Refined Elevator Pitch" },
+  { key: "problemSummary", label: "Problem Summary" },
+  { key: "personas", label: "Personas" },
+  { key: "solution", label: "Solution Description" },
+  { key: "coreFeatures", label: "Core Features" },
+  { key: "uniqueValue", label: "Unique Value Proposition" },
+  { key: "competition", label: "Competition Summary" },
+  { key: "monetisation", label: "Monetisation Model" },
+  { key: "marketSize", label: "Market Size" },
+  { key: "buildNotes", label: "Build Notes" },
+  { key: "risks", label: "Risks & Mitigations" },
+];
+
+function formatOverviewValue(value: unknown): string {
+  if (typeof value === "string") {
+    return value.trim();
+  }
+  if (Array.isArray(value)) {
+    return value
+      .map((entry) => {
+        if (!entry) return "";
+        if (typeof entry === "string") return entry;
+        if (typeof entry === "object") {
+          return Object.values(entry as Record<string, unknown>)
+            .filter((part) => typeof part === "string" && part.trim().length)
+            .join(" — ");
+        }
+        return String(entry);
+      })
+      .filter(Boolean)
+      .join("\n\n")
+      .trim();
+  }
+  if (value && typeof value === "object") {
+    return JSON.stringify(value, null, 2);
+  }
+  return "";
+}
+
+function parseOverviewSnapshot(value: unknown): ProductOverview | null {
+  if (!value) return null;
+  if (typeof value === "string") {
+    try {
+      return JSON.parse(value) as ProductOverview;
+    } catch {
+      return null;
+    }
+  }
+  if (typeof value === "object") {
+    return value as ProductOverview;
+  }
+  return null;
+}
+
+function buildOverviewDifferences(
+  before: ProductOverview | null,
+  after: ProductOverview | null,
+): SectionDiff[] {
+  if (!before && !after) return [];
+  const diffs: SectionDiff[] = [];
+  for (const section of OVERVIEW_SECTIONS) {
+    const beforeText = before ? formatOverviewValue((before as Record<string, unknown>)[section.key]) : "";
+    const afterText = after ? formatOverviewValue((after as Record<string, unknown>)[section.key]) : "";
+    if (beforeText !== afterText) {
+      diffs.push({
+        section: section.label,
+        before: beforeText,
+        after: afterText,
+      });
+    }
+  }
+  if (!diffs.length && after) {
+    const primary = OVERVIEW_SECTIONS[0];
+    diffs.push({
+      section: primary.label,
+      before: before ? formatOverviewValue((before as Record<string, unknown>)[primary.key]) : "",
+      after: formatOverviewValue((after as Record<string, unknown>)[primary.key]),
+    });
+  }
+  return diffs;
+}
+
+function mapImprovementRows(rows: any[]): ImprovementLogEntry[] {
+  return rows
+    .map((row, index) => {
+      const before = parseOverviewSnapshot(row?.before_text);
+      const after = parseOverviewSnapshot(row?.after_text);
+      const differences = buildOverviewDifferences(before, after);
+      return {
+        id: row?.id ?? `history-${index}`,
+        pillar: row?.pillar_improved || "Unknown pillar",
+        scoreDelta: typeof row?.score_delta === "number" ? row.score_delta : null,
+        differences,
+        beforeSection: differences[0]?.before,
+        afterSection: differences[0]?.after,
+        improvedOverview: after,
+        createdAt: row?.created_at || new Date().toISOString(),
+      } as ImprovementLogEntry;
+    })
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
+
 export default function IdeateWizardPage() {
   const params = useParams();
   const projectId = params.id as string;
@@ -97,13 +494,7 @@ export default function IdeateWizardPage() {
     validation?: any;
   }
 
-  interface ImprovementLogEntry {
-    pillar: string;
-    scoreDelta: number;
-    differences: { section: string; before: string; after: string }[];
-    improvedOverview: ProductOverview;
-    createdAt: string;
-  }
+  type ImprovementLogEntry = ImprovementHistoryEntry;
 
   const [savedData, setSavedData] = useState<{
     input: any;
@@ -143,6 +534,7 @@ export default function IdeateWizardPage() {
     aiProductOverview: string;
   }
   const [validationDeltas, setValidationDeltas] = useState<Partial<Record<string, ScoreDelta>>>({});
+  const [feedbackDeltas, setFeedbackDeltas] = useState<Partial<Record<string, ScoreDelta>>>({});
   const [showInitialFeedbackReport, setShowInitialFeedbackReport] = useState(true);
   const [expandedDimensions, setExpandedDimensions] = useState<Set<string>>(new Set());
   const [refinedOverview, setRefinedOverview] = useState<ProductOverview | null>(null);
@@ -155,6 +547,10 @@ export default function IdeateWizardPage() {
   useEffect(() => {
     setShowInitialFeedbackReport(!isEditingExisting);
   }, [isEditingExisting]);
+
+  useEffect(() => {
+    setFeedbackDeltas({});
+  }, [projectId]);
 
   interface RefinementSuggestion {
     id: string;
@@ -169,6 +565,21 @@ export default function IdeateWizardPage() {
 
   const [refinementSuggestions, setRefinementSuggestions] = useState<RefinementSuggestion[] | null>(null);
   const [showNarrativeEditor, setShowNarrativeEditor] = useState(false);
+
+  const loadImprovementHistory = useCallback(async () => {
+    if (!projectId) return;
+    try {
+      const response = await fetch(`/api/projects/${projectId}/ideate/improvements`);
+      if (!response.ok) {
+        return;
+      }
+      const data = await response.json();
+      const rows = Array.isArray(data?.improvements) ? data.improvements : [];
+      setImprovementLog(mapImprovementRows(rows));
+    } catch (error) {
+      console.error("Improvement history load error:", error);
+    }
+  }, [projectId]);
 
   // Load saved ideate data on mount
   useEffect(() => {
@@ -201,13 +612,25 @@ export default function IdeateWizardPage() {
                 setRefinedOverview(parsedOutput.refinedOverview as ProductOverview);
               }
               if (Array.isArray(parsedOutput?.improvementIterations)) {
-                const normalizedIterations = (parsedOutput.improvementIterations as any[]).map((item, index) => ({
-                  pillar: item?.pillarImpacted || item?.pillar || `iteration-${index}`,
-                  scoreDelta: typeof item?.expectedScoreIncrease === "number" ? item.expectedScoreIncrease : 0,
-                  differences: Array.isArray(item?.differences) ? item.differences : [],
-                  improvedOverview: (item?.improvedOverview || item?.finalOverview || parsedOutput.refinedOverview || null) as ProductOverview,
-                  createdAt: item?.createdAt || new Date().toISOString(),
-                })) as ImprovementLogEntry[];
+                const normalizedIterations = (parsedOutput.improvementIterations as any[]).map((item, index) => {
+                  const differences = Array.isArray(item?.differences) ? item.differences : [];
+                  return {
+                    id: item?.id ?? `iteration-${index}`,
+                    pillar: item?.pillarImpacted || item?.pillar || `iteration-${index}`,
+                    scoreDelta:
+                      typeof item?.scoreDelta === "number"
+                        ? item.scoreDelta
+                        : typeof item?.expectedScoreIncrease === "number"
+                        ? item.expectedScoreIncrease
+                        : null,
+                    differences,
+                    beforeSection: item?.beforeSection ?? differences[0]?.before,
+                    afterSection: item?.afterSection ?? differences[0]?.after,
+                    improvedOverview: (item?.improvedOverview || item?.finalOverview || parsedOutput.refinedOverview || null) as ProductOverview,
+                    createdAt: item?.createdAt || new Date().toISOString(),
+                    source: item?.source,
+                  } as ImprovementLogEntry;
+                });
                 setImprovementLog(normalizedIterations);
               }
             } catch (e) {
@@ -224,6 +647,10 @@ export default function IdeateWizardPage() {
 
     loadSavedData();
   }, [projectId]);
+
+  useEffect(() => {
+    loadImprovementHistory();
+  }, [loadImprovementHistory]);
 
   // Clean description by removing redundant prefixes and preserving markdown
   const cleanDescription = (description: string): string => {
@@ -1613,13 +2040,53 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
     return deltas;
   };
 
-  const handleApplyImprovement = (entry: ImprovementLogEntry) => {
+  const handleApplyImprovement = async (entry: ImprovementLogEntry) => {
+    if (!entry.improvedOverview) {
+      toast.error("Improvement snapshot is unavailable.");
+      return;
+    }
     setRefinedOverview((prev) => {
       if (prev) {
         setOverviewHistory((history) => [...history, prev]);
       }
-      return entry.improvedOverview;
+      return entry.improvedOverview || prev;
     });
+    
+    // Update AI review with the serialized refined overview
+    const updatedReview = serializeOverview(entry.improvedOverview);
+    setAiReview(updatedReview);
+    
+    // Update saved data with the new AI review
+    setSavedData((prev) => {
+      if (!prev) return prev;
+      const nextOutput =
+        typeof prev.output === "object" && prev.output !== null ? { ...prev.output } : {};
+      nextOutput.aiReview = updatedReview;
+      nextOutput.refinedOverview = entry.improvedOverview;
+      return { ...prev, output: nextOutput };
+    });
+    
+    // Save to database
+    if (projectId) {
+      try {
+        await fetch(`/api/projects/${projectId}/stages`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            stage: "ideate",
+            output: JSON.stringify({
+              ...(typeof savedData?.output === "object" && savedData.output ? savedData.output : {}),
+              aiReview: updatedReview,
+              refinedOverview: entry.improvedOverview,
+            }),
+          }),
+        });
+      } catch (error) {
+        console.error("Failed to save updated AI review:", error);
+        // Don't show error to user - the state is updated locally
+      }
+    }
+    
     toast.success(`Applied improvement for ${entry.pillar}`);
   };
 
@@ -1647,24 +2114,159 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
       });
 
       if (!response.ok) {
-        const error = await response.json().catch(() => null);
-        throw new Error(error?.error || "Failed to improve pillar");
+        let errorMessage: string = "Failed to refine idea";
+        try {
+          const text = await response.text();
+          if (text && typeof text === 'string' && text.trim()) {
+            try {
+              const parsed = JSON.parse(text);
+              // Only access the 'error' property if it's a direct string - avoid any nested object access
+              if (parsed && typeof parsed === 'object' && 'error' in parsed) {
+                const errorValue = parsed.error;
+                // Only use it if it's a plain string - don't access any nested properties
+                if (typeof errorValue === 'string' && errorValue.trim()) {
+                  errorMessage = errorValue.trim();
+                }
+              }
+            } catch {
+              // If JSON parsing fails, use the text as error message if it's reasonable
+              const trimmed = text.trim();
+              if (trimmed.length > 0 && trimmed.length < 200) {
+                errorMessage = trimmed;
+              }
+            }
+          }
+        } catch {
+          // If reading response fails, use default message
+        }
+        // Create error with just the message string - no property access
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
-      setRefinedOverview(data.improvedOverview as ProductOverview);
-      const newEntry: ImprovementLogEntry = {
-        pillar: data.pillarImpacted || pillarKey,
-        scoreDelta: data.expectedScoreIncrease ?? 0,
-        differences: Array.isArray(data.differences) ? data.differences : [],
-        improvedOverview: data.improvedOverview as ProductOverview,
+      const improvedOverview = data.improvedOverview as ProductOverview;
+      const updatedDifferences = Array.isArray(data.differences) ? data.differences : [];
+      const updatedFeedback = data.updatedFeedback as InitialFeedbackData | undefined;
+      const previousFeedback =
+        typeof savedData?.output === "object" && savedData.output
+          ? ((savedData.output as { initialFeedback?: InitialFeedbackData }).initialFeedback ?? null)
+          : null;
+
+      setRefinedOverview(improvedOverview);
+      if (updatedFeedback) {
+        const deltas = computeScoreDeltas(previousFeedback, updatedFeedback);
+        setFeedbackDeltas(deltas);
+        
+        // Check if overall confidence decreased
+        const overallDelta = deltas.overallConfidence?.change;
+        if (typeof overallDelta === 'number' && overallDelta < 0) {
+          toast.warning(
+            `Overall confidence decreased by ${Math.abs(overallDelta)} points. The target pillar improved, but other aspects were re-evaluated.`,
+            { duration: 6000 }
+          );
+        } else if (typeof overallDelta === 'number' && overallDelta > 0) {
+          toast.success(`Overall confidence increased by ${overallDelta} points!`);
+        }
+        
+        // Check if target pillar improved but other pillars decreased
+        const targetPillarDelta = deltas[data.pillarImpacted || pillarKey]?.change;
+        if (typeof targetPillarDelta === 'number' && targetPillarDelta > 0) {
+          const decreasedPillars = Object.entries(deltas)
+            .filter(([key, delta]) => 
+              key !== 'overallConfidence' && 
+              key !== data.pillarImpacted && 
+              typeof delta?.change === 'number' && 
+              delta.change < 0
+            );
+          if (decreasedPillars.length > 0) {
+            const pillarNames = decreasedPillars.map(([key]) => PILLAR_KEY_TO_LABEL[key] || key).join(', ');
+            toast.info(
+              `Target pillar improved by ${targetPillarDelta} points, but ${pillarNames} ${decreasedPillars.length === 1 ? 'decreased' : 'decreased'}.`,
+              { duration: 5000 }
+            );
+          }
+        }
+      }
+
+      const iterationPayload = {
+        pillarImpacted: data.pillarImpacted || pillarKey,
+        scoreDelta: typeof data.scoreDelta === "number" ? data.scoreDelta : null,
+        differences: updatedDifferences,
+        beforeSection: data.beforeSection ?? updatedDifferences[0]?.before,
+        afterSection: data.afterSection ?? updatedDifferences[0]?.after,
+        improvedOverview,
         createdAt: new Date().toISOString(),
+        source: "manual",
+      };
+
+      setSavedData((prev) => {
+        if (!prev) return prev;
+        const nextOutput =
+          typeof prev.output === "object" && prev.output !== null ? { ...prev.output } : {};
+        nextOutput.refinedOverview = improvedOverview;
+        if (updatedFeedback) {
+          nextOutput.initialFeedback = updatedFeedback;
+          nextOutput.pillarScores = updatedFeedback.scores;
+        }
+        nextOutput.latestDifferences = updatedDifferences;
+        nextOutput.improvementIterations = [
+          ...(Array.isArray(nextOutput.improvementIterations) ? nextOutput.improvementIterations : []),
+          iterationPayload,
+        ];
+        return { ...prev, output: nextOutput };
+      });
+
+      const newEntry: ImprovementLogEntry = {
+        id: iterationPayload.createdAt,
+        pillar: iterationPayload.pillarImpacted,
+        scoreDelta: iterationPayload.scoreDelta,
+        differences: updatedDifferences,
+        beforeSection: iterationPayload.beforeSection,
+        afterSection: iterationPayload.afterSection,
+        improvedOverview,
+        createdAt: iterationPayload.createdAt,
+        source: "manual",
       };
       setImprovementLog((prev) => [newEntry, ...prev]);
-      toast.success(`Improved ${data.pillarImpacted || pillarKey} (+${data.expectedScoreIncrease ?? 0})`);
+      await loadImprovementHistory();
+      const deltaLabel =
+        typeof iterationPayload.scoreDelta === "number" && iterationPayload.scoreDelta !== 0
+          ? ` (${iterationPayload.scoreDelta > 0 ? "+" : ""}${iterationPayload.scoreDelta})`
+          : "";
+      
+      // Show more detailed feedback about the improvement
+      const overallDelta = typeof updatedFeedback?.overallConfidence === "number" && previousFeedback
+        ? updatedFeedback.overallConfidence - (previousFeedback.overallConfidence ?? 0)
+        : null;
+      
+      if (typeof overallDelta === "number" && overallDelta < 0) {
+        // Overall decreased - show warning but still success for target pillar
+        toast.success(
+          `Target pillar ${data.pillarImpacted || pillarKey} improved${deltaLabel}, but overall confidence decreased by ${Math.abs(overallDelta)} points.`,
+          { duration: 6000 }
+        );
+      } else {
+        toast.success(`Improved ${data.pillarImpacted || pillarKey}${deltaLabel}`);
+      }
     } catch (error) {
-      console.error(error);
-      toast.error(error instanceof Error ? error.message : "Failed to refine pillar");
+      console.error("Refine pillar error:", error);
+      let errorMsg = "Failed to refine idea";
+      try {
+        if (error instanceof Error) {
+          errorMsg = error.message || errorMsg;
+        } else if (typeof error === 'string') {
+          errorMsg = error;
+        } else if (error && typeof error === 'object') {
+          // Safely extract message from error object
+          const msg = (error as { message?: string })?.message;
+          if (typeof msg === 'string' && msg.trim()) {
+            errorMsg = msg.trim();
+          }
+        }
+      } catch {
+        // If anything goes wrong extracting the error message, use default
+      }
+      toast.error(errorMsg);
     } finally {
       setRefineLoadingPillar(null);
     }
@@ -1686,19 +2288,62 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
       }
 
       const data = await response.json();
-      if (data?.finalOverview) {
-        setRefinedOverview(data.finalOverview as ProductOverview);
+      const finalOverview = data?.finalOverview as ProductOverview | undefined;
+      if (finalOverview) {
+        setRefinedOverview(finalOverview);
       }
+
+      const previousFeedback =
+        typeof savedData?.output === "object" && savedData.output
+          ? ((savedData.output as { initialFeedback?: InitialFeedbackData }).initialFeedback ?? null)
+          : null;
+
+      if (data?.finalFeedback) {
+        setFeedbackDeltas(computeScoreDeltas(previousFeedback, data.finalFeedback as InitialFeedbackData));
+      }
+
       if (Array.isArray(data?.iterations)) {
-        const entries = (data.iterations as any[]).map((item: any, index: number) => ({
-          pillar: item?.pillarImpacted || `iteration-${index}`,
-          scoreDelta: typeof item?.expectedScoreIncrease === "number" ? item.expectedScoreIncrease : 0,
-          differences: Array.isArray(item?.differences) ? item.differences : [],
-          improvedOverview: (item?.improvedOverview || data?.finalOverview) as ProductOverview,
-          createdAt: new Date().toISOString(),
-        })) as ImprovementLogEntry[];
+        const entries = (data.iterations as any[]).map((item: any, index: number) => {
+          const differences = Array.isArray(item?.differences) ? item.differences : [];
+          return {
+            id: item?.id ?? `auto-${Date.now()}-${index}`,
+            pillar: item?.pillarImpacted || `iteration-${index}`,
+            scoreDelta: typeof item?.scoreDelta === "number" ? item.scoreDelta : null,
+            differences,
+            beforeSection: item?.beforeSection ?? differences[0]?.before,
+            afterSection: item?.afterSection ?? differences[0]?.after,
+            improvedOverview: (item?.improvedOverview || data?.finalOverview) as ProductOverview,
+            createdAt: item?.createdAt || new Date().toISOString(),
+            source: "auto",
+          } as ImprovementLogEntry;
+        });
         setImprovementLog((prev) => [...entries, ...prev]);
       }
+
+      setSavedData((prev) => {
+        if (!prev) return prev;
+        const nextOutput =
+          typeof prev.output === "object" && prev.output !== null ? { ...prev.output } : {};
+        if (finalOverview) {
+          nextOutput.refinedOverview = finalOverview;
+        }
+        if (data?.finalFeedback) {
+          nextOutput.initialFeedback = data.finalFeedback;
+          nextOutput.pillarScores = data.finalFeedback.scores;
+        }
+        const latestIteration =
+          Array.isArray(data?.iterations) && data.iterations.length
+            ? data.iterations[data.iterations.length - 1]
+            : null;
+        nextOutput.latestDifferences = latestIteration?.differences ?? [];
+        nextOutput.improvementIterations = [
+          ...(Array.isArray(nextOutput.improvementIterations) ? nextOutput.improvementIterations : []),
+          ...(Array.isArray(data?.iterations) ? data.iterations : []),
+        ];
+        return { ...prev, output: nextOutput };
+      });
+
+      await loadImprovementHistory();
       toast.success(data?.reachedTarget ? "Idea auto-improved to target" : "Auto-improve completed");
     } catch (error) {
       console.error(error);
@@ -2240,9 +2885,21 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
     const inputData = savedData.input;
     // Handle both old format (string) and new format (JSON object)
     const outputIsJson = typeof savedData.output === 'object' && savedData.output !== null;
-    const aiReviewText = outputIsJson
-      ? (savedData.output as any).aiReview ?? ''
-      : String(savedData.output ?? '');
+    
+    // Use refined overview if available, otherwise fall back to aiReview
+    let aiReviewText: string;
+    if (outputIsJson) {
+      const output = savedData.output as any;
+      if (output.refinedOverview) {
+        // Serialize the refined overview to match the format used when applying improvements
+        aiReviewText = serializeOverview(output.refinedOverview);
+      } else {
+        aiReviewText = output.aiReview ?? '';
+      }
+    } else {
+      aiReviewText = String(savedData.output ?? '');
+    }
+    
     const savedInitialFeedback = outputIsJson ? (savedData.output as any).initialFeedback : null;
     
     const ideaInfo = extractIdeaFromReview(
@@ -2882,7 +3539,7 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
                   onClick={handleEditIdea}
                   variant="outline"
                 >
-                  Edit Idea
+                  Refine Idea
                 </Button>
                 <Button
                   onClick={handleReset}
@@ -3108,7 +3765,11 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
               <span className="font-semibold text-neutral-900">Initial Feedback (saved)</span> – latest archived report
               from your last completed Ideate run.
             </div>
-            <InitialFeedback feedback={savedInitialFeedback} />
+            <InitialFeedback feedback={savedInitialFeedback} scoreDeltas={feedbackDeltas} />
+            
+            {/* Score Change Explanation Section */}
+            <ScoreChangeExplanation feedbackDeltas={feedbackDeltas} />
+            
             <Card className="border border-neutral-200 bg-white shadow-sm">
               <CardHeader>
                 <div className="flex items-center justify-between">
@@ -3162,73 +3823,151 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
                   })}
                 </div>
 
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="text-sm font-semibold text-neutral-900">Latest Improvements</h4>
-                      <p className="text-xs text-neutral-600">Apply or undo refinements instantly.</p>
-                    </div>
-                    <Button variant="outline" size="sm" onClick={undoLastImprovement} disabled={!overviewHistory.length}>
-                      Undo last improvement
-                    </Button>
-                  </div>
-                  {improvementLog.length === 0 && (
-                    <p className="text-sm text-neutral-600">No improvements yet. Start with an individual pillar or auto-improve.</p>
-                  )}
-                  <div className="space-y-3">
-                    {improvementLog.map((entry, index) => (
-                      <div key={`${entry.pillar}-${index}`} className="rounded-lg border border-neutral-200 p-3">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
+                <ImprovementHistory
+                  entries={improvementLog}
+                  autoImproving={autoImproving}
+                  targetScore={95}
+                  currentConfidence={typeof savedInitialFeedback.overallConfidence === "number" ? savedInitialFeedback.overallConfidence : null}
+                  onApply={handleApplyImprovement}
+                  onUndo={undoLastImprovement}
+                  canUndo={overviewHistory.length > 0}
+                />
+
+                {refinedOverview && (() => {
+                  // Get latest differences to determine which sections were updated
+                  const latestDifferences = Array.isArray(
+                    typeof savedData?.output === "object" && savedData.output
+                      ? (savedData.output as { latestDifferences?: unknown }).latestDifferences
+                      : null
+                  )
+                    ? ((savedData?.output as { latestDifferences?: unknown }).latestDifferences as SectionDiff[])
+                    : [];
+
+                  // Create a map of section keys to their differences
+                  const sectionDiffMap = new Map<keyof ProductOverview, SectionDiff>();
+                  latestDifferences.forEach((diff) => {
+                    if (diff?.section) {
+                      const sectionKey = SECTION_TITLE_TO_KEY[diff.section];
+                      if (sectionKey) {
+                        sectionDiffMap.set(sectionKey, diff);
+                      }
+                    }
+                  });
+
+                  // Helper to check if a section was updated and get its diff
+                  const getSectionDiff = (key: keyof ProductOverview) => sectionDiffMap.get(key);
+                  const isSectionUpdated = (key: keyof ProductOverview) => sectionDiffMap.has(key);
+
+                  // Component for showing section with diff view
+                  const SectionWithDiff = ({ 
+                    title, 
+                    sectionKey, 
+                    content 
+                  }: { 
+                    title: string; 
+                    sectionKey: keyof ProductOverview; 
+                    content: string;
+                  }) => {
+                    const diff = getSectionDiff(sectionKey);
+                    const updated = isSectionUpdated(sectionKey);
+                    const [showDiff, setShowDiff] = useState(false);
+
+                    return (
+                      <div className={cn(
+                        "space-y-2 rounded-md p-3 transition-colors",
+                        updated && "bg-blue-50 border border-blue-200"
+                      )}>
+                        <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-semibold text-neutral-900">{entry.pillar}</span>
-                            <span className="rounded-full bg-green-50 px-2 py-0.5 text-xs text-green-700">
-                              +{entry.scoreDelta || 0} score
-                            </span>
+                            <div className="font-semibold text-neutral-900">{title}</div>
+                            {updated && (
+                              <span className="text-xs font-medium text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">
+                                Updated
+                              </span>
+                            )}
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Button size="sm" variant="secondary" onClick={() => handleApplyImprovement(entry)}>
-                              Apply improvement
-                            </Button>
-                          </div>
+                          {updated && diff && (
+                            <button
+                              type="button"
+                              onClick={() => setShowDiff(!showDiff)}
+                              className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                            >
+                              {showDiff ? (
+                                <>
+                                  <ChevronUp className="h-3 w-3" />
+                                  Hide changes
+                                </>
+                              ) : (
+                                <>
+                                  <ChevronDown className="h-3 w-3" />
+                                  Show changes
+                                </>
+                              )}
+                            </button>
+                          )}
                         </div>
-                        {entry.differences?.length > 0 && (
-                          <div className="mt-2 space-y-2">
-                            {entry.differences.map((diff, diffIndex) => (
-                              <details key={diffIndex} className="rounded border border-neutral-100 bg-neutral-50 p-2 text-sm">
-                                <summary className="cursor-pointer text-neutral-800">{diff.section}</summary>
-                                <div className="mt-2 grid gap-2 md:grid-cols-2">
-                                  <div className="rounded bg-white p-2 text-xs text-neutral-700">
-                                    <div className="font-semibold text-neutral-900">Before</div>
-                                    <p className="whitespace-pre-wrap">{diff.before}</p>
-                                  </div>
-                                  <div className="rounded bg-white p-2 text-xs text-neutral-700">
-                                    <div className="font-semibold text-neutral-900">After</div>
-                                    <p className="whitespace-pre-wrap">{diff.after}</p>
-                                  </div>
+                        {updated && diff && showDiff && (
+                          <div className="mt-3 space-y-3 rounded-md border border-blue-200 bg-white p-3">
+                            <div className="grid gap-3 md:grid-cols-2">
+                              <div className="space-y-1">
+                                <div className="text-xs font-semibold text-red-700 flex items-center gap-1">
+                                  <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                                  Before
                                 </div>
-                              </details>
-                            ))}
+                                <div className="text-xs text-neutral-700 leading-relaxed whitespace-pre-wrap bg-red-50 p-2 rounded border border-red-100">
+                                  {diff.before || '—'}
+                                </div>
+                              </div>
+                              <div className="space-y-1">
+                                <div className="text-xs font-semibold text-green-700 flex items-center gap-1">
+                                  <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                                  After
+                                </div>
+                                <div className="text-xs text-neutral-700 leading-relaxed whitespace-pre-wrap bg-green-50 p-2 rounded border border-green-100">
+                                  {diff.after || '—'}
+                                </div>
+                              </div>
+                            </div>
                           </div>
                         )}
+                        <div className="text-neutral-700">
+                          <FormattedOverviewText content={content} />
+                        </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
+                    );
+                  };
 
-                {refinedOverview && (
-                  <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-sm font-semibold text-neutral-900">Refined Overview</h4>
-                      <span className="text-xs text-neutral-500">Live preview</span>
+                  return (
+                    <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4">
+                      <div className="flex items-center justify-between mb-4">
+                        <h4 className="text-sm font-semibold text-neutral-900">Refined Overview</h4>
+                        <span className="text-xs text-neutral-500">Live preview</span>
+                      </div>
+                      <div className="space-y-4 text-sm text-neutral-800">
+                        <SectionWithDiff 
+                          title="Pitch" 
+                          sectionKey="refinedPitch" 
+                          content={refinedOverview.refinedPitch} 
+                        />
+                        <SectionWithDiff 
+                          title="Problem" 
+                          sectionKey="problemSummary" 
+                          content={refinedOverview.problemSummary} 
+                        />
+                        <SectionWithDiff 
+                          title="Solution" 
+                          sectionKey="solution" 
+                          content={refinedOverview.solution} 
+                        />
+                        <SectionWithDiff 
+                          title="Competition" 
+                          sectionKey="competition" 
+                          content={refinedOverview.competition} 
+                        />
+                      </div>
                     </div>
-                    <div className="mt-2 space-y-1 text-sm text-neutral-800">
-                      <div><span className="font-semibold">Pitch:</span> {refinedOverview.refinedPitch}</div>
-                      <div><span className="font-semibold">Problem:</span> {refinedOverview.problemSummary}</div>
-                      <div><span className="font-semibold">Solution:</span> {refinedOverview.solution}</div>
-                      <div><span className="font-semibold">Competition:</span> {refinedOverview.competition}</div>
-                    </div>
-                  </div>
-                )}
+                  );
+                })()}
               </CardContent>
             </Card>
           </div>
