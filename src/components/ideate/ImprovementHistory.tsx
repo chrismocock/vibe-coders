@@ -11,6 +11,145 @@ export interface SectionDiff {
   after: string;
 }
 
+// Diff segment types
+type DiffSegment = 
+  | { type: 'removed'; text: string }
+  | { type: 'added'; text: string }
+  | { type: 'unchanged'; text: string };
+
+// Word-based diff algorithm using longest common subsequence
+function computeDiff(before: string, after: string): { beforeSegments: DiffSegment[]; afterSegments: DiffSegment[] } {
+  if (!before && !after) {
+    return { beforeSegments: [], afterSegments: [] };
+  }
+  
+  if (!before) {
+    return {
+      beforeSegments: [],
+      afterSegments: [{ type: 'added', text: after }],
+    };
+  }
+  
+  if (!after) {
+    return {
+      beforeSegments: [{ type: 'removed', text: before }],
+      afterSegments: [],
+    };
+  }
+
+  // Split into words (including spaces as separate tokens)
+  const beforeWords = before.split(/(\s+)/).filter(w => w.length > 0);
+  const afterWords = after.split(/(\s+)/).filter(w => w.length > 0);
+  
+  // Build LCS table for finding longest common subsequence
+  const lcs: number[][] = [];
+  for (let i = 0; i <= beforeWords.length; i++) {
+    lcs[i] = [];
+    for (let j = 0; j <= afterWords.length; j++) {
+      if (i === 0 || j === 0) {
+        lcs[i][j] = 0;
+      } else if (beforeWords[i - 1] === afterWords[j - 1]) {
+        lcs[i][j] = lcs[i - 1][j - 1] + 1;
+      } else {
+        lcs[i][j] = Math.max(lcs[i - 1][j], lcs[i][j - 1]);
+      }
+    }
+  }
+  
+  // Backtrack to find the actual diff
+  const beforeSegments: DiffSegment[] = [];
+  const afterSegments: DiffSegment[] = [];
+  
+  let i = beforeWords.length;
+  let j = afterWords.length;
+  let beforeGroup: string[] = [];
+  let afterGroup: string[] = [];
+  
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && beforeWords[i - 1] === afterWords[j - 1]) {
+      // Match found - flush any pending groups and add unchanged
+      if (beforeGroup.length > 0 || afterGroup.length > 0) {
+        if (beforeGroup.length > 0) {
+          beforeSegments.unshift({ type: 'removed', text: beforeGroup.join('') });
+          beforeGroup = [];
+        }
+        if (afterGroup.length > 0) {
+          afterSegments.unshift({ type: 'added', text: afterGroup.join('') });
+          afterGroup = [];
+        }
+      }
+      beforeSegments.unshift({ type: 'unchanged', text: beforeWords[i - 1] });
+      afterSegments.unshift({ type: 'unchanged', text: afterWords[j - 1] });
+      i--;
+      j--;
+    } else if (j > 0 && (i === 0 || lcs[i][j - 1] >= lcs[i - 1][j])) {
+      // Added word
+      afterGroup.unshift(afterWords[j - 1]);
+      j--;
+    } else if (i > 0) {
+      // Removed word
+      beforeGroup.unshift(beforeWords[i - 1]);
+      i--;
+    }
+  }
+  
+  // Flush any remaining groups
+  if (beforeGroup.length > 0) {
+    beforeSegments.unshift({ type: 'removed', text: beforeGroup.join('') });
+  }
+  if (afterGroup.length > 0) {
+    afterSegments.unshift({ type: 'added', text: afterGroup.join('') });
+  }
+  
+  return { beforeSegments, afterSegments };
+}
+
+// Component to render diff text
+function DiffText({ before, after }: { before: string; after: string }) {
+  const { beforeSegments, afterSegments } = computeDiff(before || '', after || '');
+  
+  return (
+    <div className="grid gap-2 md:grid-cols-2">
+      <div className="rounded bg-white p-2 text-xs text-neutral-700">
+        <div className="font-semibold text-neutral-900 mb-1">Before</div>
+        <div className="whitespace-pre-wrap leading-relaxed">
+          {beforeSegments.map((segment, idx) => {
+            if (segment.type === 'removed') {
+              return (
+                <span
+                  key={idx}
+                  className="bg-red-100 text-red-800 line-through decoration-red-600"
+                >
+                  {segment.text}
+                </span>
+              );
+            }
+            return <span key={idx}>{segment.text}</span>;
+          })}
+        </div>
+      </div>
+      <div className="rounded bg-white p-2 text-xs text-neutral-700">
+        <div className="font-semibold text-neutral-900 mb-1">After</div>
+        <div className="whitespace-pre-wrap leading-relaxed">
+          {afterSegments.map((segment, idx) => {
+            if (segment.type === 'added') {
+              return (
+                <span
+                  key={idx}
+                  className="bg-green-100 text-green-800 font-medium"
+                >
+                  {segment.text}
+                </span>
+              );
+            }
+            return <span key={idx}>{segment.text}</span>;
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export interface ImprovementHistoryEntry {
   id?: string;
   pillar: string;
@@ -122,30 +261,16 @@ export function ImprovementHistory({
                     {entry.differences.map((diff, diffIndex) => (
                       <details key={`${key}-${diffIndex}`} className="rounded border border-neutral-100 bg-neutral-50 p-2 text-sm">
                         <summary className="cursor-pointer text-neutral-800">{diff.section}</summary>
-                        <div className="mt-2 grid gap-2 md:grid-cols-2">
-                          <div className="rounded bg-white p-2 text-xs text-neutral-700">
-                            <div className="font-semibold text-neutral-900">Before</div>
-                            <p className="whitespace-pre-wrap">{diff.before || '—'}</p>
-                          </div>
-                          <div className="rounded bg-white p-2 text-xs text-neutral-700">
-                            <div className="font-semibold text-neutral-900">After</div>
-                            <p className="whitespace-pre-wrap">{diff.after || '—'}</p>
-                          </div>
+                        <div className="mt-2">
+                          <DiffText before={diff.before || ''} after={diff.after || ''} />
                         </div>
                       </details>
                     ))}
                   </div>
                 ) : (
                   (entry.beforeSection || entry.afterSection) && (
-                    <div className="mt-2 grid gap-2 md:grid-cols-2">
-                      <div className="rounded border border-dashed border-neutral-200 p-2 text-xs text-neutral-700">
-                        <div className="font-semibold text-neutral-900">Before</div>
-                        <p className="whitespace-pre-wrap">{entry.beforeSection || '—'}</p>
-                      </div>
-                      <div className="rounded border border-dashed border-neutral-200 p-2 text-xs text-neutral-700">
-                        <div className="font-semibold text-neutral-900">After</div>
-                        <p className="whitespace-pre-wrap">{entry.afterSection || '—'}</p>
-                      </div>
+                    <div className="mt-2">
+                      <DiffText before={entry.beforeSection || ''} after={entry.afterSection || ''} />
                     </div>
                   )
                 )}
