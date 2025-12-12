@@ -23,6 +23,8 @@ type Mode = "explore-idea" | "solve-problem" | "surprise-me" | null;
 
 type ScoreDelta = { from: number | null; to: number; change: number | null };
 
+type ImprovementLogEntry = ImprovementHistoryEntry;
+
 // Helper component for formatted markdown text in Refined Overview
 function FormattedOverviewText({ content }: { content: string }) {
   return (
@@ -495,8 +497,6 @@ export default function IdeateWizardPage() {
     summary: string;
     validation?: any;
   }
-
-  type ImprovementLogEntry = ImprovementHistoryEntry;
 
   const [savedData, setSavedData] = useState<{
     input: any;
