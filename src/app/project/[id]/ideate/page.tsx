@@ -21,6 +21,8 @@ import type { ProductOverview } from "@/server/ideate/refinementEngine";
 
 type Mode = "explore-idea" | "solve-problem" | "surprise-me" | null;
 
+type ScoreDelta = { from: number | null; to: number; change: number | null };
+
 // Helper component for formatted markdown text in Refined Overview
 function FormattedOverviewText({ content }: { content: string }) {
   return (
@@ -525,7 +527,6 @@ export default function IdeateWizardPage() {
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
   const [suggestionError, setSuggestionError] = useState<string | null>(null);
   const [draftValidation, setDraftValidation] = useState<InitialFeedbackData | null>(null);
-  type ScoreDelta = { from: number | null; to: number; change: number | null };
   interface RevalidateOptions {
     aiProductOverviewOverride?: string;
   }
