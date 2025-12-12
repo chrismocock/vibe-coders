@@ -3933,6 +3933,7 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
                                     directionLoadingPillar === key || refineLoadingPillar === key || autoImproving
                                   }
                                   onClick={() => handleRefinePillar(key)}
+                                  className="transition-all duration-200 hover:bg-purple-50 hover:text-purple-700 hover:border-purple-200 hover:shadow-sm hover:scale-[1.02] active:scale-[0.98]"
                                 >
                                   {directionLoadingPillar === key ? (
                                     <span className="flex items-center gap-2">
