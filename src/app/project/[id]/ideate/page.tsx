@@ -417,8 +417,8 @@ function buildOverviewDifferences(
   if (!before && !after) return [];
   const diffs: SectionDiff[] = [];
   for (const section of OVERVIEW_SECTIONS) {
-    const beforeText = before ? formatOverviewValue((before as Record<string, unknown>)[section.key]) : "";
-    const afterText = after ? formatOverviewValue((after as Record<string, unknown>)[section.key]) : "";
+    const beforeText = before ? formatOverviewValue((before as unknown as Record<string, unknown>)[section.key]) : "";
+    const afterText = after ? formatOverviewValue((after as unknown as Record<string, unknown>)[section.key]) : "";
     if (beforeText !== afterText) {
       diffs.push({
         section: section.label,
@@ -431,8 +431,8 @@ function buildOverviewDifferences(
     const primary = OVERVIEW_SECTIONS[0];
     diffs.push({
       section: primary.label,
-      before: before ? formatOverviewValue((before as Record<string, unknown>)[primary.key]) : "",
-      after: formatOverviewValue((after as Record<string, unknown>)[primary.key]),
+      before: before ? formatOverviewValue((before as unknown as Record<string, unknown>)[primary.key]) : "",
+      after: formatOverviewValue((after as unknown as Record<string, unknown>)[primary.key]),
     });
   }
   return diffs;
