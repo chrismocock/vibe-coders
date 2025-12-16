@@ -2129,7 +2129,8 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
     if (!projectId) return;
     const applyingDirection = typeof selectedDirectionId === "string" && selectedDirectionId.length > 0;
     if (applyingDirection) {
-      setRefineLoadingPillar(pillarKey);
+      // Use compound key to track specific direction/action: "pillarKey:directionId" or "pillarKey:auto"
+      setRefineLoadingPillar(`${pillarKey}:${selectedDirectionId}`);
     } else {
       setDirectionLoadingPillar(pillarKey);
     }
@@ -3892,10 +3893,10 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
                                         className="mt-3 w-full"
                                         variant="secondary"
                                         size="sm"
-                                        disabled={refineLoadingPillar === key || autoImproving}
+                                        disabled={(refineLoadingPillar?.startsWith(`${key}:`) ?? false) || autoImproving}
                                         onClick={() => handleRefinePillar(key, direction.id)}
                                       >
-                                        {refineLoadingPillar === key ? (
+                                        {refineLoadingPillar === `${key}:${direction.id}` ? (
                                           <span className="flex items-center gap-2">
                                             <Loader2 className="h-4 w-4 animate-spin" />
                                             Applying direction…
@@ -3911,10 +3912,10 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
                                   variant="outline"
                                   size="sm"
                                   className="w-full"
-                                  disabled={refineLoadingPillar === key || autoImproving}
+                                  disabled={(refineLoadingPillar?.startsWith(`${key}:`) ?? false) || autoImproving}
                                   onClick={() => handleRefinePillar(key, "auto")}
                                 >
-                                  {refineLoadingPillar === key ? (
+                                  {refineLoadingPillar === `${key}:auto` ? (
                                     <span className="flex items-center gap-2">
                                       <Loader2 className="h-4 w-4 animate-spin" />
                                       Letting AI choose…
@@ -3930,7 +3931,7 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
                                   variant="secondary"
                                   size="sm"
                                   disabled={
-                                    directionLoadingPillar === key || refineLoadingPillar === key || autoImproving
+                                    directionLoadingPillar === key || (refineLoadingPillar?.startsWith(`${key}:`) ?? false) || autoImproving
                                   }
                                   onClick={() => handleRefinePillar(key)}
                                   className="transition-all duration-200 hover:bg-purple-50 hover:text-purple-700 hover:border-purple-200 hover:shadow-sm hover:scale-[1.02] active:scale-[0.98]"
