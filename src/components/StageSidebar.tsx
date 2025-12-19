@@ -58,7 +58,7 @@ const stageConfigs = {
     icon: Lightbulb,
   },
   validate: {
-    name: 'Validate',
+    name: 'Idea Due Diligence',
     icon: Users,
   },
   design: {

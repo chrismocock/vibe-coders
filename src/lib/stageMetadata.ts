@@ -13,7 +13,7 @@ export type StageId = (typeof STAGE_ORDER)[number];
 export const STAGE_LABELS: Record<StageId, string> = {
   dashboard: "Dashboard",
   ideate: "Ideate",
-  validate: "Validate",
+  validate: "Idea Due Diligence",
   design: "Design",
   build: "Build",
   launch: "Launch",

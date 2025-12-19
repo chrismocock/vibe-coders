@@ -171,7 +171,7 @@ const stageConfigs = {
     }
   },
   validate: {
-    name: 'Validate',
+    name: 'Idea Due Diligence',
     icon: Users,
     description: 'Auto-generated comprehensive validation analysis for your selected idea',
     apiEndpoint: '/api/ai/validate',
@@ -1505,7 +1505,7 @@ export default function StageWorkspace({ projectId, hideSidebar = false }: Stage
           <div className="flex-1">
             {fieldElement}
           </div>
-          {/* Generate button for Validate, Design, Build, Launch, and Monetise stage fields */}
+          {/* Generate button for Idea Due Diligence, Design, Build, Launch, and Monetise stage fields */}
           {(stageId === 'validate' || stageId === 'design' || stageId === 'build' || stageId === 'launch' || stageId === 'monetise') && (
             <Button
               onClick={() => generateFieldContent(stageId, field.name)}
@@ -1522,7 +1522,7 @@ export default function StageWorkspace({ projectId, hideSidebar = false }: Stage
             </Button>
           )}
         </div>
-        {/* Loading indicator for Validate, Design, Build, Launch, and Monetise stage fields */}
+        {/* Loading indicator for Idea Due Diligence, Design, Build, Launch, and Monetise stage fields */}
         {(stageId === 'validate' || stageId === 'design' || stageId === 'build' || stageId === 'launch' || stageId === 'monetise') && isLoading && (
           <div className="flex items-center gap-1 text-xs text-purple-600">
             <Loader2 className="h-3 w-3 animate-spin" />
@@ -2220,7 +2220,7 @@ export default function StageWorkspace({ projectId, hideSidebar = false }: Stage
                                   )}
                                   <div className="mt-3 pt-3 border-t border-green-200">
                                     <p className="text-xs text-green-600">
-                                      This idea will be used for the Validate, Design, Build, Launch, and Monetise stages.
+                                      This idea will be used for the Idea Due Diligence, Design, Build, Launch, and Monetise stages.
                                     </p>
                                   </div>
                                 </div>
@@ -2282,7 +2282,7 @@ export default function StageWorkspace({ projectId, hideSidebar = false }: Stage
                           })()}
                         </div>
                       ) : stageId === 'validate' ? (
-                        // Special handling for Validate stage - display validation results
+                        // Special handling for Idea Due Diligence stage - display validation results
                         <ValidateResultsDisplay output={currentData.output} />
                       ) : (
                         // Regular output display for other stages

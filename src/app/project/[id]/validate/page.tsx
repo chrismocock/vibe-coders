@@ -72,7 +72,7 @@ export default function ValidationRefinementPage() {
   return (
     <div className="space-y-10 px-2 pb-24 pt-6 sm:px-4 lg:px-6">
       <header className="rounded-3xl border border-neutral-200 bg-white/90 p-6 shadow-sm lg:p-8">
-        <p className="text-xs uppercase tracking-wide text-neutral-500">Validation</p>
+        <p className="text-xs uppercase tracking-wide text-neutral-500">Idea Due Diligence</p>
         <h1 className="text-3xl font-semibold text-neutral-900">AI Refinement Hub</h1>
         <p className="mt-2 max-w-3xl text-neutral-600">
           AI scores your idea across seven pillars, explains what needs work, and produces a ready-for-design Product Overview.

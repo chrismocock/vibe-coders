@@ -54,7 +54,7 @@ interface AIConfigProps {
 
 const STAGES = [
   { id: 'ideate', name: 'Ideate', description: 'Generate startup ideas' },
-  { id: 'validate', name: 'Validate', description: 'Validate market potential' },
+  { id: 'validate', name: 'Idea Due Diligence', description: 'Validate market potential' },
   { id: 'design', name: 'Design', description: 'Create design strategy' },
   { id: 'build', name: 'Build', description: 'Technical implementation' },
   { id: 'launch', name: 'Launch', description: 'Go-to-market strategy' },

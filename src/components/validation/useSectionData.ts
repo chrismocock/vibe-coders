@@ -13,7 +13,7 @@ type StageRecord = {
 
 const REPORT_ID_PATTERN = /^[0-9a-fA-F-]{32,36}$/;
 const LEGACY_REPORT_MISSING_ERROR =
-  'Legacy validation reports are no longer generated. Use the new Validation Hub on the Validate stage to refresh insights.';
+  'Legacy validation reports are no longer generated. Use the new Validation Hub on the Idea Due Diligence stage to refresh insights.';
 
 function extractReportId(output: unknown): string | null {
   if (!output) {

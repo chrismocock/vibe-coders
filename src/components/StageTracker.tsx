@@ -4,7 +4,7 @@ import { Lightbulb, Users, Wrench, Rocket, MessageSquare, Coins } from "lucide-r
 
 const stages = [
   { name: "Ideate", icon: Lightbulb },
-  { name: "Validate", icon: Users },
+  { name: "Idea Due Diligence", icon: Users },
   { name: "Design", icon: Wrench },
   { name: "Build", icon: Rocket },
   { name: "Launch", icon: MessageSquare },

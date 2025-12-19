@@ -220,7 +220,7 @@ export default function ProjectDashboard({
     }
     
     if (parts.length === 0) {
-      return "Complete the Ideate and Validate stages to generate your project summary. This will be your elevator pitch for investors and customers.";
+      return "Complete the Ideate and Idea Due Diligence stages to generate your project summary. This will be your elevator pitch for investors and customers.";
     }
     
     return parts.join(' ') + (parts.length > 1 ? '.' : '');

@@ -16,7 +16,7 @@ const STAGE_ORDER = ["ideate", "validate", "design", "build", "launch", "monetis
 
 const stageLabels: Record<string, string> = {
   ideate: "Ideate",
-  validate: "Validate",
+  validate: "Idea Due Diligence",
   design: "Design",
   build: "Build",
   launch: "Launch",
