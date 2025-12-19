@@ -953,9 +953,9 @@ function createPillarFallback(pillarId: ValidationPillarId, report: ValidationRe
         analysis:
           report.personas?.[0]?.description || defaultCopy.analysis,
         strength:
-          report.personas?.[0]?.needs?.[0] || defaultCopy.strength,
+          report.personas?.[0]?.goals?.[0] || defaultCopy.strength,
         weakness:
-          report.personas?.[0]?.painPoints?.[0] || defaultCopy.weakness,
+          report.personas?.[0]?.pains?.[0] || defaultCopy.weakness,
         improve: 'Use the Audience drill-down to validate the core persona pains.',
       };
     case 'problemClarity':
