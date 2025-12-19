@@ -198,7 +198,7 @@ function ScoreChangeExplanation({
       change: delta?.change ?? null,
       from: delta?.from ?? null,
       to: delta?.to ?? null,
-      description: delta?.change !== null && delta?.change !== 0
+      description: delta && delta.change !== null && delta.change !== 0
         ? generateScoreChangeDescription(
             pillar.id,
             delta.change,
@@ -628,6 +628,7 @@ export default function IdeateWizardPage() {
   const [refineLoadingPillar, setRefineLoadingPillar] = useState<string | null>(null);
   const [autoImproving, setAutoImproving] = useState(false);
   const [overviewHistory, setOverviewHistory] = useState<ProductOverview[]>([]);
+  const [savingOverview, setSavingOverview] = useState(false);
 
   // Minimize Initial Feedback in edit mode, maximize in view mode
   useEffect(() => {
@@ -2210,6 +2211,58 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
     });
   };
 
+  const handleSaveCompleteOverview = async () => {
+    if (!projectId) {
+      toast.error("Project ID is missing");
+      return;
+    }
+
+    // Get the current refinedOverview from state or from savedData
+    let overviewToSave: ProductOverview | null = refinedOverview;
+    
+    // If not in state, try to get it from savedData
+    if (!overviewToSave && savedData) {
+      const outputIsJson = typeof savedData.output === 'object' && savedData.output !== null;
+      if (outputIsJson) {
+        const output = savedData.output as any;
+        overviewToSave = output.refinedOverview || null;
+      }
+    }
+
+    // If still no overview, we can't save
+    if (!overviewToSave) {
+      toast.error("No product overview available to save. Please complete the AI review first.");
+      return;
+    }
+
+    setSavingOverview(true);
+    try {
+      const response = await fetch('/api/ideate/save-overview', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          projectId,
+          productOverview: overviewToSave,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to save product overview');
+      }
+
+      const data = await response.json();
+      toast.success('Complete AI Overview saved successfully! This will be used for Idea Due Diligence.');
+    } catch (error) {
+      console.error('Error saving product overview:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to save product overview. Please try again.');
+    } finally {
+      setSavingOverview(false);
+    }
+  };
+
   const handleRefinePillar = async (pillarKey: string, selectedDirectionId?: string) => {
     if (!projectId) return;
     const applyingDirection = typeof selectedDirectionId === "string" && selectedDirectionId.length > 0;
@@ -3694,6 +3747,20 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
                 </CardDescription>
               </div>
               <div className="flex gap-2 shrink-0">
+                <Button
+                  onClick={handleSaveCompleteOverview}
+                  disabled={savingOverview || (!refinedOverview && (!savedData || typeof savedData.output !== 'object' || savedData.output === null || !(savedData.output as any)?.refinedOverview))}
+                  className="bg-purple-600 text-white hover:bg-purple-700"
+                >
+                  {savingOverview ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save Complete AI Overview"
+                  )}
+                </Button>
                 <Button
                   onClick={handleEditIdea}
                   variant="outline"

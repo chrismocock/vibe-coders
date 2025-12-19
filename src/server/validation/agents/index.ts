@@ -23,4 +23,5 @@ export { runOpportunityScoreAgent } from './opportunityScore';
 export { runRiskRadarAgent } from './riskRadar';
 export { runDesignBriefAgent } from './designBrief';
 export { runDeepDiveAgent } from './deepDive';
+export { runDecisionSpineAgent } from './decisionSpine';
 

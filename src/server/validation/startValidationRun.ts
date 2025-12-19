@@ -113,6 +113,8 @@ async function persistValidateStageSnapshot({
       ideaEnhancement: report.ideaEnhancement,
       opportunityScore: report.opportunityScore,
       riskRadar: report.riskRadar,
+      decisionSpine: report.decisionSpine,
+      designBrief: report.designBrief,
     };
 
     const { data: existingStage, error: lookupError } = await supabase

@@ -84,6 +84,21 @@ export interface DesignBrief {
   initialUIIdeas: string[];
 }
 
+export type DecisionRiskLevel = 'low' | 'medium' | 'high';
+
+export interface DecisionAssumption {
+  statement: string;
+  riskLevel: DecisionRiskLevel;
+}
+
+export interface DecisionSpine {
+  verdictLabel: string;
+  confidence: number;
+  killRisks: string[];
+  winMoves: string[];
+  assumptions: DecisionAssumption[];
+}
+
 export interface AnalysisFeedItem {
   id: string;
   message: string;
@@ -141,6 +156,7 @@ export interface ValidationReport {
   personaReactions?: Partial<Record<ValidationSection, PersonaReaction[]>> | null;
   designBrief?: DesignBrief | null;
   analysisFeed?: AnalysisFeedItem[] | null;
+  decisionSpine?: DecisionSpine | null;
 }
 
 export interface AgentMetadata {
@@ -160,6 +176,11 @@ export interface SectionResult {
   opportunityMap?: FeatureMap;
   personaHighlights?: PersonaReaction[];
   deepDive?: SectionDeepDive;
+  killRisks?: string[];
+  winMoves?: string[];
+  assumptions?: DecisionAssumption[];
+  verdictLabel?: string;
+  confidence?: number;
 }
 
 export type ValidationSection = 

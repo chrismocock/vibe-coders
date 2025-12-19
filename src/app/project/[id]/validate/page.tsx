@@ -10,9 +10,10 @@ import { PillarGrid } from '@/components/validation/v2/PillarGrid';
 import { AIFocusSummary } from '@/components/validation/v2/AIFocusSummary';
 import { toast } from 'sonner';
 import { useProjectStages } from '@/hooks/useProjectStages';
-import { extractIdeaDetails, type IdeaDetails } from '@/server/validation/idea';
+import { extractIdeaDetails, ideaDetailsFromOverview, type IdeaDetails } from '@/server/validation/idea';
 import type { ValidationReportRow } from '@/server/validation/store';
 import type {
+  AIProductOverview,
   FeatureMap,
   Persona,
   RiskRadar,
@@ -22,7 +23,8 @@ import type {
   ValidationReport,
 } from '@/server/validation/types';
 import { cn } from '@/lib/utils';
-import { ArrowRight, Loader2, RefreshCw, Sparkles } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Loader2, RefreshCw, ShieldCheck, Sparkles } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
 type ReportSectionKey =
   | 'overview'
@@ -86,17 +88,69 @@ const PILLAR_SECTION_MAP: Array<{
 export default function IdeaDueDiligenceHub() {
   const params = useParams();
   const projectId = params.id as string;
+  const ideateStageHref = `/project/${projectId}/ideate`;
   const { stageData, loading: stagesLoading, refetch: refetchStages } = useProjectStages(projectId);
+  const ideateStage = stageData?.ideate;
+  const stageOverview = useMemo(() => extractStageOverview(ideateStage), [ideateStage]);
+  const ideateStageInput = ideateStage?.input;
+
+  const [ideateOverview, setIdeateOverview] = useState<AIProductOverview | null>(null);
+  const [validatedIdeaId, setValidatedIdeaId] = useState<string | null>(null);
+  const [overviewLoading, setOverviewLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadOverview() {
+      if (!projectId) {
+        setIdeateOverview(null);
+        setValidatedIdeaId(null);
+        setOverviewLoading(false);
+        return;
+      }
+      setOverviewLoading(true);
+      try {
+        const res = await fetch(`/api/validate/overview?projectId=${projectId}`, { cache: 'no-store' });
+        if (!res.ok) {
+          throw new Error('Failed to load saved overview');
+        }
+        const data = await res.json();
+        if (cancelled) return;
+        setIdeateOverview(data.overview ?? null);
+        setValidatedIdeaId(data.validatedIdeaId ?? null);
+      } catch (err) {
+        console.error('Failed to load ideate overview:', err);
+        if (cancelled) return;
+        setIdeateOverview(null);
+        setValidatedIdeaId(null);
+      } finally {
+        if (!cancelled) {
+          setOverviewLoading(false);
+        }
+      }
+    }
+
+    void loadOverview();
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
 
   const ideaDetails: IdeaDetails | null = useMemo(() => {
-    const ideateStage = stageData?.ideate;
-    if (!ideateStage?.input) return null;
-    try {
-      return extractIdeaDetails(ideateStage.input);
-    } catch {
-      return null;
+    const preferredOverview = ideateOverview ?? stageOverview;
+    const overviewDetails = ideaDetailsFromOverview(preferredOverview);
+    if (overviewDetails) {
+      return overviewDetails;
     }
-  }, [stageData]);
+
+    if (ideateStageInput) {
+      try {
+        return extractIdeaDetails(ideateStageInput);
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }, [ideateOverview, stageOverview, ideateStageInput]);
 
   const [latestReport, setLatestReport] = useState<ValidationReportRow | null>(null);
   const [normalizedReport, setNormalizedReport] = useState<ValidationReport | null>(null);
@@ -268,32 +322,25 @@ export default function IdeaDueDiligenceHub() {
   }, [autoRunTriggered, ideaDetails, latestReport, loadingReport, runDueDiligence]);
 
   const handleGenerateDesignPack = useCallback(async () => {
-    if (!projectId || !normalizedReport) {
+    if (!projectId || !latestReport?.id) {
       toast.error('Run due diligence first.');
       return;
     }
     try {
       setDesignPackLoading(true);
-      const designInput = buildDesignPackInput(normalizedReport);
-      const response = await fetch(`/api/projects/${projectId}/stages`, {
+      const response = await fetch('/api/validation/design-pack', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          stage: 'design',
-          input: JSON.stringify(designInput),
-          output: JSON.stringify({
-            seededFromReportId: latestReport?.id,
-            seededAt: new Date().toISOString(),
-            source: 'validation_report',
-          }),
-          status: 'in_progress',
+          projectId,
+          reportId: latestReport.id,
         }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(payload.error || 'Failed to seed design stage');
+        throw new Error(payload.error || 'Failed to create design pack');
       }
-      toast.success('Design stage seeded with the latest due diligence insights.');
+      toast.success('Design pack saved. Open the Design stage to use it.');
       refetchStages();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to generate design pack';
@@ -301,7 +348,10 @@ export default function IdeaDueDiligenceHub() {
     } finally {
       setDesignPackLoading(false);
     }
-  }, [latestReport?.id, normalizedReport, projectId, refetchStages]);
+  }, [latestReport?.id, projectId, refetchStages]);
+
+  const overviewSnapshot = ideateOverview ?? stageOverview ?? null;
+  const hasSavedOverview = Boolean(ideateOverview && validatedIdeaId);
 
   const verdictInfo = useMemo(() => {
     const recommendation =
@@ -309,12 +359,14 @@ export default function IdeaDueDiligenceHub() {
     return VERDICT_META[recommendation];
   }, [latestReport?.recommendation, normalizedReport?.recommendation]);
 
-  const reasons = useMemo(
-    () => buildTopReasons(latestReport, normalizedReport),
+  const decisionSpine = normalizedReport?.decisionSpine || null;
+
+  const winMoveFallback = useMemo(
+    () => buildWinMovesFallback(latestReport, normalizedReport),
     [latestReport, normalizedReport],
   );
 
-  const risks = useMemo(
+  const riskFallback = useMemo(
     () => buildRiskHighlights(latestReport, normalizedReport),
     [latestReport, normalizedReport],
   );
@@ -334,9 +386,32 @@ export default function IdeaDueDiligenceHub() {
     [projectId, sectionResults],
   );
 
-  const confidenceScore = normalizedReport?.overallConfidence ?? latestReport?.overall_confidence ?? null;
+  const confidenceScore =
+    decisionSpine?.confidence ??
+    normalizedReport?.overallConfidence ??
+    latestReport?.overall_confidence ??
+    null;
   const lastRunLabel = latestReport?.updated_at ? formatRelativeTime(latestReport.updated_at) : null;
   const canRun = Boolean(ideaDetails) && !runningReportId;
+  const displayedVerdict = decisionSpine?.verdictLabel || verdictInfo.label;
+
+  const killRiskItems =
+    decisionSpine?.killRisks?.length
+      ? decisionSpine.killRisks.map((risk, idx) => ({
+          title: `Risk ${idx + 1}`,
+          description: risk,
+        }))
+      : riskFallback;
+
+  const winMoveItems =
+    decisionSpine?.winMoves?.length
+      ? decisionSpine.winMoves.map((move, idx) => ({
+          title: `Move ${idx + 1}`,
+          description: move,
+        }))
+      : winMoveFallback;
+
+  const assumptionList = decisionSpine?.assumptions || [];
 
   return (
     <div className="space-y-8 px-2 pb-24 pt-6 sm:px-4 lg:px-6">
@@ -347,11 +422,37 @@ export default function IdeaDueDiligenceHub() {
           AI runs a full diligence loop on your selected idea, generates an audit trail across seven pillars, and prepares
           a design-ready brief you can hand off downstream.
         </p>
-        {ideaDetails && (
+        {overviewLoading ? (
+          <div className="mt-6 rounded-2xl border border-dashed border-neutral-200 bg-white/70 p-4 text-sm text-neutral-600">
+            Loading the Complete AI Overview…
+          </div>
+        ) : overviewSnapshot ? (
+          <>
+            <AIOverviewSummary overview={overviewSnapshot} saved={hasSavedOverview} />
+            {!hasSavedOverview && (
+              <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50/80 p-4 text-sm text-amber-800">
+                Save the Complete AI Overview on the Ideate stage so every diligence run references the same snapshot.{' '}
+                <Link className="font-semibold underline" href={ideateStageHref}>
+                  Open Ideate stage
+                </Link>
+              </div>
+            )}
+          </>
+        ) : ideaDetails ? (
           <div className="mt-6 rounded-2xl border border-neutral-200 bg-white/70 p-4">
             <p className="text-xs uppercase tracking-wider text-neutral-500">Idea on file</p>
             <h2 className="text-xl font-semibold text-neutral-900">{ideaDetails.title}</h2>
-            <p className="mt-2 text-sm text-neutral-600 line-clamp-3 whitespace-pre-line">{ideaDetails.summary}</p>
+            <p className="mt-2 text-sm text-neutral-600 whitespace-pre-line">{ideaDetails.summary}</p>
+            <Link className="mt-3 inline-flex text-sm font-medium text-purple-600 underline" href={ideateStageHref}>
+              Open Ideate stage to capture the AI overview
+            </Link>
+          </div>
+        ) : (
+          <div className="mt-6 rounded-2xl border border-dashed border-neutral-200 bg-white/70 p-4 text-sm text-neutral-700">
+            Complete the Ideate stage and save the Complete AI Overview so the Idea Due Diligence inputs stay locked.{' '}
+            <Link className="font-semibold text-purple-600 underline" href={ideateStageHref}>
+              Go to Ideate
+            </Link>
           </div>
         )}
       </header>
@@ -370,7 +471,7 @@ export default function IdeaDueDiligenceHub() {
               <p className="text-sm text-neutral-600">Latest recommendation plus confidence score.</p>
             </div>
             <Badge className={cn('rounded-full px-4 py-1 text-sm font-semibold', verdictInfo.badgeClass)}>
-              {verdictInfo.label}
+              {displayedVerdict}
             </Badge>
           </CardHeader>
           <CardContent className="space-y-4 pt-4">
@@ -381,7 +482,9 @@ export default function IdeaDueDiligenceHub() {
               </div>
             )}
             {!statusMessage && (
-              <p className="text-sm text-neutral-700">{verdictInfo.tone}</p>
+              <p className="text-sm text-neutral-700">
+                {decisionSpine?.verdictLabel || verdictInfo.tone}
+              </p>
             )}
             <div className="flex flex-wrap gap-4">
               <div>
@@ -433,7 +536,7 @@ export default function IdeaDueDiligenceHub() {
             </p>
             <Button
               onClick={handleGenerateDesignPack}
-              disabled={!normalizedReport || designPackLoading}
+              disabled={!normalizedReport || !latestReport?.id || designPackLoading}
               variant="outline"
               className="w-full items-center justify-center border-purple-200 text-purple-700 hover:bg-purple-50"
             >
@@ -458,16 +561,20 @@ export default function IdeaDueDiligenceHub() {
 
       <section className="grid gap-4 lg:grid-cols-2">
         <InsightListCard
-          title="Top reasons to believe"
-          emptyLabel="Run due diligence to see AI insights."
-          items={reasons}
+          title="Win moves to push"
+          emptyLabel="Run due diligence to surface win moves."
+          items={winMoveItems}
+          icon={ShieldCheck}
         />
         <InsightListCard
-          title="Risk radar (highest alerts)"
+          title="Kill risks to resolve"
           emptyLabel="Run due diligence to reveal risk spikes."
-          items={risks}
+          items={killRiskItems}
+          icon={AlertTriangle}
         />
       </section>
+
+      <AssumptionsCard assumptions={assumptionList} />
 
       <section className="rounded-3xl border border-neutral-100 bg-white/90 p-6 shadow-sm ring-1 ring-black/5">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -605,6 +712,123 @@ export default function IdeaDueDiligenceHub() {
   );
 }
 
+function AIOverviewSummary({ overview, saved }: { overview: AIProductOverview; saved: boolean }) {
+  const personaHighlights = Array.isArray(overview.personas) ? overview.personas.slice(0, 2) : [];
+  const featureHighlights = Array.isArray(overview.coreFeatures) ? overview.coreFeatures.slice(0, 3) : [];
+
+  return (
+    <div className="mt-6 space-y-4">
+      <div className="rounded-3xl border border-purple-100 bg-white/80 p-5 shadow-sm ring-1 ring-purple-100/50">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-purple-700">
+              {saved ? 'Complete AI Overview on file' : 'Latest AI overview draft'}
+            </p>
+            <h2 className="mt-2 text-2xl font-semibold text-neutral-900">
+              {overview.refinedPitch || 'Untitled concept'}
+            </h2>
+            {overview.problemSummary && (
+              <p className="mt-2 text-sm text-neutral-700">{overview.problemSummary}</p>
+            )}
+          </div>
+          {overview.marketSize && (
+            <div className="rounded-2xl border border-purple-200 bg-purple-50/80 px-4 py-3 text-sm font-medium text-purple-800">
+              Market size: {overview.marketSize}
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div className="rounded-2xl border border-neutral-100 bg-white/90 p-4 shadow-sm">
+          <p className="text-xs uppercase tracking-wide text-neutral-500">Solution & value</p>
+          <p className="mt-2 text-sm text-neutral-800">
+            {overview.solution || 'No solution captured yet.'}
+          </p>
+          <div className="mt-3 rounded-xl bg-neutral-50/80 p-3">
+            <p className="text-xs uppercase tracking-wide text-neutral-500">Unique angle</p>
+            <p className="text-sm text-neutral-800">
+              {overview.uniqueValue || 'Add your unique value inside Ideate to lock it.'}
+            </p>
+          </div>
+        </div>
+        <div className="rounded-2xl border border-neutral-100 bg-white/90 p-4 shadow-sm">
+          <p className="text-xs uppercase tracking-wide text-neutral-500">Personas in scope</p>
+          {personaHighlights.length ? (
+            <div className="mt-2 space-y-3">
+              {personaHighlights.map((persona) => (
+                <div key={persona.name} className="rounded-xl border border-neutral-100 bg-neutral-50/80 p-3">
+                  <p className="text-sm font-semibold text-neutral-900">{persona.name}</p>
+                  {persona.summary && <p className="text-xs text-neutral-600">{persona.summary}</p>}
+                  {persona.needs?.length ? (
+                    <p className="mt-1 text-xs text-neutral-500">
+                      Needs: {persona.needs.slice(0, 2).join(', ')}
+                    </p>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-2 text-sm text-neutral-600">Add personas within Ideate to guide validation.</p>
+          )}
+        </div>
+        <div className="rounded-2xl border border-neutral-100 bg-white/90 p-4 shadow-sm">
+          <p className="text-xs uppercase tracking-wide text-neutral-500">Focus notes</p>
+          {featureHighlights.length ? (
+            <div>
+              <p className="text-xs uppercase tracking-wide text-neutral-500">Core features</p>
+              <ul className="mt-1 list-disc pl-4 text-sm text-neutral-800">
+                {featureHighlights.map((feature) => (
+                  <li key={feature}>{feature}</li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <p className="mt-2 text-sm text-neutral-600">No feature map saved yet.</p>
+          )}
+          {overview.competition && (
+            <div className="mt-3 rounded-xl bg-neutral-50/80 p-3 text-sm text-neutral-700">
+              <p className="text-xs uppercase tracking-wide text-neutral-500">Competition</p>
+              <p>{overview.competition}</p>
+            </div>
+          )}
+          {overview.buildNotes && (
+            <div className="mt-3 rounded-xl bg-neutral-50/80 p-3 text-sm text-neutral-700">
+              <p className="text-xs uppercase tracking-wide text-neutral-500">Build notes</p>
+              <p>{overview.buildNotes}</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function parseStageJson(value?: unknown) {
+  if (!value) return null;
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value);
+    } catch {
+      return null;
+    }
+  }
+  if (typeof value === 'object') {
+    return value as Record<string, unknown>;
+  }
+  return null;
+}
+
+function extractStageOverview(stage?: { output?: unknown }): AIProductOverview | null {
+  if (!stage) return null;
+  const payload = parseStageJson(stage.output);
+  if (!payload || typeof payload !== 'object') return null;
+  const candidate =
+    (payload.refinedOverview as AIProductOverview | undefined) ??
+    (payload.aiProductOverview as AIProductOverview | undefined) ??
+    (payload.overview as AIProductOverview | undefined);
+  return candidate || null;
+}
+
 function formatRelativeTime(timestamp: string) {
   const diffMs = Date.now() - new Date(timestamp).getTime();
   if (diffMs < 0) return 'Just now';
@@ -617,10 +841,26 @@ function formatRelativeTime(timestamp: string) {
   return `${days} day${days > 1 ? 's' : ''} ago`;
 }
 
-function buildTopReasons(
+function buildWinMovesFallback(
   rawReport: ValidationReportRow | null,
   normalizedReport: ValidationReport | null,
 ) {
+  const differentiators = normalizedReport?.ideaEnhancement?.differentiators;
+  if (differentiators?.length) {
+    return differentiators.slice(0, 3).map((value, index) => ({
+      title: `Move ${index + 1}`,
+      description: value,
+    }));
+  }
+
+  const mustHave = normalizedReport?.featureMap?.must;
+  if (mustHave?.length) {
+    return mustHave.slice(0, 3).map((value, index) => ({
+      title: `Feature focus ${index + 1}`,
+      description: value,
+    }));
+  }
+
   const rationales =
     (rawReport?.rationales as Record<string, string> | undefined) || normalizedReport?.rationales || {};
   const scores =
@@ -634,27 +874,10 @@ function buildTopReasons(
     }))
     .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
     .slice(0, 3)
-    .map((entry) => ({
-      title: rationaleLabel(entry.key),
+    .map((entry, index) => ({
+      title: `Signal ${index + 1}: ${entry.key}`,
       description: entry.value,
     }));
-}
-
-function rationaleLabel(key: string) {
-  switch (key) {
-    case 'marketDemand':
-      return 'Market demand';
-    case 'audienceFit':
-      return 'Audience fit';
-    case 'competition':
-      return 'Competitive angle';
-    case 'feasibility':
-      return 'Feasibility';
-    case 'pricingPotential':
-      return 'Pricing power';
-    default:
-      return key;
-  }
 }
 
 function buildRiskHighlights(
@@ -832,58 +1055,26 @@ function FeatureList({ label, items, tone }: { label: string; items: string[]; t
   );
 }
 
-function buildDesignPackInput(report: ValidationReport) {
-  const productType = [
-    `Positioning: ${report.ideaEnhancement?.strongerPositioning || report.ideaEnhancement?.uniqueAngle || 'Clarify differentiators.'}`,
-    `Why it wins: ${report.ideaEnhancement?.whyItWins || 'Spell out the magic moment.'}`,
-  ].join('\n\n');
-
-  const keyFeatures = (() => {
-    if (!report.featureMap) return 'Define MVP feature list.';
-    const lines: string[] = [];
-    if (report.featureMap.must?.length) {
-      lines.push('Must haves:\n- ' + report.featureMap.must.join('\n- '));
-    }
-    if (report.featureMap.should?.length) {
-      lines.push('\nShould haves:\n- ' + report.featureMap.should.join('\n- '));
-    }
-    return lines.join('\n').trim();
-  })();
-
-  const userPersonas = report.personas
-    ?.slice(0, 3)
-    .map(
-      (persona) =>
-        `${persona.name} (${persona.role})\nNeeds: ${persona.needs.slice(0, 3).join(', ')}\nPains: ${persona.pains?.slice(0, 2).join(', ')}`,
-    )
-    .join('\n\n') || 'Describe the target personas and their needs.';
-
-  const designStyle = report.ideaEnhancement?.uniqueAngle
-    ? `Unique angle: ${report.ideaEnhancement.uniqueAngle}\nDifferentiators: ${report.ideaEnhancement.differentiators?.join(', ') || 'Call out signature UX moments.'}`
-    : 'Document the tone, brand hooks, and signature UI patterns.';
-
-  return {
-    productType,
-    keyFeatures,
-    userPersonas,
-    designStyle,
-    seededFrom: 'validation-report',
-    reportId: report.id,
-  };
-}
 
 function InsightListCard({
   title,
   emptyLabel,
   items,
+  icon: Icon,
 }: {
   title: string;
   emptyLabel: string;
   items: Array<{ title: string; description: string }>;
+  icon?: LucideIcon;
 }) {
   return (
     <Card className="border-neutral-200">
-      <CardHeader>
+      <CardHeader className="flex flex-row items-center gap-2">
+        {Icon && (
+          <div className="rounded-full bg-neutral-100 p-2 text-neutral-500">
+            <Icon className="h-4 w-4" />
+          </div>
+        )}
         <CardTitle className="text-lg font-semibold text-neutral-900">{title}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -897,6 +1088,53 @@ function InsightListCard({
         ) : (
           <div className="rounded-2xl border border-dashed border-neutral-200 bg-white p-4 text-sm text-neutral-500">
             {emptyLabel}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function AssumptionsCard({
+  assumptions,
+}: {
+  assumptions: Array<{ statement: string; riskLevel: string }>;
+}) {
+  const hasAssumptions = assumptions.length > 0;
+  const riskTone: Record<string, string> = {
+    high: 'bg-rose-100 text-rose-800 border-rose-200',
+    medium: 'bg-amber-100 text-amber-800 border-amber-200',
+    low: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+  };
+
+  return (
+    <Card className="border-neutral-200">
+      <CardHeader>
+        <CardTitle className="text-lg font-semibold text-neutral-900">Assumptions to watch</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {hasAssumptions ? (
+          assumptions.map((assumption, index) => (
+            <div
+              key={`${assumption.statement}-${index}`}
+              className="rounded-2xl border border-neutral-100 bg-white/90 p-4 shadow-sm"
+            >
+              <div className="mb-2 flex items-center gap-2">
+                <span
+                  className={cn(
+                    'rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide',
+                    riskTone[assumption.riskLevel] || riskTone.medium,
+                  )}
+                >
+                  {assumption.riskLevel} risk
+                </span>
+              </div>
+              <p className="text-sm text-neutral-800">{assumption.statement}</p>
+            </div>
+          ))
+        ) : (
+          <div className="rounded-2xl border border-dashed border-neutral-200 bg-white p-4 text-sm text-neutral-500">
+            Run due diligence to surface the critical assumptions behind your verdict.
           </div>
         )}
       </CardContent>

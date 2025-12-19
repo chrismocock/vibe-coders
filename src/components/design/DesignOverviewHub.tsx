@@ -19,6 +19,8 @@ import {
   Palette,
   Target,
   FileText,
+  ShieldCheck,
+  AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -35,6 +37,27 @@ interface DesignBlueprint {
   design_summary?: any;
   section_completion?: Record<string, boolean>;
   last_ai_run?: string;
+}
+
+interface DesignPack {
+  reportId: string;
+  generatedAt: string;
+  decision: {
+    verdictLabel?: string;
+    confidence?: number;
+    killRisks?: string[];
+    winMoves?: string[];
+    assumptions?: Array<{ statement: string; riskLevel: string }>;
+  } | null;
+  overview?: {
+    recommendation?: string;
+    confidence?: number;
+    refinedPitch?: string;
+    summary?: string;
+  };
+  winMoves?: string[];
+  killRisks?: string[];
+  assumptions?: Array<{ statement: string; riskLevel: string }>;
 }
 
 interface DesignOverviewHubProps {
@@ -264,6 +287,59 @@ export default function DesignOverviewHub({
         </CardContent>
       </Card>
 
+      {designPack && (
+        <Card className="border border-emerald-100 bg-emerald-50/40">
+          <CardHeader>
+            <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <CardTitle className="text-xl font-semibold text-emerald-900">AI Design Pack ready</CardTitle>
+                <p className="text-sm text-emerald-800">
+                  Generated from the most recent Idea Due Diligence run and ready to seed every section.
+                </p>
+              </div>
+              <div className="text-right text-sm text-emerald-800">
+                <p className="text-xs uppercase tracking-wide">Verdict</p>
+                <p className="text-lg font-semibold text-emerald-900">
+                  {designPack.decision?.verdictLabel || "Pending"}
+                </p>
+                <p className="text-xs text-emerald-700">
+                  Confidence: {designPack.decision?.confidence ?? designPack.overview?.confidence ?? 0}/100
+                </p>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="grid gap-4 lg:grid-cols-2">
+            <div className="rounded-2xl border border-white/70 bg-white/80 p-4 shadow-sm">
+              <p className="text-xs uppercase tracking-wide text-emerald-600">Win moves</p>
+              <ul className="mt-2 space-y-2 text-sm text-emerald-900">
+                {(packWinMoves.length ? packWinMoves : ["Add win moves in the validation hub."]).slice(0, 3).map(
+                  (move, idx) => (
+                    <li key={`${move}-${idx}`} className="flex items-start gap-2">
+                      <ShieldCheck className="mt-0.5 h-4 w-4 text-emerald-600" />
+                      <span>{move}</span>
+                    </li>
+                  ),
+                )}
+              </ul>
+            </div>
+            <div className="rounded-2xl border border-white/70 bg-white/80 p-4 shadow-sm">
+              <p className="text-xs uppercase tracking-wide text-rose-600">Kill risks</p>
+              <ul className="mt-2 space-y-2 text-sm text-rose-900">
+                {(packKillRisks.length ? packKillRisks : ["Resolve kill risks inside the validation hub."]).slice(
+                  0,
+                  3,
+                ).map((risk, idx) => (
+                  <li key={`${risk}-${idx}`} className="flex items-start gap-2">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 text-rose-600" />
+                    <span>{risk}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Build-ready Concept Preview */}
       {hasKeyDesignConcept && (
         <Card className="border border-blue-200 bg-blue-50">
@@ -473,3 +549,17 @@ export default function DesignOverviewHub({
   );
 }
 
+  const rawDesignSummary = blueprint?.design_summary;
+  const designSummaryData =
+    rawDesignSummary && typeof rawDesignSummary === "string"
+      ? (() => {
+          try {
+            return JSON.parse(rawDesignSummary);
+          } catch {
+            return {};
+          }
+        })()
+      : rawDesignSummary || {};
+  const designPack = designSummaryData?.designPack as DesignPack | undefined;
+  const packKillRisks = designPack?.killRisks || designPack?.decision?.killRisks || [];
+  const packWinMoves = designPack?.winMoves || designPack?.decision?.winMoves || [];

@@ -81,13 +81,20 @@ export async function updateValidationReport(
 ): Promise<void> {
   const supabase = getSupabaseServer();
 
+  const combinedAgentDetails: Record<string, unknown> = {
+    ...(report.agentDetails || {}),
+  };
+  if (report.decisionSpine) {
+    combinedAgentDetails.decisionSpine = report.decisionSpine;
+  }
+
   const payload: Record<string, unknown> = {
     status: 'succeeded',
     scores: report.scores,
     overall_confidence: report.overallConfidence,
     recommendation: report.recommendation,
     rationales: report.rationales,
-    agent_details: report.agentDetails || null,
+    agent_details: Object.keys(combinedAgentDetails).length ? combinedAgentDetails : null,
     updated_at: new Date().toISOString(),
   };
 
@@ -130,6 +137,36 @@ export async function updateValidationReport(
 
   if (report.analysisFeed !== undefined) {
     payload.analysis_feed = report.analysisFeed || null;
+  }
+
+  if (report.decisionSpine) {
+    const { data: sectionData, error: sectionError } = await supabase
+      .from('validation_reports')
+      .select('section_results')
+      .eq('id', reportId)
+      .single();
+
+    if (sectionError) {
+      throw new Error(`Failed to fetch section results: ${sectionError.message}`);
+    }
+
+    const currentResults = (sectionData?.section_results as Record<string, SectionResult>) || {};
+    const decisionEntry: SectionResult = {
+      score: report.decisionSpine.confidence,
+      summary: report.decisionSpine.verdictLabel,
+      actions: report.decisionSpine.winMoves,
+      killRisks: report.decisionSpine.killRisks,
+      winMoves: report.decisionSpine.winMoves,
+      assumptions: report.decisionSpine.assumptions,
+      verdictLabel: report.decisionSpine.verdictLabel,
+      confidence: report.decisionSpine.confidence,
+      updated_at: new Date().toISOString(),
+    };
+
+    payload.section_results = {
+      ...currentResults,
+      decision_spine: decisionEntry,
+    };
   }
 
   const { error } = await supabase
@@ -209,6 +246,7 @@ export function rowToValidationReport(row: ValidationReportRow): ValidationRepor
       : undefined;
 
   const riskRadar = row.risk_radar as RiskRadar | null;
+  const sectionResults = (row.section_results as Record<string, SectionResult>) || {};
 
   const personasRaw = row.personas;
   const personas: Persona[] | undefined = Array.isArray(personasRaw)
@@ -229,6 +267,38 @@ export function rowToValidationReport(row: ValidationReportRow): ValidationRepor
     analysisFeed = ((row.analysis_feed as { items?: unknown[] }).items || []) as AnalysisFeedItem[];
   }
 
+  let decisionSpine = undefined;
+  const decisionSection = (sectionResults.decision_spine ||
+    sectionResults.decisionSpine) as (SectionResult & {
+    killRisks?: string[];
+    winMoves?: string[];
+    assumptions?: { statement: string; riskLevel: string }[];
+    verdictLabel?: string;
+    confidence?: number;
+  }) | undefined;
+
+  if (decisionSection) {
+    decisionSpine = {
+      verdictLabel: decisionSection.verdictLabel || decisionSection.summary,
+      confidence:
+        decisionSection.confidence ??
+        decisionSection.score ??
+        row.overall_confidence ??
+        0,
+      killRisks: decisionSection.killRisks || [],
+      winMoves: decisionSection.winMoves || decisionSection.actions || [],
+      assumptions: decisionSection.assumptions || [],
+    };
+  } else if (
+    row.agent_details &&
+    typeof row.agent_details === 'object' &&
+    (row.agent_details as Record<string, unknown>).decisionSpine
+  ) {
+    decisionSpine = (row.agent_details as { decisionSpine?: unknown }).decisionSpine as
+      | ValidationReport['decisionSpine']
+      | undefined;
+  }
+
   return {
     id: row.id,
     projectId: row.project_id,
@@ -247,6 +317,7 @@ export function rowToValidationReport(row: ValidationReportRow): ValidationRepor
     personaReactions: personaReactions || undefined,
     designBrief: designBrief || undefined,
     analysisFeed: analysisFeed || undefined,
+    decisionSpine: decisionSpine || undefined,
   };
 }
 

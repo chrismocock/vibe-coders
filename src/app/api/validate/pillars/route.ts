@@ -3,7 +3,7 @@ import { auth } from '@clerk/nextjs/server';
 import { getSupabaseServer } from '@/lib/supabaseServer';
 import { generatePillars } from '@/server/validation/pillars';
 import { JsonPromptError } from '@/server/validation/openai';
-import { extractIdeaDetails } from '@/server/validation/idea';
+import { extractIdeaDetails, ideaDetailsFromOverview } from '@/server/validation/idea';
 import {
   AIProductMonetisationOption,
   AIProductOverview,
@@ -250,9 +250,10 @@ export async function POST(req: NextRequest) {
     const derivedIdea = extractIdeaDetails(ideateStage?.input);
     const aiReviewSummary = extractAiReview(ideateStage?.output);
 
-    const ideaTitle = body.idea?.title?.trim() || stagedIdea?.title || derivedIdea.title;
-    const ideaSummary = body.idea?.summary?.trim() || aiReviewSummary || stagedIdea?.summary || derivedIdea.summary;
-    const ideaContext = body.idea?.context ?? stagedIdea?.context ?? derivedIdea.context;
+    let ideaTitle = body.idea?.title?.trim() || stagedIdea?.title || derivedIdea.title;
+    let ideaSummary =
+      body.idea?.summary?.trim() || aiReviewSummary || stagedIdea?.summary || derivedIdea.summary;
+    let ideaContext = body.idea?.context ?? stagedIdea?.context ?? derivedIdea.context;
 
     if (!ideaSummary || ideaSummary.trim().length === 0) {
       return NextResponse.json(
@@ -288,6 +289,13 @@ export async function POST(req: NextRequest) {
 
     const aiProductOverview =
       normalizeOverview(stagedOverview) ?? normalizeOverview(savedValidatedIdea?.ai_overview ?? null);
+
+    const overviewIdeaDetails = ideaDetailsFromOverview(aiProductOverview);
+    if (overviewIdeaDetails) {
+      ideaTitle = overviewIdeaDetails.title;
+      ideaSummary = overviewIdeaDetails.summary;
+      ideaContext = overviewIdeaDetails.context;
+    }
 
     const shouldPersistPillars = !hasCompleteStagedPillars && !hasCompleteSavedPillars;
 

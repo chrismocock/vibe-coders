@@ -1,3 +1,5 @@
+import type { AIProductOverview } from './types';
+
 interface RawSelectedIdea {
   title?: string;
   name?: string;
@@ -148,6 +150,60 @@ export function extractIdeaDetails(rawInput?: string | ParsedIdeaInput | null): 
   return {
     title,
     summary,
+    context: contextParts.length ? contextParts.join('\n\n') : undefined,
+  };
+}
+
+const sanitizeBlock = (value?: string | null) => {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed.length ? trimmed : undefined;
+};
+
+export function ideaDetailsFromOverview(overview?: AIProductOverview | null): IdeaDetails | null {
+  if (!overview) {
+    return null;
+  }
+
+  const title = sanitizeBlock(overview.refinedPitch) || 'Untitled Idea';
+  const summaryParts = [
+    sanitizeBlock(overview.refinedPitch),
+    sanitizeBlock(overview.problemSummary),
+    sanitizeBlock(overview.solution),
+    sanitizeBlock(overview.uniqueValue),
+  ].filter(Boolean) as string[];
+
+  if (!summaryParts.length) {
+    summaryParts.push('No summary provided.');
+  }
+
+  const contextParts: string[] = [];
+  if (sanitizeBlock(overview.marketSize)) {
+    contextParts.push(`Market: ${sanitizeBlock(overview.marketSize)}`);
+  }
+  if (sanitizeBlock(overview.competition)) {
+    contextParts.push(`Competition: ${sanitizeBlock(overview.competition)}`);
+  }
+  if (sanitizeBlock(overview.buildNotes)) {
+    contextParts.push(`Build: ${sanitizeBlock(overview.buildNotes)}`);
+  }
+  if (Array.isArray(overview.personas) && overview.personas.length) {
+    const personaSnippets = overview.personas
+      .slice(0, 2)
+      .map((persona) => {
+        const name = sanitizeBlock(persona.name) || 'Persona';
+        const summary = sanitizeBlock(persona.summary);
+        return summary ? `${name}: ${summary}` : name;
+      })
+      .filter(Boolean);
+    if (personaSnippets.length) {
+      contextParts.push(`Personas:\n${personaSnippets.join('\n')}`);
+    }
+  }
+
+  return {
+    title,
+    summary: summaryParts.join('\n\n'),
     context: contextParts.length ? contextParts.join('\n\n') : undefined,
   };
 }

@@ -5,6 +5,8 @@ import {
   runOpportunityScoreAgent,
   runPersonaModelsAgent,
   runRiskRadarAgent,
+  runDesignBriefAgent,
+  runDecisionSpineAgent,
 } from './agents';
 import {
   ValidationReport,
@@ -15,6 +17,8 @@ import {
   IdeaEnhancement,
   OpportunityScore,
   RiskRadar,
+  DesignBrief,
+  DecisionSpine,
 } from './types';
 import {
   formatFeatureMap,
@@ -88,6 +92,8 @@ export async function runValidation(projectId: string, idea: { title: string; su
   let personas: Persona[] | null = null;
   let featureMap: FeatureMap | null = null;
   let ideaEnhancement: IdeaEnhancement | null = null;
+  let designBrief: DesignBrief | null = null;
+  let decisionSpine: DecisionSpine | null = null;
 
   const scoreSummary = formatScoresForPrompt(baseReport);
 
@@ -161,6 +167,64 @@ export async function runValidation(projectId: string, idea: { title: string; su
     console.warn('Failed to generate idea enhancement', error);
   }
 
+  const opportunitySummary = opportunityScore
+    ? `Score: ${opportunityScore.score}
+Breakdown:
+- Market Momentum: ${opportunityScore.breakdown.marketMomentum}
+- Audience Enthusiasm: ${opportunityScore.breakdown.audienceEnthusiasm}
+- Feasibility: ${opportunityScore.breakdown.feasibility}
+Rationale: ${opportunityScore.rationale}`
+    : undefined;
+
+  const riskSummary = riskRadar
+    ? `Market: ${riskRadar.market}
+Competition: ${riskRadar.competition}
+Technical: ${riskRadar.technical}
+Monetisation: ${riskRadar.monetisation}
+Go-To-Market: ${riskRadar.goToMarket}
+Notes: ${(riskRadar.commentary || []).join(' • ')}`
+    : undefined;
+
+  const ideaEnhancementText = ideaEnhancement
+    ? `Positioning: ${ideaEnhancement.strongerPositioning}
+Unique Angle: ${ideaEnhancement.uniqueAngle}
+Differentiators: ${ideaEnhancement.differentiators.join(', ')}
+Why it wins: ${ideaEnhancement.whyItWins}`
+    : undefined;
+
+  const rationaleSummary = Object.entries(rationales)
+    .map(([key, value]) => `${key}: ${value}`)
+    .join('\n');
+
+  try {
+    designBrief = await runDesignBriefAgent({
+      title: idea.title,
+      summary: idea.summary,
+      personas: personasText || undefined,
+      featureMap: featureMapText || undefined,
+      opportunityScore: opportunitySummary,
+      riskRadar: riskSummary,
+      ideaEnhancement: ideaEnhancementText,
+    });
+  } catch (error) {
+    console.warn('Failed to generate design brief', error);
+  }
+
+  try {
+    decisionSpine = await runDecisionSpineAgent({
+      title: idea.title,
+      summary: idea.summary,
+      recommendation,
+      overallConfidence,
+      rationaleSummary,
+      riskSummary,
+      opportunitySummary,
+      ideaEnhancement: ideaEnhancementText,
+    });
+  } catch (error) {
+    console.warn('Failed to generate decision spine', error);
+  }
+
   return {
     ...baseReport,
     opportunityScore: opportunityScore || null,
@@ -168,6 +232,8 @@ export async function runValidation(projectId: string, idea: { title: string; su
     personas: personas || null,
     featureMap: featureMap || null,
     ideaEnhancement: ideaEnhancement || null,
+    designBrief: designBrief || null,
+    decisionSpine: decisionSpine || null,
   };
 }
 
