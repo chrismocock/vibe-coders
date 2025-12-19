@@ -110,8 +110,75 @@ function serializeOverview(overview: ProductOverview): string {
   return sections.join('\n\n').trim();
 }
 
+// Helper function to generate score change description
+function generateScoreChangeDescription(
+  pillarId: string,
+  change: number,
+  from: number | null,
+  to: number | null,
+  currentFeedback: InitialFeedbackData | null,
+  previousFeedback: InitialFeedbackData | null
+): string {
+  const pillarKeyMap: Record<string, keyof InitialFeedbackData['scores']> = {
+    audienceFit: 'audienceFit',
+    competition: 'competition',
+    marketDemand: 'marketDemand',
+    feasibility: 'feasibility',
+    pricingPotential: 'pricingPotential',
+  };
+
+  const pillarKey = pillarKeyMap[pillarId];
+  if (!pillarKey) return '';
+
+  const currentRationale = currentFeedback?.scores[pillarKey]?.rationale || '';
+  const previousRationale = previousFeedback?.scores[pillarKey]?.rationale || '';
+
+  // Use current rationale to explain the change
+  if (currentRationale) {
+    if (change > 0) {
+      // Score increased
+      if (from !== null && to !== null) {
+        // Capitalize first letter and ensure proper punctuation
+        const rationale = currentRationale.trim();
+        const capitalizedRationale = rationale.charAt(0).toUpperCase() + rationale.slice(1);
+        return `Score increased from ${from} to ${to} because ${capitalizedRationale}`;
+      }
+      const rationale = currentRationale.trim();
+      const capitalizedRationale = rationale.charAt(0).toUpperCase() + rationale.slice(1);
+      return `Score increased because ${capitalizedRationale}`;
+    } else if (change < 0) {
+      // Score decreased
+      if (from !== null && to !== null) {
+        const rationale = currentRationale.trim();
+        const capitalizedRationale = rationale.charAt(0).toUpperCase() + rationale.slice(1);
+        return `Score decreased from ${from} to ${to} due to ${capitalizedRationale}`;
+      }
+      const rationale = currentRationale.trim();
+      const capitalizedRationale = rationale.charAt(0).toUpperCase() + rationale.slice(1);
+      return `Score decreased due to ${capitalizedRationale}`;
+    }
+  }
+
+  // Fallback if no rationale available
+  if (from !== null && to !== null) {
+    return change > 0 
+      ? `Score increased from ${from} to ${to}`
+      : `Score decreased from ${from} to ${to}`;
+  }
+
+  return 'Score changed';
+}
+
 // Score Change Explanation Component
-function ScoreChangeExplanation({ feedbackDeltas }: { feedbackDeltas: Partial<Record<string, ScoreDelta>> }) {
+function ScoreChangeExplanation({ 
+  feedbackDeltas,
+  currentFeedback,
+  previousFeedback 
+}: { 
+  feedbackDeltas: Partial<Record<string, ScoreDelta>>;
+  currentFeedback: InitialFeedbackData | null;
+  previousFeedback: InitialFeedbackData | null;
+}) {
   const hasScoreChanges = Object.keys(feedbackDeltas).some(
     (key) => key !== 'overallConfidence' && feedbackDeltas[key]?.change !== null && feedbackDeltas[key]?.change !== 0
   );
@@ -122,7 +189,7 @@ function ScoreChangeExplanation({ feedbackDeltas }: { feedbackDeltas: Partial<Re
   
   if (!hasScoreChanges && !hasOverallChange) return null;
   
-  // Get pillar changes
+  // Get pillar changes with descriptions
   const pillarChanges = IDEATE_PILLARS.map((pillar) => {
     const delta = feedbackDeltas[pillar.id];
     return {
@@ -131,6 +198,16 @@ function ScoreChangeExplanation({ feedbackDeltas }: { feedbackDeltas: Partial<Re
       change: delta?.change ?? null,
       from: delta?.from ?? null,
       to: delta?.to ?? null,
+      description: delta?.change !== null && delta?.change !== 0
+        ? generateScoreChangeDescription(
+            pillar.id,
+            delta.change,
+            delta.from ?? null,
+            delta.to ?? null,
+            currentFeedback,
+            previousFeedback
+          )
+        : null,
     };
   }).filter((p) => p.change !== null && p.change !== 0);
   
@@ -225,29 +302,36 @@ function ScoreChangeExplanation({ feedbackDeltas }: { feedbackDeltas: Partial<Re
               <h4 className="text-sm font-semibold text-neutral-900">Current Score Changes</h4>
               <div className="space-y-2">
                 {pillarChanges.map((change) => (
-                  <div key={change.pillar} className="flex items-center justify-between rounded-lg bg-white border border-neutral-200 p-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-neutral-700">{change.pillar}</span>
-                      <span className="text-xs text-neutral-500">
-                        (Weight: {Math.round(change.weight * 100)}%)
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      {typeof change.from === 'number' && typeof change.to === 'number' && (
+                  <div key={change.pillar} className="rounded-lg bg-white border border-neutral-200 p-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-neutral-700">{change.pillar}</span>
                         <span className="text-xs text-neutral-500">
-                          {change.from} → {change.to}
+                          (Weight: {Math.round(change.weight * 100)}%)
                         </span>
-                      )}
-                      <span className={cn(
-                        "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold border",
-                        change.change && change.change > 0
-                          ? "bg-green-50 text-green-700 border-green-200"
-                          : "bg-red-50 text-red-700 border-red-200"
-                      )}>
-                        {change.change && change.change > 0 ? '+' : ''}
-                        {change.change} pts
-                      </span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        {typeof change.from === 'number' && typeof change.to === 'number' && (
+                          <span className="text-xs text-neutral-500">
+                            {change.from} → {change.to}
+                          </span>
+                        )}
+                        <span className={cn(
+                          "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold border",
+                          change.change && change.change > 0
+                            ? "bg-green-50 text-green-700 border-green-200"
+                            : "bg-red-50 text-red-700 border-red-200"
+                        )}>
+                          {change.change && change.change > 0 ? '+' : ''}
+                          {change.change} pts
+                        </span>
+                      </div>
                     </div>
+                    {change.description && (
+                      <div className="mt-2 pt-2 border-t border-neutral-100">
+                        <p className="text-xs text-neutral-600 leading-relaxed">{change.description}</p>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -536,6 +620,7 @@ export default function IdeateWizardPage() {
   }
   const [validationDeltas, setValidationDeltas] = useState<Partial<Record<string, ScoreDelta>>>({});
   const [feedbackDeltas, setFeedbackDeltas] = useState<Partial<Record<string, ScoreDelta>>>({});
+  const [previousFeedback, setPreviousFeedback] = useState<InitialFeedbackData | null>(null);
   const [showInitialFeedbackReport, setShowInitialFeedbackReport] = useState(true);
   const [expandedDimensions, setExpandedDimensions] = useState<Set<string>>(new Set());
   const [refinedOverview, setRefinedOverview] = useState<ProductOverview | null>(null);
@@ -2219,6 +2304,7 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
       if (updatedFeedback) {
         const deltas = computeScoreDeltas(previousFeedback, updatedFeedback);
         setFeedbackDeltas(deltas);
+        setPreviousFeedback(previousFeedback);
 
         const overallDelta = deltas.overallConfidence?.change;
         if (typeof overallDelta === "number" && overallDelta < 0) {
@@ -2372,6 +2458,7 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
 
       if (data?.finalFeedback) {
         setFeedbackDeltas(computeScoreDeltas(previousFeedback, data.finalFeedback as InitialFeedbackData));
+        setPreviousFeedback(previousFeedback);
       }
 
       if (Array.isArray(data?.iterations)) {
@@ -3840,7 +3927,11 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
             <InitialFeedback feedback={savedInitialFeedback} scoreDeltas={feedbackDeltas} />
             
             {/* Score Change Explanation Section */}
-            <ScoreChangeExplanation feedbackDeltas={feedbackDeltas} />
+            <ScoreChangeExplanation 
+              feedbackDeltas={feedbackDeltas}
+              currentFeedback={savedInitialFeedback}
+              previousFeedback={previousFeedback}
+            />
             
             <Card className="border border-neutral-200 bg-white shadow-sm">
               <CardHeader>
