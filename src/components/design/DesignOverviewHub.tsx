@@ -190,6 +190,21 @@ export default function DesignOverviewHub({
 
   const hasKeyDesignConcept = Boolean(brandIdentity && wireframes && mvpDefinition);
 
+  const rawDesignSummary = blueprint?.design_summary;
+  const designSummaryData =
+    rawDesignSummary && typeof rawDesignSummary === "string"
+      ? (() => {
+          try {
+            return JSON.parse(rawDesignSummary);
+          } catch {
+            return {};
+          }
+        })()
+      : rawDesignSummary || {};
+  const designPack = designSummaryData?.designPack as DesignPack | undefined;
+  const packKillRisks = designPack?.killRisks || designPack?.decision?.killRisks || [];
+  const packWinMoves = designPack?.winMoves || designPack?.decision?.winMoves || [];
+
   const truncateText = (text?: string, length = 140) => {
     if (!text || typeof text !== "string") return "";
     return text.length > length ? `${text.slice(0, length)}…` : text;
@@ -548,18 +563,3 @@ export default function DesignOverviewHub({
     </div>
   );
 }
-
-  const rawDesignSummary = blueprint?.design_summary;
-  const designSummaryData =
-    rawDesignSummary && typeof rawDesignSummary === "string"
-      ? (() => {
-          try {
-            return JSON.parse(rawDesignSummary);
-          } catch {
-            return {};
-          }
-        })()
-      : rawDesignSummary || {};
-  const designPack = designSummaryData?.designPack as DesignPack | undefined;
-  const packKillRisks = designPack?.killRisks || designPack?.decision?.killRisks || [];
-  const packWinMoves = designPack?.winMoves || designPack?.decision?.winMoves || [];
