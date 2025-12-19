@@ -1019,8 +1019,8 @@ function renderPersonas(personas?: Persona[] | null) {
       <p className="mt-1 text-sm text-neutral-700">{persona.description}</p>
       <p className="mt-2 text-xs uppercase tracking-wide text-neutral-500">Needs</p>
       <p className="text-sm text-neutral-700">
-        {(persona.needs && persona.needs.length
-          ? persona.needs.slice(0, 2)
+        {(persona.neededFeatures && persona.neededFeatures.length
+          ? persona.neededFeatures.slice(0, 2)
           : ['Add explicit persona needs']).join(', ')}
       </p>
     </div>
