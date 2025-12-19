@@ -861,9 +861,9 @@ function buildWinMovesFallback(
     }));
   }
 
-  const rationales =
+  const rationales: Record<string, string> =
     (rawReport?.rationales as Record<string, string> | undefined) || normalizedReport?.rationales || {};
-  const scores =
+  const scores: Record<string, number> =
     (rawReport?.scores as Record<string, number> | undefined) || normalizedReport?.scores || {};
 
   return Object.entries(rationales)
