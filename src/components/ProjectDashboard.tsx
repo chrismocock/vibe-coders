@@ -53,9 +53,18 @@ const stageIcons: Record<string, any> = {
   monetise: Coins,
 };
 
+const stageLabels: Record<string, string> = {
+  ideate: "Ideate",
+  validate: "Idea Due Diligence",
+  design: "Design",
+  build: "Build",
+  launch: "Launch",
+  monetise: "Monetise",
+};
+
 const stageDescriptions: Record<string, string> = {
   ideate: "Generate innovative startup ideas",
-  validate: "Validate your idea with market research",
+  validate: "Run due diligence across seven pillars automatically",
   design: "Design your product and user experience",
   build: "Build your MVP and core features",
   launch: "Launch your product and marketing strategy",
@@ -99,7 +108,7 @@ export default function ProjectDashboard({
         if (isPreviousCompleted || stageId === 'ideate') {
           tasks.push({
             id: stageId,
-            name: stageId.charAt(0).toUpperCase() + stageId.slice(1),
+            name: stageLabels[stageId] || stageId.charAt(0).toUpperCase() + stageId.slice(1),
             description: stageDescriptions[stageId],
             status,
             icon: stageIcons[stageId],
