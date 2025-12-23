@@ -1651,7 +1651,6 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
     strengths: string | null;
     criticalAreas: string | null;
     recommendations: string | null;
-    nextSteps: string | null;
     finalAssessment: string | null;
     fullText: string;
   }
@@ -1728,10 +1727,6 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
     const recommendationsMatch = review.match(/(?:##|\*\*)\s*Recommendations[\s\S]*?\n\n([\s\S]*?)(?=\n(?:##|\*\*)\s*(?:Next|Final|$)|$)/i);
     const recommendations = recommendationsMatch ? recommendationsMatch[1].trim() : null;
 
-    // Extract Next Steps (handles variations like "Next Steps Prioritized")
-    const nextStepsMatch = review.match(/(?:##|\*\*)\s*Next Steps[\s\S]*?\n\n([\s\S]*?)(?=\n(?:##|\*\*)\s*(?:Final|$)|$)/i);
-    const nextSteps = nextStepsMatch ? nextStepsMatch[1].trim() : null;
-
     // Extract Final Assessment
     const finalMatch = review.match(/(?:##|\*\*)\s*Final Assessment[\s\S]*?\n\n([\s\S]*?)(?=\n(?:##|\*\*)|$)/i);
     const finalAssessment = finalMatch ? finalMatch[1].trim() : null;
@@ -1743,7 +1738,6 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
       strengths,
       criticalAreas,
       recommendations,
-      nextSteps,
       finalAssessment,
       fullText: review
     };
@@ -3905,43 +3899,22 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
           </div>
         )}
 
-        {/* Recommendations and Next Steps */}
-        {(parsedReview.recommendations || parsedReview.nextSteps) && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {parsedReview.recommendations && (
-              <Card className="border border-neutral-200 bg-white shadow-sm">
-                <CardHeader>
-                  <CardTitle className="text-lg font-semibold text-neutral-900">
-                    Recommendations
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="prose prose-sm max-w-none text-sm text-neutral-700 leading-relaxed [&>p]:mb-2 [&>ul]:list-disc [&>ul]:ml-4 [&>ul]:space-y-1 [&>ol]:list-decimal [&>ol]:ml-4 [&>ol]:space-y-1 [&>strong]:font-semibold">
-                    <ReactMarkdown>
-                      {parsedReview.recommendations}
-                    </ReactMarkdown>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {parsedReview.nextSteps && (
-              <Card className="border border-neutral-200 bg-white shadow-sm">
-                <CardHeader>
-                  <CardTitle className="text-lg font-semibold text-neutral-900">
-                    Next Steps
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="prose prose-sm max-w-none text-sm text-neutral-700 leading-relaxed [&>p]:mb-2 [&>ul]:list-disc [&>ul]:ml-4 [&>ul]:space-y-1 [&>ol]:list-decimal [&>ol]:ml-4 [&>ol]:space-y-1 [&>strong]:font-semibold">
-                    <ReactMarkdown>
-                      {parsedReview.nextSteps}
-                    </ReactMarkdown>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </div>
+        {/* Recommendations */}
+        {parsedReview.recommendations && (
+          <Card className="border border-neutral-200 bg-white shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-lg font-semibold text-neutral-900">
+                Recommendations
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="prose prose-sm max-w-none text-sm text-neutral-700 leading-relaxed [&>p]:mb-2 [&>ul]:list-disc [&>ul]:ml-4 [&>ul]:space-y-1 [&>ol]:list-decimal [&>ol]:ml-4 [&>ol]:space-y-1 [&>strong]:font-semibold">
+                <ReactMarkdown>
+                  {parsedReview.recommendations}
+                </ReactMarkdown>
+              </div>
+            </CardContent>
+          </Card>
         )}
 
         {/* Full AI Review Section - Collapsible */}
