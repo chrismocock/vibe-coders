@@ -3975,12 +3975,17 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
             
             <Card className="border border-neutral-200 bg-white shadow-sm">
               <CardHeader>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <CardTitle className="text-lg font-semibold text-neutral-900">AI Improvements</CardTitle>
                     <CardDescription>Directly refine weak pillars and track diffs.</CardDescription>
                   </div>
-                  <Button onClick={() => handleAutoImprove(95)} disabled={autoImproving} variant="default">
+                  <Button
+                    onClick={() => handleAutoImprove(95)}
+                    disabled={autoImproving}
+                    variant="default"
+                    className="w-full sm:w-auto"
+                  >
                     {autoImproving ? (
                       <span className="flex items-center gap-2">
                         <Loader2 className="h-4 w-4 animate-spin" />
