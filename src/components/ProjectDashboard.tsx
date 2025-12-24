@@ -341,7 +341,7 @@ export default function ProjectDashboard({
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:justify-between">
                 <span className="text-sm font-medium text-neutral-600">
                   Overall Progress
                 </span>
