@@ -3667,6 +3667,9 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
           <CardHeader>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-start justify-between gap-3 sm:gap-4">
               <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-1">
+                  Product Overview
+                </p>
                 <div className="flex items-center gap-3 mb-2">
                   <CardTitle className="text-2xl font-semibold text-neutral-900">
                     {ideaInfo.title}
