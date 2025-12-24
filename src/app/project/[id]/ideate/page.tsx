@@ -588,7 +588,7 @@ export default function IdeateWizardPage() {
     status: string;
   } | null>(null);
   const [isLoadingSavedData, setIsLoadingSavedData] = useState(true);
-  const [showFullReview, setShowFullReview] = useState(false);
+  const [showFullReview, setShowFullReview] = useState(true);
   const [ideasGenerated, setIdeasGenerated] = useState(false);
   const [isGeneratingIdeas, setIsGeneratingIdeas] = useState(false);
   const [ideaGenerationError, setIdeaGenerationError] = useState<string | null>(null);
@@ -1770,64 +1770,6 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
       // Clean up extra whitespace
       .replace(/\n{3,}/g, '\n\n')
       .trim();
-  };
-
-  // Smart truncation that respects section boundaries
-  const smartTruncate = (text: string, maxLength: number = 500): { truncated: string; isComplete: boolean } => {
-    if (text.length <= maxLength) {
-      return { truncated: text, isComplete: true };
-    }
-
-    // Try to truncate at a section boundary (## header)
-    const beforeMax = text.substring(0, maxLength);
-    const lastSectionMatch = beforeMax.match(/##\s+[^\n]+/g);
-    
-    if (lastSectionMatch && lastSectionMatch.length > 0) {
-      // Find the last complete section
-      const lastSection = lastSectionMatch[lastSectionMatch.length - 1];
-      const lastSectionIndex = beforeMax.lastIndexOf(lastSection);
-      
-      // Find the end of this section (next ## or end of text)
-      const afterSection = text.substring(lastSectionIndex);
-      const nextSectionMatch = afterSection.match(/\n##\s+[^\n]+/);
-      
-      if (nextSectionMatch) {
-        const sectionEnd = lastSectionIndex + nextSectionMatch.index!;
-        return {
-          truncated: text.substring(0, sectionEnd).trim() + '...',
-          isComplete: false
-        };
-      }
-    }
-
-    // Fallback: truncate at paragraph boundary
-    const lastParagraphEnd = beforeMax.lastIndexOf('\n\n');
-    if (lastParagraphEnd > maxLength * 0.7) {
-      return {
-        truncated: text.substring(0, lastParagraphEnd).trim() + '...',
-        isComplete: false
-      };
-    }
-
-    // Last resort: truncate at sentence boundary
-    const lastSentenceEnd = Math.max(
-      beforeMax.lastIndexOf('. '),
-      beforeMax.lastIndexOf('.\n'),
-      beforeMax.lastIndexOf('! '),
-      beforeMax.lastIndexOf('?\n')
-    );
-    
-    if (lastSentenceEnd > maxLength * 0.7) {
-      return {
-        truncated: text.substring(0, lastSentenceEnd + 1) + '...',
-        isComplete: false
-      };
-    }
-
-    return {
-      truncated: beforeMax.trim() + '...',
-      isComplete: false
-    };
   };
 
   // Extract idea title and description from AI review (improved)
@@ -3114,7 +3056,6 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
       inputData.selectedIdea || null
     );
     const parsedReview = parseReviewSections(aiReviewText);
-    const { truncated: previewText, isComplete } = smartTruncate(aiReviewText, 600);
     const ideaHistory: IdeaHistoryEntry[] = Array.isArray(inputData.ideaHistory)
       ? inputData.ideaHistory
       : [];
@@ -3941,17 +3882,8 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
                 </ReactMarkdown>
               </div>
             ) : (
-              <div className="space-y-4">
-                <div className="prose prose-sm max-w-none text-sm text-neutral-700 leading-relaxed [&>h2]:text-lg [&>h2]:font-semibold [&>h2]:mt-4 [&>h2]:mb-2 [&>h2]:text-neutral-900 [&>p]:mb-2 [&>ul]:list-disc [&>ul]:ml-4 [&>ul]:space-y-1 [&>ol]:list-decimal [&>ol]:ml-4 [&>ol]:space-y-1 [&>strong]:font-semibold">
-                  <ReactMarkdown>
-                    {previewText}
-                  </ReactMarkdown>
-                </div>
-                {!isComplete && (
-                  <p className="text-xs text-neutral-500 italic">
-                    Preview truncated at section boundary. Click "Show Full Review" to see complete analysis.
-                  </p>
-                )}
+              <div className="rounded-md border border-dashed border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-600">
+                Full AI review hidden. Click "Show Full Review" to view the complete analysis.
               </div>
             )}
           </CardContent>
