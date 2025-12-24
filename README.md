@@ -1,4 +1,4 @@
-## Vibe Coders
+## Product Overview
 
 Turn your vibe into code.
 
