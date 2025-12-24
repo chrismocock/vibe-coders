@@ -3662,6 +3662,37 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
 
     return (
       <div className="space-y-6">
+        <div className="flex flex-wrap sm:flex-nowrap items-stretch sm:items-center justify-end gap-3 sm:gap-2">
+          <Button
+            onClick={handleSaveCompleteOverview}
+            disabled={
+              savingOverview ||
+              (!refinedOverview &&
+                (!savedData || typeof savedData.output !== 'object' || savedData.output === null || !(savedData.output as any)?.refinedOverview))
+            }
+            className="w-full sm:w-auto bg-purple-600 text-white hover:bg-purple-700"
+          >
+            {savingOverview ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              "Save Complete AI Overview"
+            )}
+          </Button>
+          <Button onClick={handleEditIdea} variant="outline" className="w-full sm:w-auto">
+            Refine Idea
+          </Button>
+          <Button
+            onClick={handleReset}
+            variant="outline"
+            className="w-full sm:w-auto text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+          >
+            Reset
+          </Button>
+        </div>
+
         {/* Main Idea Card */}
         <Card className="border border-neutral-200 bg-white shadow-sm">
           <CardHeader>
@@ -3683,36 +3714,6 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
                 <CardDescription className="text-base text-neutral-600 leading-relaxed">
                   {ideaInfo.description}
                 </CardDescription>
-              </div>
-              <div className="flex flex-wrap sm:flex-nowrap items-stretch sm:items-start gap-3 sm:gap-2 shrink-0 justify-end w-full sm:w-auto">
-                <Button
-                  onClick={handleSaveCompleteOverview}
-                  disabled={savingOverview || (!refinedOverview && (!savedData || typeof savedData.output !== 'object' || savedData.output === null || !(savedData.output as any)?.refinedOverview))}
-                  className="w-full sm:w-auto bg-purple-600 text-white hover:bg-purple-700"
-                >
-                  {savingOverview ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    "Save Complete AI Overview"
-                  )}
-                </Button>
-                <Button
-                  onClick={handleEditIdea}
-                  variant="outline"
-                  className="w-full sm:w-auto"
-                >
-                  Refine Idea
-                </Button>
-                <Button
-                  onClick={handleReset}
-                  variant="outline"
-                  className="w-full sm:w-auto text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
-                >
-                  Reset
-                </Button>
               </div>
             </div>
           </CardHeader>
