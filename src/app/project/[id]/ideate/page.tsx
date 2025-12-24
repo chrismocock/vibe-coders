@@ -3665,7 +3665,7 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
         {/* Main Idea Card */}
         <Card className="border border-neutral-200 bg-white shadow-sm">
           <CardHeader>
-            <div className="flex items-start justify-between gap-4">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-start justify-between gap-3 sm:gap-4">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-3 mb-2">
                   <CardTitle className="text-2xl font-semibold text-neutral-900">
@@ -3681,11 +3681,11 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
                   {ideaInfo.description}
                 </CardDescription>
               </div>
-              <div className="flex gap-2 shrink-0">
+              <div className="flex flex-wrap sm:flex-nowrap items-stretch sm:items-start gap-3 sm:gap-2 shrink-0 justify-end w-full sm:w-auto">
                 <Button
                   onClick={handleSaveCompleteOverview}
                   disabled={savingOverview || (!refinedOverview && (!savedData || typeof savedData.output !== 'object' || savedData.output === null || !(savedData.output as any)?.refinedOverview))}
-                  className="bg-purple-600 text-white hover:bg-purple-700"
+                  className="w-full sm:w-auto bg-purple-600 text-white hover:bg-purple-700"
                 >
                   {savingOverview ? (
                     <>
@@ -3699,13 +3699,14 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
                 <Button
                   onClick={handleEditIdea}
                   variant="outline"
+                  className="w-full sm:w-auto"
                 >
                   Refine Idea
                 </Button>
                 <Button
                   onClick={handleReset}
                   variant="outline"
-                  className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                  className="w-full sm:w-auto text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
                 >
                   Reset
                 </Button>
