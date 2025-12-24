@@ -3696,21 +3696,21 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
         {/* Main Idea Card */}
         <Card className="border border-neutral-200 bg-white shadow-sm">
           <CardHeader>
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-start justify-between gap-3 sm:gap-4">
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-1">
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
                   Product Overview
                 </p>
-                <div className="flex items-center gap-3 mb-2">
-                  <CardTitle className="text-2xl font-semibold text-neutral-900">
-                    {ideaInfo.title}
-                  </CardTitle>
-                  {modeText && (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 border border-purple-200">
-                      {modeText}
-                    </span>
-                  )}
-                </div>
+                {modeText && (
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 border border-purple-200">
+                    {modeText}
+                  </span>
+                )}
+              </div>
+              <div className="space-y-2">
+                <CardTitle className="text-2xl font-semibold text-neutral-900">
+                  {ideaInfo.title}
+                </CardTitle>
                 <CardDescription className="text-base text-neutral-600 leading-relaxed">
                   {ideaInfo.description}
                 </CardDescription>
