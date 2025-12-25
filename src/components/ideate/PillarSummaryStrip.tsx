@@ -6,7 +6,8 @@ export function PillarSummaryStrip({ pillars }: { pillars: PillarSnapshot[] }) {
   return (
     <div className="grid gap-3 md:grid-cols-3">
       {pillars.map((pillar) => {
-        const isPositive = pillar.delta >= 0;
+        const delta = pillar.delta ?? 0;
+        const isPositive = delta >= 0;
         return (
           <Card key={pillar.id}>
             <CardContent className="flex items-center justify-between p-4">
@@ -26,7 +27,7 @@ export function PillarSummaryStrip({ pillars }: { pillars: PillarSnapshot[] }) {
                   <ArrowDownRight className="h-4 w-4" />
                 )}
                 {isPositive ? "+" : ""}
-                {pillar.delta.toFixed(1)}
+                {delta.toFixed(1)}
               </div>
             </CardContent>
           </Card>
