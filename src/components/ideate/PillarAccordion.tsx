@@ -6,7 +6,7 @@ import {
 } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Suggestion, PillarSnapshot } from "@/lib/ideate/types";
+import { Suggestion, PillarSnapshot } from "@/app/project/[id]/ideate/page";
 import { Rocket, Wand2 } from "lucide-react";
 
 export function PillarAccordion({
@@ -18,7 +18,7 @@ export function PillarAccordion({
   pillars: PillarSnapshot[];
   suggestions: Suggestion[];
   onApply: (id: string) => void;
-  onGenerate: (pillarId: string) => void;
+  onGenerate: () => void;
 }) {
   return (
     <Accordion type="multiple" className="w-full">
@@ -45,11 +45,7 @@ export function PillarAccordion({
 
               <div className="flex items-center justify-between">
                 <p className="text-sm font-medium">Moves to make next</p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onGenerate(pillar.id)}
-                >
+                <Button variant="outline" size="sm" onClick={onGenerate}>
                   <Wand2 className="mr-2 h-4 w-4" /> Generate
                 </Button>
               </div>

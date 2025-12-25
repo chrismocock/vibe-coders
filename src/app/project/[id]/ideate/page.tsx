@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import {
   Tabs,
@@ -27,22 +27,52 @@ import { SevenDayPlanTimeline } from "@/components/ideate/SevenDayPlanTimeline";
 import { ExperimentsTable } from "@/components/ideate/ExperimentsTable";
 import { MetricsCard } from "@/components/ideate/MetricsCard";
 import { ValidateHandoffPanel } from "@/components/ideate/ValidateHandoffPanel";
-import type {
-  Experiment,
-  IdeateRun,
-  PillarSnapshot,
-  QuickTake,
-  Suggestion,
-} from "@/lib/ideate/types";
 
-const fallbackRun: IdeateRun = {
+export type PillarSnapshot = {
+  id: string;
+  name: string;
+  score: number;
+  delta: number;
+  summary: string;
+  opportunities: string[];
+  risks: string[];
+};
+
+export type Suggestion = {
+  id: string;
+  pillarId?: string;
+  title: string;
+  description: string;
+  impact: string;
+  effort: string;
+  applied: boolean;
+};
+
+export type Experiment = {
+  id: string;
+  name: string;
+  goal: string;
+  owner: string;
+  startDate: string;
+  status: "draft" | "validating" | "scheduled";
+};
+
+export type IdeateRun = {
+  id: string;
+  headline: string;
+  narrative: string;
+  lastRunAt: string;
+  quickTakes: { label: string; value: string; delta?: string }[];
+  risks: string[];
+  opportunities: string[];
+};
+
+const mockRun: IdeateRun = {
   id: "run-001",
-  projectId: "",
-  userId: "",
   headline: "Boost conversion on the self-serve onboarding funnel",
   narrative:
-    "Increase activation for workspace admins by clarifying value, reducing friction, and creating a more compelling first project path.",
-  lastRunAt: new Date().toISOString(),
+    "You want to increase activation for workspace admins by clarifying value, reducing friction, and creating a more compelling first project path.",
+  lastRunAt: "2024-06-02T10:00:00Z",
   quickTakes: [
     { label: "Overall", value: "7.6 / 10", delta: "+0.8" },
     { label: "Confidence", value: "Moderate", delta: "↑" },
@@ -57,110 +87,89 @@ const fallbackRun: IdeateRun = {
     "Segmented onboarding paths for admins vs members unlock faster aha moments.",
     "Small nudges in the first 3 minutes drive outsized conversion lifts.",
   ],
-  pillars: [
-    {
-      id: "audienceFit",
-      pillarId: "audienceFit",
-      name: "Audience Fit",
-      score: 7.8,
-      delta: 0.6,
-      summary: "Messaging now leads with admin value; still weak for enterprise security needs.",
-      opportunities: [
-        "Showcase admin-only workflows in hero and onboarding.",
-        "Add a security highlights micro-page in the flow.",
-      ],
-      risks: ["Enterprise blockers could slow adoption without SOC2 messaging."],
-    },
-    {
-      id: "competition",
-      pillarId: "competition",
-      name: "Competition",
-      score: 7.0,
-      delta: 0.4,
-      summary: "Differentiation clearer via automations; pricing parity still a question.",
-      opportunities: ["Highlight automation library vs competitors."],
-      risks: ["Comparisons may invite price discounting conversations."],
-    },
-    {
-      id: "feasibility",
-      pillarId: "feasibility",
-      name: "Feasibility",
-      score: 7.2,
-      delta: -0.3,
-      summary: "Engineering confident in guided setup but needs analytics support for experiments.",
-      opportunities: ["Bundle instrumentation tasks into sprint 1."],
-      risks: ["Analytics resourcing could delay testing windows."],
-    },
-    {
-      id: "marketDemand",
-      pillarId: "marketDemand",
-      name: "Market Demand",
-      score: 7.5,
-      delta: 0.5,
-      summary: "Automation and workflow clarity resonate in SMB; enterprise proof points growing.",
-      opportunities: ["Lean into ROI stories in onboarding."],
-      risks: ["Enterprise buyers may require more social proof."],
-    },
-    {
-      id: "pricingPotential",
-      pillarId: "pricingPotential",
-      name: "Pricing Potential",
-      score: 7.1,
-      delta: 0.1,
-      summary: "Pricing confidence improving with clearer tiering; enterprise packaging still open.",
-      opportunities: ["Offer admin-focused add-ons."],
-      risks: ["Discount pressure from competitors."],
-    },
-  ],
-  suggestions: [
-    {
-      id: "s1",
-      pillarId: "audienceFit",
-      title: "Guided aha moments",
-      description:
-        "Lead with admin outcomes and a guided flow that makes automation value obvious in the first session.",
-      impact: "High",
-      effort: "Medium",
-      applied: false,
-    },
-    {
-      id: "s2",
-      pillarId: "competition",
-      title: "Automation gallery CTA",
-      description: "Expose three automation wins in the first session to make differentiation obvious.",
-      impact: "Medium",
-      effort: "Low",
-      applied: false,
-    },
-    {
-      id: "s3",
-      pillarId: "feasibility",
-      title: "Analytics guardrails",
-      description: "Ship a minimal instrumentation checklist to keep experiments trustworthy.",
-      impact: "Medium",
-      effort: "Low",
-      applied: true,
-    },
-  ],
-  experiments: [
-    {
-      id: "exp-1",
-      name: "Template-led onboarding",
-      goal: "Lift admin activation to 42%",
-      owner: "Nina",
-      startDate: "Jun 3",
-      status: "draft",
-    },
-    {
-      id: "exp-2",
-      name: "Automation gallery spotlight",
-      goal: "Increase aha rate by 10%",
-      owner: "Kai",
-      startDate: "Jun 4",
-      status: "validating",
-    },
-  ],
 };
+
+const mockPillars: PillarSnapshot[] = [
+  {
+    id: "audience",
+    name: "Audience Fit",
+    score: 7.8,
+    delta: 0.6,
+    summary: "Messaging now leads with admin value; still weak for enterprise security needs.",
+    opportunities: [
+      "Showcase admin-only workflows in hero and onboarding.",
+      "Add a security highlights micro-page in the flow.",
+    ],
+    risks: ["Enterprise blockers could slow adoption without SOC2 messaging."],
+  },
+  {
+    id: "competition",
+    name: "Competition",
+    score: 7.0,
+    delta: 0.4,
+    summary: "Differentiation clearer via automations; pricing parity still a question.",
+    opportunities: ["Highlight automation library vs competitors."],
+    risks: ["Comparisons may invite price discounting conversations."],
+  },
+  {
+    id: "feasibility",
+    name: "Feasibility",
+    score: 7.2,
+    delta: -0.3,
+    summary: "Engineering confident in guided setup but needs analytics support for experiments.",
+    opportunities: ["Bundle instrumentation tasks into sprint 1."],
+    risks: ["Analytics resourcing could delay testing windows."],
+  },
+];
+
+const mockSuggestions: Suggestion[] = [
+  {
+    id: "s1",
+    pillarId: "audience",
+    title: "Guided onboarding presets",
+    description: "Auto-create first project templates based on persona and goal to reach activation faster.",
+    impact: "High",
+    effort: "Medium",
+    applied: false,
+  },
+  {
+    id: "s2",
+    pillarId: "competition",
+    title: "Automation gallery CTA",
+    description: "Expose three automation wins in the first session to make differentiation obvious.",
+    impact: "Medium",
+    effort: "Low",
+    applied: false,
+  },
+  {
+    id: "s3",
+    pillarId: "feasibility",
+    title: "Analytics guardrails",
+    description: "Ship a minimal instrumentation checklist to keep experiments trustworthy.",
+    impact: "Medium",
+    effort: "Low",
+    applied: true,
+  },
+];
+
+const mockExperiments: Experiment[] = [
+  {
+    id: "exp-1",
+    name: "Template-led onboarding",
+    goal: "Lift admin activation to 42%",
+    owner: "Nina",
+    startDate: "Jun 3",
+    status: "draft",
+  },
+  {
+    id: "exp-2",
+    name: "Automation gallery spotlight",
+    goal: "Increase aha rate by 10%",
+    owner: "Kai",
+    startDate: "Jun 4",
+    status: "validating",
+  },
+];
 
 const mockPlan = [
   { day: "Day 1", label: "Align", detail: "Lock personas, success metric, and analytics owners." },
@@ -173,59 +182,15 @@ const mockPlan = [
 ];
 
 export default function IdeatePage() {
-  const { id: projectId } = useParams<{ id: string }>();
-  const [run, setRun] = useState<IdeateRun | null>(null);
-  const [pillars, setPillars] = useState<PillarSnapshot[]>([]);
-  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
-  const [experiments, setExperiments] = useState<Experiment[]>([]);
-  const [quickTakes, setQuickTakes] = useState<QuickTake[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { id } = useParams<{ id: string }>();
   const [isRunning, setIsRunning] = useState(false);
-  const [pitchLoading, setPitchLoading] = useState(false);
-  const [refreshingPillars, setRefreshingPillars] = useState(false);
   const [hasPushed, setHasPushed] = useState(false);
-
-  const activeRun = run ?? { ...fallbackRun, projectId: projectId ?? "" };
-
-  const applyRunToState = (incoming: IdeateRun) => {
-    setRun(incoming);
-    setPillars(incoming.pillars ?? []);
-    setSuggestions(incoming.suggestions ?? []);
-    setExperiments(incoming.experiments ?? []);
-    setQuickTakes(incoming.quickTakes ?? []);
-  };
-
-  useEffect(() => {
-    if (!projectId) return;
-
-    const fetchRun = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const res = await fetch(`/api/ideate/run?projectId=${projectId}`);
-        if (res.ok) {
-          const data = await res.json();
-          applyRunToState(data.run);
-        } else if (res.status === 404) {
-          applyRunToState({ ...fallbackRun, projectId });
-        } else {
-          throw new Error("Failed to load ideate run");
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Unknown error");
-        applyRunToState({ ...fallbackRun, projectId });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchRun();
-  }, [projectId]);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>(mockSuggestions);
+  const [experiments, setExperiments] = useState<Experiment[]>(mockExperiments);
 
   const activeSummary = useMemo(
-    () => `Iteration ${activeRun.id} • Updated ${new Date(activeRun.lastRunAt).toLocaleDateString()}`,
-    [activeRun.id, activeRun.lastRunAt],
+    () => `Iteration ${mockRun.id} • Updated ${new Date(mockRun.lastRunAt).toLocaleDateString()}`,
+    []
   );
 
   const snapshotSummary =
@@ -235,177 +200,49 @@ export default function IdeatePage() {
   const planSummary =
     "Seven-day plan is queued; experiments are ready to validate with analytics owners on deck.";
 
-  const handleRunIdeate = async () => {
-    if (!projectId) return;
+  const handleRunIdeate = () => {
     setIsRunning(true);
     toast.loading("Running ideate across pillars...", { id: "run-ideate" });
-
-    try {
-      const res = await fetch("/api/ideate/run", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...activeRun,
-          quickTakes,
-          pillars,
-          suggestions,
-          experiments,
-        }),
-      });
-
-      if (!res.ok) {
-        throw new Error("Failed to run ideation");
-      }
-
-      const data = await res.json();
-      applyRunToState(data.run);
-      toast.success("New ideation complete", { id: "run-ideate" });
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to run ideation", { id: "run-ideate" });
-    } finally {
+    setTimeout(() => {
       setIsRunning(false);
-    }
+      toast.success("New ideation complete", { id: "run-ideate" });
+    }, 1200);
   };
 
-  const handlePushValidate = async () => {
-    if (!projectId) return;
-
-    toast.loading("Handing off to Validate...", { id: "push-validate" });
-    try {
-      const res = await fetch("/api/validate/import-from-ideate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId, runId: activeRun.id }),
-      });
-
-      if (!res.ok) {
-        throw new Error("Failed to push to Validate");
-      }
-
-      setHasPushed(true);
-      toast.success("Handed off to Validate with latest plan.", { id: "push-validate" });
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Unable to push to Validate", { id: "push-validate" });
-    }
+  const handlePushValidate = () => {
+    setHasPushed(true);
+    toast.success("Handed off to Validate with latest plan.");
   };
 
-  const handleApply = async (suggestionId: string) => {
-    const previousSuggestions = [...suggestions];
-    setSuggestions((prev) => prev.map((s) => (s.id === suggestionId ? { ...s, applied: true } : s)));
-    setQuickTakes((prev) => prev.map((qt, index) => (index === 0 ? { ...qt, delta: "+0.1" } : qt)));
-
-    try {
-      const res = await fetch(`/api/ideate/suggestion/${suggestionId}/apply`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId, runId: activeRun.id }),
-      });
-
-      if (!res.ok) {
-        throw new Error("Failed to apply suggestion");
-      }
-
-      const data = await res.json();
-      if (data.run) {
-        applyRunToState(data.run);
-      }
-      toast.success("Applied to backlog");
-    } catch (err) {
-      setSuggestions(previousSuggestions);
-      setQuickTakes(run?.quickTakes ?? quickTakes);
-      toast.error(err instanceof Error ? err.message : "Unable to apply suggestion");
-    }
+  const handleApply = (id: string) => {
+    setSuggestions((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, applied: true } : s))
+    );
+    toast.success("Applied to backlog");
   };
 
-  const handleSendExperiment = (experimentId: string) => {
+  const handleSendExperiment = (id: string) => {
     setExperiments((prev) =>
-      prev.map((exp) => (exp.id === experimentId ? { ...exp, status: "validating" } : exp)),
+      prev.map((exp) =>
+        exp.id === id ? { ...exp, status: "validating" } : exp
+      )
     );
     toast.success("Sent to Validate");
   };
 
-  const handleRefreshPillars = async (pillarId: string) => {
-    if (!projectId) return;
-
-    setRefreshingPillars(true);
-    toast.loading("Re-running pillar scoring...", { id: `pillar-${pillarId}` });
-
-    try {
-      const res = await fetch(`/api/ideate/pillar/${pillarId}/regenerate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId, runId: activeRun.id }),
-      });
-
-      if (!res.ok) {
-        throw new Error("Failed to refresh pillar");
-      }
-
-      const data = await res.json();
-      if (data.run) {
-        applyRunToState(data.run);
-      } else if (data.pillar) {
-        setPillars((prev) => prev.map((p) => (p.pillarId === data.pillar.pillarId ? data.pillar : p)));
-      }
-
-      toast.success("Pillar refreshed", { id: `pillar-${pillarId}` });
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Unable to refresh pillar", {
-        id: `pillar-${pillarId}`,
-      });
-    } finally {
-      setRefreshingPillars(false);
-    }
+  const handleRefreshPillars = () => {
+    toast.info("Re-running pillar scoring with fresh signals...");
   };
 
-  const handleRefreshPlan = async () => {
-    if (!projectId) return;
-
-    setPitchLoading(true);
-    toast.loading("Regenerating pitch and quick takes...", { id: "pitch-variants" });
-    try {
-      const res = await fetch("/api/ideate/pitch-variants", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId, runId: activeRun.id, headline: activeRun.headline }),
-      });
-
-      if (!res.ok) {
-        throw new Error("Failed to refresh pitch");
-      }
-
-      const data = await res.json();
-      if (data.quickTakes) {
-        setQuickTakes(data.quickTakes);
-        setRun((prev) => (prev ? { ...prev, quickTakes: data.quickTakes } : prev));
-      }
-      toast.success("Pitch updated", { id: "pitch-variants" });
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Unable to refresh pitch", {
-        id: "pitch-variants",
-      });
-    } finally {
-      setPitchLoading(false);
-    }
+  const handleRefreshPlan = () => {
+    toast.info("Regenerating 7-day plan...");
   };
-
-  if (isLoading) {
-    return <p className="text-sm text-muted-foreground">Loading ideate run...</p>;
-  }
 
   return (
     <div className="space-y-6 pb-20">
-      {error && (
-        <Card className="border-amber-300 bg-amber-50">
-          <CardContent className="py-3 text-sm text-amber-800">
-            {error}. Showing the latest saved ideate run.
-          </CardContent>
-        </Card>
-      )}
-
       <IdeateHeader
-        projectId={projectId}
-        headline={activeRun.headline}
+        projectId={id}
+        headline={mockRun.headline}
         summary={activeSummary}
         onRunIdeate={handleRunIdeate}
         onPushValidate={handlePushValidate}
@@ -424,25 +261,24 @@ export default function IdeatePage() {
           <PitchCard
             title="Snapshot"
             summary={snapshotSummary}
-            analysis={activeRun.narrative}
-            quickMetrics={quickTakes}
+            analysis={mockRun.narrative}
+            quickMetrics={mockRun.quickTakes}
           />
 
-          <QuickTakeGrid items={quickTakes} />
+          <QuickTakeGrid items={mockRun.quickTakes} />
 
           <div className="grid gap-4 md:grid-cols-2">
-            <RisksOpportunities risks={activeRun.risks} opportunities={activeRun.opportunities} />
-            <MetricsCard
-              title="Momentum"
-              value={pitchLoading ? "Refreshing..." : "Trending up"}
-              badge={pitchLoading ? "Updating" : "Live"}
+            <RisksOpportunities
+              risks={mockRun.risks}
+              opportunities={mockRun.opportunities}
             />
+            <MetricsCard title="Momentum" value="Trending up" badge="Live" />
           </div>
 
           <BestImprovementsList
             items={suggestions}
             onApply={handleApply}
-            onGenerate={() => handleRefreshPillars(pillars[0]?.pillarId || "audienceFit")}
+            onGenerate={() => toast.info("Generating updated recommendations...")}
           />
 
           <ChangeLogTimeline />
@@ -455,22 +291,17 @@ export default function IdeatePage() {
                 <CardTitle className="text-base">Pillars overview</CardTitle>
                 <p className="text-sm text-muted-foreground">{pillarsSummary}</p>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleRefreshPillars(pillars[0]?.pillarId || "audienceFit")}
-                disabled={refreshingPillars}
-              >
-                {refreshingPillars ? "Refreshing..." : "Refresh pillars"}
+              <Button variant="outline" size="sm" onClick={handleRefreshPillars}>
+                Refresh pillars
               </Button>
             </CardHeader>
           </Card>
-          <PillarSummaryStrip pillars={pillars} />
+          <PillarSummaryStrip pillars={mockPillars} />
           <PillarAccordion
-            pillars={pillars}
+            pillars={mockPillars}
             suggestions={suggestions}
             onApply={handleApply}
-            onGenerate={handleRefreshPillars}
+            onGenerate={() => toast.info("Refreshing pillar guidance...")}
           />
         </TabsContent>
 
@@ -481,8 +312,8 @@ export default function IdeatePage() {
                 <CardTitle className="text-base">Plan summary</CardTitle>
                 <p className="text-sm text-muted-foreground">{planSummary}</p>
               </div>
-              <Button variant="outline" size="sm" onClick={handleRefreshPlan} disabled={pitchLoading}>
-                {pitchLoading ? "Refreshing..." : "Regenerate plan"}
+              <Button variant="outline" size="sm" onClick={handleRefreshPlan}>
+                Regenerate plan
               </Button>
             </CardHeader>
           </Card>
@@ -495,13 +326,19 @@ export default function IdeatePage() {
                   <p className="text-sm text-muted-foreground">Experiments</p>
                   <p className="text-xl font-semibold">Ready for validation</p>
                 </div>
-                <Badge variant="secondary">{experiments.filter((exp) => exp.status === "validating").length} running</Badge>
+                <Badge variant="secondary">2 running</Badge>
               </div>
-              <ExperimentsTable items={experiments} onSend={handleSendExperiment} />
+              <ExperimentsTable
+                items={experiments}
+                onSend={handleSendExperiment}
+              />
             </CardContent>
           </Card>
 
-          <ValidateHandoffPanel hasPushed={hasPushed} onPush={handlePushValidate} />
+          <ValidateHandoffPanel
+            hasPushed={hasPushed}
+            onPush={handlePushValidate}
+          />
 
           <ChangeLogTimeline />
         </TabsContent>

@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, Rocket, Wand2 } from "lucide-react";
-import { Suggestion } from "@/lib/ideate/types";
+import { Suggestion } from "@/app/project/[id]/ideate/page";
 
 export function BestImprovementsList({
   items,

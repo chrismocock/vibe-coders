@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Experiment } from "@/lib/ideate/types";
+import { Experiment } from "@/app/project/[id]/ideate/page";
 import { Send } from "lucide-react";
 
 const statusColor: Record<Experiment["status"], string> = {

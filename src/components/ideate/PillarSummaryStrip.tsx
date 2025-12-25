@@ -1,13 +1,12 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
-import { PillarSnapshot } from "@/lib/ideate/types";
+import { PillarSnapshot } from "@/app/project/[id]/ideate/page";
 
 export function PillarSummaryStrip({ pillars }: { pillars: PillarSnapshot[] }) {
   return (
     <div className="grid gap-3 md:grid-cols-3">
       {pillars.map((pillar) => {
-        const delta = pillar.delta ?? 0;
-        const isPositive = delta >= 0;
+        const isPositive = pillar.delta >= 0;
         return (
           <Card key={pillar.id}>
             <CardContent className="flex items-center justify-between p-4">
@@ -27,7 +26,7 @@ export function PillarSummaryStrip({ pillars }: { pillars: PillarSnapshot[] }) {
                   <ArrowDownRight className="h-4 w-4" />
                 )}
                 {isPositive ? "+" : ""}
-                {delta.toFixed(1)}
+                {pillar.delta.toFixed(1)}
               </div>
             </CardContent>
           </Card>
