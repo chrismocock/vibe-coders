@@ -31,7 +31,7 @@ export function PitchCard({
         )}
 
         {analysis && (
-          <Accordion type="single" collapsible className="w-full">
+          <Accordion type="single" className="w-full">
             <AccordionItem value="full-analysis">
               <AccordionTrigger className="text-sm font-medium">
                 Full analysis (optional)
