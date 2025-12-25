@@ -8,9 +8,10 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   IdeateHeader,
   StickyActionBar,
@@ -192,6 +193,13 @@ export default function IdeatePage() {
     []
   );
 
+  const snapshotSummary =
+    "AI recommends leading with guided onboarding, clear admin value, and tighter analytics guardrails.";
+  const pillarsSummary =
+    "Confidence improving across pillars; audience fit leads momentum and feasibility needs analytics support.";
+  const planSummary =
+    "Seven-day plan is queued; experiments are ready to validate with analytics owners on deck.";
+
   const handleRunIdeate = () => {
     setIsRunning(true);
     toast.loading("Running ideate across pillars...", { id: "run-ideate" });
@@ -222,6 +230,14 @@ export default function IdeatePage() {
     toast.success("Sent to Validate");
   };
 
+  const handleRefreshPillars = () => {
+    toast.info("Re-running pillar scoring with fresh signals...");
+  };
+
+  const handleRefreshPlan = () => {
+    toast.info("Regenerating 7-day plan...");
+  };
+
   return (
     <div className="space-y-6 pb-20">
       <IdeateHeader
@@ -244,7 +260,8 @@ export default function IdeatePage() {
         <TabsContent value="snapshot" className="space-y-4">
           <PitchCard
             title="Snapshot"
-            narrative={mockRun.narrative}
+            summary={snapshotSummary}
+            analysis={mockRun.narrative}
             quickMetrics={mockRun.quickTakes}
           />
 
@@ -268,6 +285,17 @@ export default function IdeatePage() {
         </TabsContent>
 
         <TabsContent value="pillars" className="space-y-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0">
+              <div className="space-y-1">
+                <CardTitle className="text-base">Pillars overview</CardTitle>
+                <p className="text-sm text-muted-foreground">{pillarsSummary}</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={handleRefreshPillars}>
+                Refresh pillars
+              </Button>
+            </CardHeader>
+          </Card>
           <PillarSummaryStrip pillars={mockPillars} />
           <PillarAccordion
             pillars={mockPillars}
@@ -278,6 +306,17 @@ export default function IdeatePage() {
         </TabsContent>
 
         <TabsContent value="plan" className="space-y-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0">
+              <div className="space-y-1">
+                <CardTitle className="text-base">Plan summary</CardTitle>
+                <p className="text-sm text-muted-foreground">{planSummary}</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={handleRefreshPlan}>
+                Regenerate plan
+              </Button>
+            </CardHeader>
+          </Card>
           <SevenDayPlanTimeline items={mockPlan} />
 
           <Card>
