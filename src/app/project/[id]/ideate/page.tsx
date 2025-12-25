@@ -245,7 +245,6 @@ export default function IdeatePage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          projectId,
           ...activeRun,
           quickTakes,
           pillars,
