@@ -1,6 +1,6 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
-import { PillarSnapshot } from "@/app/project/[id]/ideate/page";
+import { PillarSnapshot } from "@/lib/ideate/types";
 
 export function PillarSummaryStrip({ pillars }: { pillars: PillarSnapshot[] }) {
   return (
