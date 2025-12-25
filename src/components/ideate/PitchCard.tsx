@@ -1,13 +1,21 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 
 export function PitchCard({
   title,
-  narrative,
+  summary,
+  analysis,
   quickMetrics,
 }: {
   title: string;
-  narrative: string;
+  summary?: string;
+  analysis?: string;
   quickMetrics: { label: string; value: string; delta?: string }[];
 }) {
   return (
@@ -16,9 +24,25 @@ export function PitchCard({
         <CardTitle>{title}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <p className="text-sm leading-relaxed text-muted-foreground">
-          {narrative}
-        </p>
+        {summary && (
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            {summary}
+          </p>
+        )}
+
+        {analysis && (
+          <Accordion type="single" collapsible className="w-full">
+            <AccordionItem value="full-analysis">
+              <AccordionTrigger className="text-sm font-medium">
+                Full analysis (optional)
+              </AccordionTrigger>
+              <AccordionContent className="text-sm leading-relaxed text-muted-foreground">
+                {analysis}
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+        )}
+
         <div className="flex flex-wrap gap-2">
           {quickMetrics.map((metric) => (
             <Badge key={metric.label} variant="secondary" className="gap-1">
