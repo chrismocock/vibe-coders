@@ -1788,10 +1788,24 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
     if (userInput && userInput.trim()) {
       const cleanInput = stripMarkdown(userInput.trim());
       // Use first sentence or first 80 chars as title
-      const firstSentence = cleanInput.split(/[.!?]/).find(s => s.trim().length > 10) || cleanInput;
+      const sentences = cleanInput.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 0);
+      const firstSentence = sentences.find(s => s.trim().length > 10) || cleanInput;
       const title = firstSentence.trim().substring(0, 80);
-      const description = cleanInput.substring(0, 300) + (cleanInput.length > 300 ? '...' : '');
-      
+
+      // Prefer text beyond the title for the description to avoid duplicating it
+      const remainingText = cleanInput.slice(firstSentence.length).trim();
+      const descriptionSource =
+        remainingText && remainingText.length > 20 ? remainingText : cleanInput;
+
+      let description =
+        descriptionSource.substring(0, 300) + (descriptionSource.length > 300 ? '...' : '');
+
+      // If the description still matches the title, fall back to the full input with an ellipsis
+      if (description.trim() === title.trim()) {
+        description =
+          cleanInput.substring(0, 300) + (cleanInput.length > 300 ? '...' : '');
+      }
+
       return {
         title: title || 'Your Idea',
         description: description || 'No description provided.'
