@@ -1778,9 +1778,9 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
     if (selectedIdea?.title) {
       return {
         title: stripMarkdown(selectedIdea.title),
-        description: selectedIdea.description 
-          ? stripMarkdown(selectedIdea.description.substring(0, 300)) + (selectedIdea.description.length > 300 ? '...' : '')
-          : 'No description provided.'
+        description: selectedIdea.description
+          ? stripMarkdown(selectedIdea.description)
+          : stripMarkdown(selectedIdea.title)
       };
     }
 
@@ -1790,11 +1790,11 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
       // Use first sentence or first 80 chars as title
       const firstSentence = cleanInput.split(/[.!?]/).find(s => s.trim().length > 10) || cleanInput;
       const title = firstSentence.trim().substring(0, 80);
-      const description = cleanInput.substring(0, 300) + (cleanInput.length > 300 ? '...' : '');
-      
+      const description = cleanInput;
+
       return {
         title: title || 'Your Idea',
-        description: description || 'No description provided.'
+        description: description || title || 'No description provided.'
       };
     }
 
@@ -1810,7 +1810,7 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
         const quoted = quoteMatch[1].trim();
         return {
           title: stripMarkdown(quoted.substring(0, 80).split('.')[0] || 'Your Idea'),
-          description: stripMarkdown(quoted.substring(0, 300)) + (quoted.length > 300 ? '...' : '')
+          description: stripMarkdown(quoted)
         };
       }
       
@@ -1818,19 +1818,19 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
       const firstSentence = content.split(/[.!?]/).find(s => s.trim().length > 20);
       if (firstSentence) {
         const cleanTitle = stripMarkdown(firstSentence.trim().substring(0, 80));
-        const cleanDescription = stripMarkdown(content.substring(0, 300));
+        const cleanDescription = stripMarkdown(content);
         return {
           title: cleanTitle || 'Your Idea',
-          description: cleanDescription + (content.length > 300 ? '...' : '')
+          description: cleanDescription || cleanTitle || 'No description provided.'
         };
       }
       
       // Use first paragraph from Overall Assessment
       const firstParagraph = content.split('\n\n').find(p => p.trim().length > 30) || content;
-      const cleanDesc = stripMarkdown(firstParagraph.trim().substring(0, 300));
+      const cleanDesc = stripMarkdown(firstParagraph.trim());
       return {
         title: stripMarkdown(parsed.title && parsed.title !== 'Your Idea' ? parsed.title : 'Your Idea'),
-        description: cleanDesc + (cleanDesc.length >= 300 ? '...' : '')
+        description: cleanDesc || stripMarkdown(parsed.title) || 'Your Idea'
       };
     }
 
@@ -1840,41 +1840,41 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
       // Use first line of review as description (avoiding "What I Noticed")
       const lines = review.split('\n').filter(line => {
         const trimmed = line.trim();
-        return trimmed.length > 10 && 
-               !trimmed.startsWith('##') && 
+        return trimmed.length > 10 &&
+               !trimmed.startsWith('##') &&
                !trimmed.includes('What I Noticed') &&
                !trimmed.startsWith('**');
       });
-      const firstCleanLine = lines[0] ? stripMarkdown(lines[0].trim().substring(0, 300)) : '';
-      
+      const firstCleanLine = lines[0] ? stripMarkdown(lines[0].trim()) : '';
+
       return {
         title: cleanTitle,
-        description: firstCleanLine + (firstCleanLine.length >= 300 ? '...' : '') || 'No description available.'
+        description: firstCleanLine || cleanTitle || 'No description available.'
       };
     }
 
     // Fallback: use first clean line from review (avoiding markdown headers)
     const firstLine = review.split('\n').find(line => {
       const trimmed = line.trim();
-      return trimmed.length > 10 && 
-             !trimmed.startsWith('##') && 
+      return trimmed.length > 10 &&
+             !trimmed.startsWith('##') &&
              !trimmed.includes('What I Noticed') &&
              !trimmed.startsWith('**AI Review');
     });
-    
+
     if (firstLine) {
       const cleanTitle = stripMarkdown(firstLine.trim().substring(0, 80));
-      const cleanDesc = stripMarkdown(review.substring(0, 300));
+      const cleanDesc = stripMarkdown(review);
       return {
         title: cleanTitle || 'Your Saved Idea',
-        description: cleanDesc + (review.length > 300 ? '...' : '')
+        description: cleanDesc || cleanTitle || 'No description available.'
       };
     }
 
     // Ultimate fallback
     return {
       title: 'Your Saved Idea',
-      description: stripMarkdown(review.substring(0, 300)) + (review.length > 300 ? '...' : '')
+      description: stripMarkdown(review) || 'Your Saved Idea'
     };
   };
 
@@ -3016,6 +3016,7 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
   };
 
   const progressPercentage = (currentStep / 3) * 100;
+  const [isIdeaExpanded, setIsIdeaExpanded] = useState(true);
 
   // Show overview if saved data exists and we're not in the middle of editing
   if (isLoadingSavedData) {
@@ -3059,6 +3060,8 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
     const ideaHistory: IdeaHistoryEntry[] = Array.isArray(inputData.ideaHistory)
       ? inputData.ideaHistory
       : [];
+    const displayIdeaText = ideaInfo.description?.trim() ? ideaInfo.description : ideaInfo.title;
+    const canToggleIdeaDescription = Boolean(ideaInfo.description && ideaInfo.description.trim().length > 0);
     
     // Get mode display text
     const modeText = inputData.mode === 'explore-idea' ? 'Explore an Idea' : 
@@ -3701,15 +3704,32 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
                 <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
                   My Idea
                 </p>
-                {modeText && (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 border border-purple-200">
-                    {modeText}
-                  </span>
-                )}
+                <div className="flex items-center gap-2">
+                  {modeText && (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 border border-purple-200">
+                      {modeText}
+                    </span>
+                  )}
+                  {canToggleIdeaDescription && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-purple-700 hover:text-purple-800"
+                      onClick={() => setIsIdeaExpanded(prev => !prev)}
+                    >
+                      {isIdeaExpanded ? 'Show less' : 'Show full description'}
+                    </Button>
+                  )}
+                </div>
               </div>
               <div className="space-y-2">
-                <CardDescription className="text-base text-neutral-700 leading-relaxed">
-                  {ideaInfo.description || ideaInfo.title}
+                <CardDescription
+                  className={cn(
+                    "text-base text-neutral-700 leading-relaxed",
+                    !isIdeaExpanded && "line-clamp-4"
+                  )}
+                >
+                  {displayIdeaText}
                 </CardDescription>
               </div>
             </div>
