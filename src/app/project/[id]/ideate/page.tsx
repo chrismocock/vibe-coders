@@ -3708,11 +3708,8 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
                 )}
               </div>
               <div className="space-y-2">
-                <CardTitle className="text-2xl font-semibold text-neutral-900">
-                  {ideaInfo.title}
-                </CardTitle>
-                <CardDescription className="text-base text-neutral-600 leading-relaxed">
-                  {ideaInfo.description}
+                <CardDescription className="text-base text-neutral-700 leading-relaxed">
+                  {ideaInfo.description || ideaInfo.title}
                 </CardDescription>
               </div>
             </div>
