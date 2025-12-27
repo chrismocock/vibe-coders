@@ -589,6 +589,25 @@ export default function IdeateWizardPage() {
   } | null>(null);
   const [isLoadingSavedData, setIsLoadingSavedData] = useState(true);
   const [showFullReview, setShowFullReview] = useState(true);
+  type CollapsibleSection =
+    | "whatINoticed"
+    | "overallAssessment"
+    | "strengths"
+    | "criticalAreas"
+    | "recommendations";
+  const [sectionVisibility, setSectionVisibility] = useState<Record<CollapsibleSection, boolean>>({
+    whatINoticed: true,
+    overallAssessment: true,
+    strengths: true,
+    criticalAreas: true,
+    recommendations: true,
+  });
+  const toggleSectionVisibility = useCallback((section: CollapsibleSection) => {
+    setSectionVisibility((prev) => ({
+      ...prev,
+      [section]: !prev[section],
+    }));
+  }, []);
   const [ideasGenerated, setIdeasGenerated] = useState(false);
   const [isGeneratingIdeas, setIsGeneratingIdeas] = useState(false);
   const [ideaGenerationError, setIdeaGenerationError] = useState<string | null>(null);
@@ -3784,23 +3803,47 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
         {parsedReview.whatINoticed && parsedReview.whatINoticed.subsections && parsedReview.whatINoticed.subsections.length > 0 && (
           <Card className="border border-neutral-200 bg-white shadow-sm">
             <CardHeader>
-              <CardTitle className="text-lg font-semibold text-neutral-900">
-                {stripMarkdown(parsedReview.whatINoticed.title)}
-              </CardTitle>
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle className="text-lg font-semibold text-neutral-900">
+                  {stripMarkdown(parsedReview.whatINoticed.title)}
+                </CardTitle>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => toggleSectionVisibility("whatINoticed")}
+                  className="flex items-center gap-2 text-neutral-700"
+                >
+                  {sectionVisibility.whatINoticed ? (
+                    <>
+                      <ChevronUp className="h-4 w-4" />
+                      Hide
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="h-4 w-4" />
+                      Show
+                    </>
+                  )}
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {parsedReview.whatINoticed.subsections.map((subsection, idx) => (
-                  <div key={idx} className="space-y-2 p-4 rounded-lg bg-neutral-50 border border-neutral-100">
-                    <h4 className="font-semibold text-neutral-900 text-sm mb-2">{stripMarkdown(subsection.title)}</h4>
-                    <div className="prose prose-sm max-w-none text-sm text-neutral-700 leading-relaxed [&>p]:mb-2 [&>ul]:list-disc [&>ul]:ml-4 [&>ul]:space-y-1 [&>ol]:list-decimal [&>ol]:ml-4 [&>ol]:space-y-1">
-                      <ReactMarkdown>
-                        {subsection.content}
-                      </ReactMarkdown>
+              {sectionVisibility.whatINoticed ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {parsedReview.whatINoticed.subsections.map((subsection, idx) => (
+                    <div key={idx} className="space-y-2 p-4 rounded-lg bg-neutral-50 border border-neutral-100">
+                      <h4 className="font-semibold text-neutral-900 text-sm mb-2">{stripMarkdown(subsection.title)}</h4>
+                      <div className="prose prose-sm max-w-none text-sm text-neutral-700 leading-relaxed [&>p]:mb-2 [&>ul]:list-disc [&>ul]:ml-4 [&>ul]:space-y-1 [&>ol]:list-decimal [&>ol]:ml-4 [&>ol]:space-y-1">
+                        <ReactMarkdown>
+                          {subsection.content}
+                        </ReactMarkdown>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-sm text-neutral-600">Section hidden—click to expand.</div>
+              )}
             </CardContent>
           </Card>
         )}
@@ -3809,16 +3852,40 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
         {parsedReview.overallAssessment && (
           <Card className="border border-neutral-200 bg-white shadow-sm">
             <CardHeader>
-              <CardTitle className="text-lg font-semibold text-neutral-900">
-                Overall Assessment
-              </CardTitle>
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle className="text-lg font-semibold text-neutral-900">
+                  Overall Assessment
+                </CardTitle>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => toggleSectionVisibility("overallAssessment")}
+                  className="flex items-center gap-2 text-neutral-700"
+                >
+                  {sectionVisibility.overallAssessment ? (
+                    <>
+                      <ChevronUp className="h-4 w-4" />
+                      Hide
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="h-4 w-4" />
+                      Show
+                    </>
+                  )}
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="prose prose-sm max-w-none text-sm text-neutral-700 leading-relaxed [&>p]:mb-3 [&>p:last-child]:mb-0 [&>ul]:list-disc [&>ul]:ml-4 [&>ul]:space-y-2 [&>ol]:list-decimal [&>ol]:ml-4 [&>ol]:space-y-2 [&>strong]:font-semibold [&>strong]:text-neutral-900">
-                <ReactMarkdown>
-                  {parsedReview.overallAssessment}
-                </ReactMarkdown>
-              </div>
+              {sectionVisibility.overallAssessment ? (
+                <div className="prose prose-sm max-w-none text-sm text-neutral-700 leading-relaxed [&>p]:mb-3 [&>p:last-child]:mb-0 [&>ul]:list-disc [&>ul]:ml-4 [&>ul]:space-y-2 [&>ol]:list-decimal [&>ol]:ml-4 [&>ol]:space-y-2 [&>strong]:font-semibold [&>strong]:text-neutral-900">
+                  <ReactMarkdown>
+                    {parsedReview.overallAssessment}
+                  </ReactMarkdown>
+                </div>
+              ) : (
+                <div className="text-sm text-neutral-600">Section hidden—click to expand.</div>
+              )}
             </CardContent>
           </Card>
         )}
@@ -3829,16 +3896,40 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
             {parsedReview.strengths && (
               <Card className="border border-green-200 bg-green-50/50 shadow-sm">
                 <CardHeader>
-                  <CardTitle className="text-lg font-semibold text-neutral-900">
-                    Strengths Identified
-                  </CardTitle>
+                  <div className="flex items-center justify-between gap-2">
+                    <CardTitle className="text-lg font-semibold text-neutral-900">
+                      Strengths Identified
+                    </CardTitle>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => toggleSectionVisibility("strengths")}
+                      className="flex items-center gap-2 text-neutral-700"
+                    >
+                      {sectionVisibility.strengths ? (
+                        <>
+                          <ChevronUp className="h-4 w-4" />
+                          Hide
+                        </>
+                      ) : (
+                        <>
+                          <ChevronDown className="h-4 w-4" />
+                          Show
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="prose prose-sm max-w-none text-sm text-neutral-700 leading-relaxed [&>p]:mb-2 [&>ul]:list-disc [&>ul]:ml-4 [&>ul]:space-y-1 [&>ol]:list-decimal [&>ol]:ml-4 [&>ol]:space-y-1 [&>strong]:font-semibold">
-                    <ReactMarkdown>
-                      {parsedReview.strengths}
-                    </ReactMarkdown>
-                  </div>
+                  {sectionVisibility.strengths ? (
+                    <div className="prose prose-sm max-w-none text-sm text-neutral-700 leading-relaxed [&>p]:mb-2 [&>ul]:list-disc [&>ul]:ml-4 [&>ul]:space-y-1 [&>ol]:list-decimal [&>ol]:ml-4 [&>ol]:space-y-1 [&>strong]:font-semibold">
+                      <ReactMarkdown>
+                        {parsedReview.strengths}
+                      </ReactMarkdown>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-neutral-600">Section hidden—click to expand.</div>
+                  )}
                 </CardContent>
               </Card>
             )}
@@ -3846,16 +3937,40 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
             {parsedReview.criticalAreas && (
               <Card className="border border-amber-200 bg-amber-50/50 shadow-sm">
                 <CardHeader>
-                  <CardTitle className="text-lg font-semibold text-neutral-900">
-                    Critical Areas Needing Validation
-                  </CardTitle>
+                  <div className="flex items-center justify-between gap-2">
+                    <CardTitle className="text-lg font-semibold text-neutral-900">
+                      Critical Areas Needing Validation
+                    </CardTitle>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => toggleSectionVisibility("criticalAreas")}
+                      className="flex items-center gap-2 text-neutral-700"
+                    >
+                      {sectionVisibility.criticalAreas ? (
+                        <>
+                          <ChevronUp className="h-4 w-4" />
+                          Hide
+                        </>
+                      ) : (
+                        <>
+                          <ChevronDown className="h-4 w-4" />
+                          Show
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="prose prose-sm max-w-none text-sm text-neutral-700 leading-relaxed [&>p]:mb-2 [&>ul]:list-disc [&>ul]:ml-4 [&>ul]:space-y-1 [&>ol]:list-decimal [&>ol]:ml-4 [&>ol]:space-y-1 [&>strong]:font-semibold">
-                    <ReactMarkdown>
-                      {parsedReview.criticalAreas}
-                    </ReactMarkdown>
-                  </div>
+                  {sectionVisibility.criticalAreas ? (
+                    <div className="prose prose-sm max-w-none text-sm text-neutral-700 leading-relaxed [&>p]:mb-2 [&>ul]:list-disc [&>ul]:ml-4 [&>ul]:space-y-1 [&>ol]:list-decimal [&>ol]:ml-4 [&>ol]:space-y-1 [&>strong]:font-semibold">
+                      <ReactMarkdown>
+                        {parsedReview.criticalAreas}
+                      </ReactMarkdown>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-neutral-600">Section hidden—click to expand.</div>
+                  )}
                 </CardContent>
               </Card>
             )}
@@ -3866,16 +3981,40 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
         {parsedReview.recommendations && (
           <Card className="border border-neutral-200 bg-white shadow-sm">
             <CardHeader>
-              <CardTitle className="text-lg font-semibold text-neutral-900">
-                Recommendations
-              </CardTitle>
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle className="text-lg font-semibold text-neutral-900">
+                  Recommendations
+                </CardTitle>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => toggleSectionVisibility("recommendations")}
+                  className="flex items-center gap-2 text-neutral-700"
+                >
+                  {sectionVisibility.recommendations ? (
+                    <>
+                      <ChevronUp className="h-4 w-4" />
+                      Hide
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="h-4 w-4" />
+                      Show
+                    </>
+                  )}
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="prose prose-sm max-w-none text-sm text-neutral-700 leading-relaxed [&>p]:mb-2 [&>ul]:list-disc [&>ul]:ml-4 [&>ul]:space-y-1 [&>ol]:list-decimal [&>ol]:ml-4 [&>ol]:space-y-1 [&>strong]:font-semibold">
-                <ReactMarkdown>
-                  {parsedReview.recommendations}
-                </ReactMarkdown>
-              </div>
+              {sectionVisibility.recommendations ? (
+                <div className="prose prose-sm max-w-none text-sm text-neutral-700 leading-relaxed [&>p]:mb-2 [&>ul]:list-disc [&>ul]:ml-4 [&>ul]:space-y-1 [&>ol]:list-decimal [&>ol]:ml-4 [&>ol]:space-y-1 [&>strong]:font-semibold">
+                  <ReactMarkdown>
+                    {parsedReview.recommendations}
+                  </ReactMarkdown>
+                </div>
+              ) : (
+                <div className="text-sm text-neutral-600">Section hidden—click to expand.</div>
+              )}
             </CardContent>
           </Card>
         )}
