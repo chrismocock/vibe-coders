@@ -3755,6 +3755,37 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
           </CardHeader>
         </Card>
 
+        {/* Full AI Review Section - Collapsible */}
+        <Card className="border border-neutral-200 bg-white shadow-sm">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg font-semibold text-neutral-900">
+                Complete AI Review
+              </CardTitle>
+              <Button
+                onClick={() => setShowFullReview(!showFullReview)}
+                variant="ghost"
+                size="sm"
+              >
+                {showFullReview ? 'Hide Full Review' : 'Show Full Review'}
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {showFullReview ? (
+              <div className="prose prose-sm max-w-none text-sm text-neutral-700 leading-relaxed [&>h2]:text-lg [&>h2]:font-semibold [&>h2]:mt-6 [&>h2]:mb-3 [&>h2]:text-neutral-900 [&>h3]:text-base [&>h3]:font-semibold [&>h3]:mt-4 [&>h3]:mb-2 [&>h3]:text-neutral-900 [&>p]:mb-3 [&>p:last-child]:mb-0 [&>ul]:list-disc [&>ul]:ml-4 [&>ul]:space-y-2 [&>ul]:mb-3 [&>ol]:list-decimal [&>ol]:ml-4 [&>ol]:space-y-2 [&>ol]:mb-3 [&>strong]:font-semibold [&>strong]:text-neutral-900 [&>li]:mb-1">
+                <ReactMarkdown>
+                  {aiReviewText}
+                </ReactMarkdown>
+              </div>
+            ) : (
+              <div className="rounded-md border border-dashed border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-600">
+                Full AI review hidden. Click "Show Full Review" to view the complete analysis.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Summary Cards */}
         {(inputData.targetMarket || inputData.budget || inputData.timescales) && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -4018,38 +4049,6 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
             </CardContent>
           </Card>
         )}
-
-        {/* Full AI Review Section - Collapsible */}
-        <Card className="border border-neutral-200 bg-white shadow-sm">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg font-semibold text-neutral-900">
-                Complete AI Review
-              </CardTitle>
-              <Button
-                onClick={() => setShowFullReview(!showFullReview)}
-                variant="ghost"
-                size="sm"
-              >
-                {showFullReview ? 'Hide Full Review' : 'Show Full Review'}
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {showFullReview ? (
-              <div className="prose prose-sm max-w-none text-sm text-neutral-700 leading-relaxed [&>h2]:text-lg [&>h2]:font-semibold [&>h2]:mt-6 [&>h2]:mb-3 [&>h2]:text-neutral-900 [&>h3]:text-base [&>h3]:font-semibold [&>h3]:mt-4 [&>h3]:mb-2 [&>h3]:text-neutral-900 [&>p]:mb-3 [&>p:last-child]:mb-0 [&>ul]:list-disc [&>ul]:ml-4 [&>ul]:space-y-2 [&>ul]:mb-3 [&>ol]:list-decimal [&>ol]:ml-4 [&>ol]:space-y-2 [&>ol]:mb-3 [&>strong]:font-semibold [&>strong]:text-neutral-900 [&>li]:mb-1">
-                <ReactMarkdown>
-                  {aiReviewText}
-                </ReactMarkdown>
-              </div>
-            ) : (
-              <div className="rounded-md border border-dashed border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-600">
-                Full AI review hidden. Click "Show Full Review" to view the complete analysis.
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
         {/* Initial Feedback Section */}
         {!isEditingExisting && savedInitialFeedback && (
           <div className="space-y-3">
