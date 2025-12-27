@@ -3699,7 +3699,7 @@ The ${targetMarket} sector ${targetMarket === 'Healthcare' ? 'requires careful n
             <div className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
-                  Product Overview
+                  My Idea
                 </p>
                 {modeText && (
                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 border border-purple-200">
